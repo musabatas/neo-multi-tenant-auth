@@ -1,0 +1,1 @@
+scripts/deployment/migrate-tenant.sh

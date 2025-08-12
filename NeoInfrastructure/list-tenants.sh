@@ -1,0 +1,1 @@
+scripts/deployment/list-tenant-migrations.sh

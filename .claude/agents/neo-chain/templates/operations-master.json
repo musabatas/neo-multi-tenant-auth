@@ -1,0 +1,23 @@
+{
+  "version": "1.0",
+  "schema": "neo-chain-operations-v1",
+  "created": "ISO-8601",
+  "updated": "ISO-8601",
+  "active_operation": null,
+  "operations": {},
+  "statistics": {
+    "total_operations": 0,
+    "completed_operations": 0,
+    "failed_operations": 0,
+    "in_progress_operations": 0,
+    "average_duration": "0h",
+    "success_rate": 0
+  },
+  "configuration": {
+    "auto_archive": true,
+    "archive_after_days": 30,
+    "max_concurrent_operations": 1,
+    "default_timeout_hours": 24,
+    "notification_enabled": false
+  }
+}

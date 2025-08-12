@@ -1,0 +1,76 @@
+# NeoMultiTenant Deployment API Service
+version: '3.8'
+
+services:
+  neo-deployment-api:
+    build:
+      context: ..
+      dockerfile: migrations/api/Dockerfile
+    container_name: neo-deployment-api
+    restart: unless-stopped
+    environment:
+      # Database Configuration
+      POSTGRES_US_HOST: ${POSTGRES_US_HOST:-neo-postgres-us-east}
+      POSTGRES_US_PORT: ${POSTGRES_US_PORT:-5432}
+      POSTGRES_EU_HOST: ${POSTGRES_EU_HOST:-neo-postgres-eu-west}
+      POSTGRES_EU_PORT: ${POSTGRES_EU_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      
+      # Redis Configuration
+      REDIS_HOST: ${REDIS_HOST:-neo-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis}
+      
+      # API Configuration
+      API_PORT: ${API_PORT:-8000}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      WORKERS: ${WORKERS:-4}
+      
+      # Encryption Configuration
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-default-dev-key-change-in-production}
+      
+    ports:
+      - "${API_PORT:-8000}:8000"
+      
+    volumes:
+      - ./api:/app/api:ro
+      - ./orchestrator:/app/orchestrator:ro
+      - ./flyway:/app/flyway:ro
+      - ../scripts:/app/scripts:ro
+      - ./logs:/app/logs
+      - /var/run/docker.sock:/var/run/docker.sock:ro  # For Docker commands
+      
+    networks:
+      - neo-infrastructure
+      
+    # External services from NeoInfrastructure - should be running separately
+    # depends_on:
+    #   - neo-postgres-us-east
+    #   - neo-postgres-eu-west
+    #   - neo-redis
+      
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: API Documentation UI
+  neo-api-docs:
+    image: swaggerapi/swagger-ui:latest
+    container_name: neo-api-docs
+    environment:
+      SWAGGER_JSON_URL: http://neo-deployment-api:8000/openapi.json
+      BASE_URL: /docs
+    ports:
+      - "${DOCS_PORT:-8001}:8080"
+    networks:
+      - neo-infrastructure
+    profiles:
+      - docs
+
+networks:
+  neo-infrastructure:
+    external: true

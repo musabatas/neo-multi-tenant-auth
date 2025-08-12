@@ -1,0 +1,88 @@
+# NeoMigrations Configuration
+# Dynamic migration management for multi-tenant architecture
+
+mode: development
+
+# Flyway Configuration
+flyway:
+  version: "10.21.0"
+  config_path: "/app/flyway/conf"
+  locations:
+    global: "/app/flyway/global"
+    regional: "/app/flyway/regional"
+    tenant: "/app/flyway/tenant"
+
+# Database Regions
+regions:
+  us-east:
+    name: "US East"
+    code: "us-east-1"
+    gdpr_compliant: false
+    primary: true
+    databases:
+      - neofast_admin
+      - neofast_shared_us
+      - neofast_analytics_us
+    host: neo-postgres-us-east
+    port: 5432
+    
+  eu-west:
+    name: "EU West"
+    code: "eu-west-1"
+    gdpr_compliant: true
+    primary: false
+    databases:
+      - neofast_shared_eu
+      - neofast_analytics_eu
+    host: neo-postgres-eu-west
+    port: 5432
+
+# Migration Settings
+migration:
+  batch_size: 10
+  parallel_workers: 3
+  timeout_seconds: 60
+  retry_attempts: 3
+  lock_timeout: 600
+  
+  # Migration order
+  order:
+    - admin
+    - platform_common
+    - shared
+    - analytics
+    - tenant
+
+# Tenant Configuration
+tenant:
+  max_concurrent_migrations: 5
+  schema_prefix: "tenant_"
+  template_schema: "tenant_template"
+  
+# Monitoring
+monitoring:
+  enabled: true
+  metrics_port: 9090
+  health_check_interval: 30
+  
+# Logging
+logging:
+  level: INFO
+  format: "json"
+  file: "/app/logs/migration.log"
+  rotate_size: "100MB"
+  rotate_count: 10
+
+# Performance Tuning
+performance:
+  connection_pool_size: 20
+  query_timeout: 30
+  statement_timeout: 120
+  
+# Safety Features
+safety:
+  dry_run: false
+  validate_before_migrate: true
+  backup_before_migrate: false
+  rollback_on_failure: true
+  max_rollback_version: 1

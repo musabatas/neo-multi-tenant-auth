@@ -1,0 +1,80 @@
+{
+  "handoff_id": "HO-YYYYMMDD-HHMMSS-from-to",
+  "timestamp": "ISO-8601",
+  "operation_id": "NC-YYYYMMDD-TYPE-NNN",
+  "from_agent": "agent-name",
+  "to_agent": "next-agent-name",
+  "phase_completed": "phase-name",
+  "next_phase": "next-phase-name",
+  "status": "ready|blocked|warning",
+  "duration": {
+    "phase_start": "ISO-8601",
+    "phase_end": "ISO-8601",
+    "total_minutes": 0
+  },
+  "artifacts": {
+    "reports": [
+      "reports/XX-report-name.xml"
+    ],
+    "updated_files": [
+      "manifest.json",
+      "operations.json"
+    ],
+    "created_files": [],
+    "modified_files": []
+  },
+  "summary": {
+    "work_completed": "Brief summary of what was accomplished",
+    "key_findings": [
+      "Important discovery or decision 1",
+      "Important discovery or decision 2"
+    ],
+    "key_decisions": [
+      "Decision made with rationale"
+    ],
+    "issues_encountered": [
+      "Any problems faced and how they were resolved"
+    ]
+  },
+  "next_agent_guidance": {
+    "primary_focus": "What the next agent should focus on",
+    "specific_tasks": [
+      "Specific task 1",
+      "Specific task 2"
+    ],
+    "watch_points": [
+      "Things to be careful about"
+    ],
+    "prerequisites": [
+      "What should be in place before starting"
+    ]
+  },
+  "metrics": {
+    "tasks_completed": 0,
+    "files_analyzed": 0,
+    "issues_found": 0,
+    "tokens_used": 0,
+    "quality_score": "A|B|C|D|F"
+  },
+  "validation": {
+    "prerequisites_met": true,
+    "reports_complete": true,
+    "manifest_updated": true,
+    "files_unlocked": true,
+    "ready_for_next": true
+  },
+  "warnings": [
+    {
+      "level": "info|warning|critical",
+      "message": "Warning message",
+      "action_required": "What needs to be done"
+    }
+  ],
+  "questions_for_clarification": [
+    {
+      "question": "Question that needs answering",
+      "context": "Why this is important",
+      "impact": "What happens if not addressed"
+    }
+  ]
+}

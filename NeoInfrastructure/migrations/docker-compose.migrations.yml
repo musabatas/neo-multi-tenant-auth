@@ -1,0 +1,70 @@
+# NeoMigrations - Database Migration Service
+# Can be integrated with NeoInfrastructure or run standalone
+
+services:
+  # ==============================================
+  # MIGRATION SERVICE
+  # ==============================================
+  neo-migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: neo-migrations
+    environment:
+      # PostgreSQL Connection Details
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      
+      # Infrastructure Service Names
+      POSTGRES_US_HOST: ${POSTGRES_US_HOST:-neo-postgres-us-east}
+      POSTGRES_US_PORT: ${POSTGRES_US_PORT:-5432}
+      POSTGRES_EU_HOST: ${POSTGRES_EU_HOST:-neo-postgres-eu-west}
+      POSTGRES_EU_PORT: ${POSTGRES_EU_PORT:-5433}
+      
+      # Migration Configuration
+      NEO_MIGRATION_CONFIG: /app/config/migration_config.yml
+      NEO_MIGRATION_MODE: ${NEO_MIGRATION_MODE:-development}
+      
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      
+    volumes:
+      # Flyway configuration files
+      - ./flyway/conf:/app/flyway/conf:ro
+      # Migration SQL files - all directories
+      - ./flyway/admin:/app/flyway/admin:ro
+      - ./flyway/platform:/app/flyway/platform:ro
+      - ./flyway/global:/app/flyway/global:ro
+      - ./flyway/regional:/app/flyway/regional:ro
+      # Seed files
+      - ./seeds:/app/seeds:ro
+      # Configuration files
+      - ./config:/app/config:ro
+      # Logs directory (optional)
+      - ./logs:/app/logs
+      
+    networks:
+      - neo-infrastructure
+      
+    # depends_on:
+    #   - neo-postgres-us-east  # External services from NeoInfrastructure
+    #   - neo-postgres-eu-west  # Comment out since these are external
+      
+    # Only run migrations manually or on startup
+    # profiles: ["migrations"]
+    
+    # Uncomment to run migrations automatically on startup
+    command: ["python", "orchestrator/migration_manager.py", "migrate"]
+    
+    # Or use this for manual control
+    # command: ["tail", "-f", "/dev/null"]
+
+# External networks (connect to NeoInfrastructure)
+networks:
+  neo-infrastructure:
+    external: true
+
+# External services (should be running from NeoInfrastructure)
+# Connect via the external network 'neo-infrastructure'
+# Services: neo-postgres-us-east, neo-postgres-eu-west

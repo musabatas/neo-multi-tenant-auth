@@ -1,0 +1,610 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "generated": "2025-08-10T13:26:03.883338Z",
+    "total_files": 120,
+    "total_loc": 12141
+  },
+  "files": {
+    "NeoAdminApi/src/app.py": {
+      "language": "Py",
+      "loc": 340,
+      "status": "completed"
+    },
+    "NeoAdminApi/src/main.py": {
+      "language": "Py",
+      "loc": 31,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/__init__.py": {
+      "language": "Py",
+      "loc": 1,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/routers/__init__.py": {
+      "language": "Py",
+      "loc": 3,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/routers/base.py": {
+      "language": "Py",
+      "loc": 82,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/middleware/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/database/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/database/connection.py": {
+      "language": "Py",
+      "loc": 279,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/database/utils.py": {
+      "language": "Py",
+      "loc": 131,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/cache/client.py": {
+      "language": "Py",
+      "loc": 378,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/cache/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/config/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/config/settings.py": {
+      "language": "Py",
+      "loc": 178,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/utils/encryption.py": {
+      "language": "Py",
+      "loc": 162,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/utils/__init__.py": {
+      "language": "Py",
+      "loc": 37,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/utils/datetime.py": {
+      "language": "Py",
+      "loc": 248,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/utils/uuid.py": {
+      "language": "Py",
+      "loc": 89,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 7,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/repositories/base.py": {
+      "language": "Py",
+      "loc": 251,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/models/pagination.py": {
+      "language": "Py",
+      "loc": 40,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/models/base.py": {
+      "language": "Py",
+      "loc": 190,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/exceptions/service.py": {
+      "language": "Py",
+      "loc": 68,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/exceptions/domain.py": {
+      "language": "Py",
+      "loc": 86,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/exceptions/__init__.py": {
+      "language": "Py",
+      "loc": 56,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/exceptions/base.py": {
+      "language": "Py",
+      "loc": 155,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/services/__init__.py": {
+      "language": "Py",
+      "loc": 7,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/common/services/base.py": {
+      "language": "Py",
+      "loc": 160,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/notification_services/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/keycloak/token_manager.py": {
+      "language": "Py",
+      "loc": 460,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/keycloak/client.py": {
+      "language": "Py",
+      "loc": 487,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/keycloak/__init__.py": {
+      "language": "Py",
+      "loc": 16,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/keycloak/async_client.py": {
+      "language": "Py",
+      "loc": 621,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/keycloak/realm_manager.py": {
+      "language": "Py",
+      "loc": 417,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/payment_gateways/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/payment_gateways/paddle/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/payment_gateways/stripe/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/notification_services/sms/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/integrations/notification_services/email/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/migrations/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/security/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/dependencies.py": {
+      "language": "Py",
+      "loc": 279,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/tenants/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/users/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/routers/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/payments/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/cache/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/usage/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/subscriptions/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/invoicing/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/billing/services/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/routers/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/metrics/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/health/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/alerts/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/monitoring/services/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/users/routers/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/users/cache/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/users/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/users/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/users/services/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/tenants/routers/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/tenants/cache/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/tenants/provisioning/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/tenants/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/tenants/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/tenants/services/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/routers/auth.py": {
+      "language": "Py",
+      "loc": 381,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/routers/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/routers/permissions.py": {
+      "language": "Py",
+      "loc": 220,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/cache/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/decorators/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/decorators/permissions.py": {
+      "language": "Py",
+      "loc": 170,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/repositories/permission_repository.py": {
+      "language": "Py",
+      "loc": 711,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/repositories/auth_repository.py": {
+      "language": "Py",
+      "loc": 517,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/models/permission_registry.py": {
+      "language": "Py",
+      "loc": 534,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/models/request.py": {
+      "language": "Py",
+      "loc": 118,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/models/response.py": {
+      "language": "Py",
+      "loc": 121,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/services/auth_service.py": {
+      "language": "Py",
+      "loc": 654,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/services/permission_service.py": {
+      "language": "Py",
+      "loc": 500,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/services/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/services/permission_scanner.py": {
+      "language": "Py",
+      "loc": 249,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/auth/services/permission_manager.py": {
+      "language": "Py",
+      "loc": 448,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/security/routers/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/security/rate_limiting/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/security/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/security/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/security/audit/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/security/services/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/routers/region.py": {
+      "language": "Py",
+      "loc": 351,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/routers/database.py": {
+      "language": "Py",
+      "loc": 197,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/routers/__init__.py": {
+      "language": "Py",
+      "loc": 7,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/cache/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/repositories/region.py": {
+      "language": "Py",
+      "loc": 370,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/repositories/database.py": {
+      "language": "Py",
+      "loc": 321,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 8,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/models/domain.py": {
+      "language": "Py",
+      "loc": 107,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/models/request.py": {
+      "language": "Py",
+      "loc": 85,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/models/response.py": {
+      "language": "Py",
+      "loc": 167,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/services/region.py": {
+      "language": "Py",
+      "loc": 238,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/services/__init__.py": {
+      "language": "Py",
+      "loc": 8,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/regions/services/database_service.py": {
+      "language": "Py",
+      "loc": 371,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/migrations/routers/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/migrations/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/migrations/models/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/migrations/orchestration/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    },
+    "NeoAdminApi/src/features/migrations/services/__init__.py": {
+      "language": "Py",
+      "loc": 0,
+      "status": "not_reviewed"
+    }
+  }
+}

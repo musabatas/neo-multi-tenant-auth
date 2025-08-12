@@ -1,0 +1,104 @@
+{
+  "operation_id": "NC-YYYYMMDD-TYPE-NNN",
+  "version": "1.0",
+  "schema": "neo-chain-manifest-v1",
+  "current_agent": "neo-visioner",
+  "current_phase": 0,
+  "total_phases": 7,
+  "status": "active",
+  "metadata": {
+    "created": "ISO-8601",
+    "updated": "ISO-8601",
+    "estimated_completion": "ISO-8601",
+    "description": "Brief description of the operation",
+    "type": "feature|bug|refactor|perf|security",
+    "priority": "high|medium|low",
+    "requestor": "username or system",
+    "tags": ["tag1", "tag2"]
+  },
+  "files": {
+    "tracked": [
+      {
+        "path": "src/path/to/file.py",
+        "status": "existing|new",
+        "last_modified": "ISO-8601",
+        "planned_changes": ["change description"]
+      }
+    ],
+    "locked": [
+      {
+        "path": "src/path/to/file.py",
+        "locked_by": "agent-name",
+        "locked_at": "ISO-8601",
+        "reason": "Lock reason"
+      }
+    ],
+    "modified": [
+      {
+        "path": "src/path/to/file.py",
+        "modified_by": "agent-name",
+        "modified_at": "ISO-8601",
+        "changes": ["change description"]
+      }
+    ],
+    "created": [
+      {
+        "path": "src/path/to/newfile.py",
+        "created_by": "agent-name",
+        "created_at": "ISO-8601",
+        "purpose": "File purpose"
+      }
+    ]
+  },
+  "progress": {
+    "phases_completed": 0,
+    "tasks_total": 0,
+    "tasks_completed": 0,
+    "estimated_effort": "Xh",
+    "actual_effort": "Yh",
+    "completion_percentage": 0
+  },
+  "risks": [
+    {
+      "id": "R001",
+      "description": "Risk description",
+      "severity": "high|medium|low",
+      "probability": "high|medium|low",
+      "impact": "Description of impact",
+      "mitigation": "Mitigation strategy",
+      "status": "identified|mitigated|accepted"
+    }
+  ],
+  "dependencies": [
+    {
+      "type": "internal|external",
+      "name": "Dependency name",
+      "version": "Version if applicable",
+      "status": "available|missing|incompatible"
+    }
+  ],
+  "metrics": {
+    "code_changes": {
+      "lines_added": 0,
+      "lines_removed": 0,
+      "files_changed": 0
+    },
+    "quality": {
+      "issues_found": 0,
+      "issues_fixed": 0,
+      "test_coverage": 0
+    },
+    "performance": {
+      "tokens_used": 0,
+      "execution_time": "0h"
+    }
+  },
+  "checkpoints": [
+    {
+      "phase": "phase-name",
+      "timestamp": "ISO-8601",
+      "status": "green|yellow|red",
+      "notes": "Checkpoint notes"
+    }
+  ]
+}

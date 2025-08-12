@@ -1,0 +1,124 @@
+{
+  "operation_id": "NC-20250130-FEAT-001",
+  "version": "1.0",
+  "schema": "neo-chain-manifest-v1",
+  "current_agent": "completed",
+  "current_phase": 8,
+  "total_phases": 8,
+  "status": "completed",
+  "metadata": {
+    "created": "2025-01-30T10:00:00Z",
+    "updated": "2025-01-30T16:00:00Z",
+    "completed": "2025-01-30T16:00:00Z",
+    "description": "User profile management feature",
+    "type": "feature",
+    "priority": "high",
+    "requestor": "product-team",
+    "tags": ["user-management", "profiles", "phase-1"]
+  },
+  "files": {
+    "tracked": [
+      {
+        "path": "src/features/users/models.py",
+        "status": "existing",
+        "last_modified": "2025-01-29T15:00:00Z",
+        "planned_changes": ["extend with profile relationship"]
+      },
+      {
+        "path": "src/features/users/models/profile.py",
+        "status": "new",
+        "planned_changes": ["create profile model"]
+      }
+    ],
+    "modified": [
+      {
+        "path": "src/features/users/models.py",
+        "modified_by": "neo-builder",
+        "modified_at": "2025-01-30T13:00:00Z",
+        "changes": ["added profile relationship"]
+      },
+      {
+        "path": "src/features/users/routers/__init__.py",
+        "modified_by": "neo-builder",
+        "modified_at": "2025-01-30T13:30:00Z",
+        "changes": ["registered profile router"]
+      }
+    ],
+    "created": [
+      {
+        "path": "src/features/users/models/profile.py",
+        "created_by": "neo-builder",
+        "created_at": "2025-01-30T12:00:00Z",
+        "purpose": "User profile model with JSONB fields"
+      },
+      {
+        "path": "src/features/users/services/profile_service.py",
+        "created_by": "neo-builder",
+        "created_at": "2025-01-30T12:30:00Z",
+        "purpose": "Profile business logic"
+      },
+      {
+        "path": "src/features/users/routers/profile.py",
+        "created_by": "neo-builder",
+        "created_at": "2025-01-30T13:00:00Z",
+        "purpose": "Profile API endpoints"
+      },
+      {
+        "path": "tests/features/users/test_profile.py",
+        "created_by": "neo-tester",
+        "created_at": "2025-01-30T14:30:00Z",
+        "purpose": "Profile unit tests"
+      }
+    ]
+  },
+  "progress": {
+    "phases_completed": 8,
+    "tasks_total": 8,
+    "tasks_completed": 8,
+    "estimated_effort": "5h",
+    "actual_effort": "6.25h",
+    "completion_percentage": 100
+  },
+  "risks": [
+    {
+      "id": "R001",
+      "description": "JSONB query performance with large datasets",
+      "severity": "medium",
+      "probability": "low",
+      "impact": "Slower profile searches",
+      "mitigation": "Added GIN index on JSONB fields",
+      "status": "mitigated"
+    }
+  ],
+  "metrics": {
+    "code_changes": {
+      "lines_added": 450,
+      "lines_removed": 20,
+      "files_changed": 7
+    },
+    "quality": {
+      "issues_found": 8,
+      "issues_fixed": 6,
+      "test_coverage": 94
+    },
+    "performance": {
+      "tokens_used": 125000,
+      "execution_time": "6.25h"
+    }
+  },
+  "final_summary": {
+    "outcome": "success",
+    "key_achievements": [
+      "Implemented complete user profile system",
+      "94% test coverage achieved",
+      "Critical security issues fixed automatically",
+      "Performance targets met"
+    ],
+    "lessons_learned": [
+      "JSONB provides excellent flexibility for profile data",
+      "Existing repository pattern saved significant time",
+      "Automated fixing saved significant time",
+      "Early security review caught critical vulnerabilities"
+    ]
+  }
+}

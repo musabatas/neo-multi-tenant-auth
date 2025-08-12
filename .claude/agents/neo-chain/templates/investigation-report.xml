@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<investigation_report>
+  <metadata>
+    <operation_id>NC-YYYYMMDD-TYPE-NNN</operation_id>
+    <timestamp>ISO-8601</timestamp>
+    <agent>neo-investigator</agent>
+    <vision_alignment>How findings align with the vision</vision_alignment>
+    <files_examined>N</files_examined>
+    <components_found>M</components_found>
+  </metadata>
+  
+  <summary>
+    <overview>High-level summary of investigation findings</overview>
+    <reusability_score>high|medium|low</reusability_score>
+    <key_findings>
+      <finding>Most important discovery 1</finding>
+      <finding>Most important discovery 2</finding>
+    </key_findings>
+  </summary>
+  
+  <findings>
+    <codebase>
+      <components>
+        <component id="C1" path="src/features/example" type="existing">
+          <description>Component purpose and functionality</description>
+          <files>
+            <file path="src/features/example/models.py" loc="150" />
+            <file path="src/features/example/service.py" loc="200" />
+          </files>
+          <reusability>high|medium|low</reusability>
+          <modifications_needed>
+            <modification>Change needed 1</modification>
+            <modification>Change needed 2</modification>
+          </modifications_needed>
+          <dependencies>
+            <dependency>src/common/base.py</dependency>
+          </dependencies>
+        </component>
+      </components>
+      
+      <patterns>
+        <pattern name="Repository Pattern" usage_count="15">
+          <description>Pattern description</description>
+          <locations>
+            <location>src/features/users/repository.py</location>
+            <location>src/features/teams/repository.py</location>
+          </locations>
+          <applicability>How it applies to current task</applicability>
+        </pattern>
+      </patterns>
+      
+      <utilities>
+        <utility path="src/common/utils/validators.py">
+          <description>Validation utilities</description>
+          <functions>
+            <function name="validate_email" />
+            <function name="validate_phone" />
+          </functions>
+          <reusable>true</reusable>
+        </utility>
+      </utilities>
+    </codebase>
+    
+    <database>
+      <tables>
+        <table name="users" status="existing">
+          <description>User information table</description>
+          <columns>
+            <column name="id" type="uuid" primary_key="true" />
+            <column name="email" type="varchar(255)" unique="true" />
+            <column name="created_at" type="timestamp" />
+          </columns>
+          <indexes>
+            <index name="idx_users_email" columns="email" />
+          </indexes>
+          <relationships>
+            <relationship type="one-to-many" to_table="user_roles" />
+          </relationships>
+          <row_count>Approximate number of rows</row_count>
+        </table>
+      </tables>
+      
+      <migrations>
+        <migration_needed>
+          <description>New columns or tables needed</description>
+          <complexity>low|medium|high</complexity>
+        </migration_needed>
+      </migrations>
+    </database>
+    
+    <external_dependencies>
+      <dependency name="redis" version="7.0" status="available">
+        <usage>Caching user sessions</usage>
+        <integration_points>
+          <point>src/core/cache/client.py</point>
+        </integration_points>
+      </dependency>
+    </external_dependencies>
+  </findings>
+  
+  <recommendations>
+    <recommendation id="R1" priority="high">
+      <action>Reuse existing user repository</action>
+      <rationale>Already implements required patterns</rationale>
+      <effort_saved>~3 days</effort_saved>
+    </recommendation>
+    <recommendation id="R2" priority="medium">
+      <action>Extend base model class</action>
+      <rationale>Provides common functionality</rationale>
+      <effort_saved>~1 day</effort_saved>
+    </recommendation>
+  </recommendations>
+  
+  <risks>
+    <risk id="RISK-001" severity="medium">
+      <description>Potential performance issue with large datasets</description>
+      <location>Database query patterns</location>
+      <mitigation>Implement pagination and caching</mitigation>
+    </risk>
+  </risks>
+  
+  <technical_debt>
+    <debt_item severity="low">
+      <description>Inconsistent naming conventions</description>
+      <location>src/features/legacy/*</location>
+      <recommendation>Gradual refactoring</recommendation>
+    </debt_item>
+  </technical_debt>
+  
+  <next_steps>
+    <step>Plan implementation based on reusable components</step>
+    <step>Design integration with existing patterns</step>
+  </next_steps>
+</investigation_report>

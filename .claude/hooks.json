@@ -1,0 +1,13 @@
+{
+  "hooks": [
+    {
+      "trigger": "after_file_edit",
+      "command": "black",
+      "args": ["${file_path}"],
+      "conditions": {
+        "file_extensions": [".py"]
+      },
+      "description": "Format Python files with black after editing"
+    }
+  ]
+}

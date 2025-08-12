@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<vision_report>
+  <metadata>
+    <operation_id>NC-YYYYMMDD-TYPE-NNN</operation_id>
+    <timestamp>ISO-8601</timestamp>
+    <agent>neo-visioner</agent>
+    <thinking_depth>strategic|tactical|operational</thinking_depth>
+  </metadata>
+  
+  <executive_summary>
+    <challenge>Clear statement of the problem or opportunity</challenge>
+    <vision>High-level vision for the solution</vision>
+    <impact>Expected business and technical impact</impact>
+  </executive_summary>
+  
+  <approaches>
+    <approach id="A1" name="Approach Name">
+      <description>Detailed description of the approach</description>
+      <architecture>High-level architecture overview</architecture>
+      <pros>
+        <pro>Advantage 1</pro>
+        <pro>Advantage 2</pro>
+      </pros>
+      <cons>
+        <con>Disadvantage 1</con>
+        <con>Disadvantage 2</con>
+      </cons>
+      <complexity>low|medium|high</complexity>
+      <effort_estimate>Rough estimate (days/weeks)</effort_estimate>
+      <risk_level>low|medium|high</risk_level>
+    </approach>
+    
+    <approach id="A2" name="Alternative Approach">
+      <description>Description of alternative approach</description>
+      <architecture>Architecture overview</architecture>
+      <pros>
+        <pro>Advantage 1</pro>
+      </pros>
+      <cons>
+        <con>Disadvantage 1</con>
+      </cons>
+      <complexity>medium</complexity>
+      <effort_estimate>X weeks</effort_estimate>
+      <risk_level>medium</risk_level>
+    </approach>
+  </approaches>
+  
+  <recommendation>
+    <selected_approach>A1</selected_approach>
+    <rationale>Detailed reasoning for the selection</rationale>
+    <success_criteria>
+      <criterion>Measurable success criterion 1</criterion>
+      <criterion>Measurable success criterion 2</criterion>
+    </success_criteria>
+  </recommendation>
+  
+  <risks>
+    <risk severity="high|medium|low">
+      <description>Risk description</description>
+      <impact>Potential impact if realized</impact>
+      <probability>high|medium|low</probability>
+      <mitigation>Mitigation strategy</mitigation>
+    </risk>
+  </risks>
+  
+  <implementation_strategy>
+    <phase name="Phase 1">
+      <objective>What this phase achieves</objective>
+      <deliverables>Key deliverables</deliverables>
+    </phase>
+    <phase name="Phase 2">
+      <objective>What this phase achieves</objective>
+      <deliverables>Key deliverables</deliverables>
+    </phase>
+  </implementation_strategy>
+  
+  <innovation_opportunities>
+    <opportunity>
+      <description>Innovative aspect or opportunity</description>
+      <benefit>Expected benefit</benefit>
+    </opportunity>
+  </innovation_opportunities>
+  
+  <constraints>
+    <constraint type="technical|business|resource">
+      <description>Constraint description</description>
+      <impact>How it affects the solution</impact>
+    </constraint>
+  </constraints>
+  
+  <next_steps>
+    <step>Immediate next step for investigation</step>
+    <step>Key areas to explore</step>
+  </next_steps>
+</vision_report>
