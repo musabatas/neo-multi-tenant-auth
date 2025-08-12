@@ -185,7 +185,7 @@ Then use the **neo-reviewer** agent to evaluate:
 - Architecture compliance
 - Best practices adherence
 
-### 🔧 Fix Loop (if needed)
+### Fix Loop (if needed)
 
 If review finds issues, use the **neo-fixer** agent to:
 - Address all identified problems
@@ -203,7 +203,7 @@ Once review passes, use the **neo-tester** agent to:
 - Add performance benchmarks
 - Run all tests and validate
 
-### 🔧 Test Fix Loop (if needed)
+### Test Fix Loop (if needed)
 
 If tests fail, use the **neo-fixer** agent to:
 - Fix failing tests

@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🔧 Configuring Keycloak for development (disabling SSL requirements)..."
+echo "Configuring Keycloak for development (disabling SSL requirements)..."
 echo "⏳ Waiting for Keycloak to fully initialize..."
 sleep 30  # Give Keycloak sufficient time to be fully ready
 
@@ -14,7 +14,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Disable SSL requirement using Keycloak admin CLI
-echo "🔐 Authenticating with Keycloak admin..."
+echo "Authenticating with Keycloak admin..."
 docker-compose -f docker/docker-compose.infrastructure.yml exec -T keycloak /opt/keycloak/bin/kcadm.sh config credentials \
     --server http://localhost:8080 \
     --realm master \
@@ -22,7 +22,7 @@ docker-compose -f docker/docker-compose.infrastructure.yml exec -T keycloak /opt
     --password admin
 
 # Set SSL requirement to NONE for master realm (uppercase as expected by Keycloak)
-echo "🔧 Updating master realm to disable SSL..."
+echo "Updating master realm to disable SSL..."
 docker-compose -f docker/docker-compose.infrastructure.yml exec -T keycloak /opt/keycloak/bin/kcadm.sh update realms/master \
     -s sslRequired=NONE \
     -s enabled=true

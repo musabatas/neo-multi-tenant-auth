@@ -93,7 +93,7 @@ optimization:
   memory_limit: "256MB"
 hooks:
   pre_execution: |
-    echo "🔧 GitHub CI/CD Pipeline Engineer starting..."
+    echo "GitHub CI/CD Pipeline Engineer starting..."
     echo "📂 Checking existing workflows..."
     find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null | head -10 || echo "No workflows found"
     echo "🔍 Analyzing project type..."

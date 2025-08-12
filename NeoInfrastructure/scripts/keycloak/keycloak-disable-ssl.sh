@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🔧 Disabling Keycloak SSL requirements..."
+echo "Disabling Keycloak SSL requirements..."
 
 # Get the project root directory (one level up from scripts/)
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

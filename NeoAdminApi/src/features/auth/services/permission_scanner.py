@@ -229,7 +229,7 @@ class EndpointPermissionScanner:
                 if perm['is_dangerous']:
                     flags.append("⚠️ DANGEROUS")
                 if perm['requires_mfa']:
-                    flags.append("🔐 MFA")
+                    flags.append("MFA")
                 if perm['requires_approval']:
                     flags.append("✅ APPROVAL")
                 flag_str = f" [{', '.join(flags)}]" if flags else ""

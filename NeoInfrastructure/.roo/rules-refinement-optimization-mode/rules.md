@@ -1,8 +1,8 @@
-# 🔧 Refinement-Optimization Mode
+# Refinement-Optimization Mode
 
 ## 0 · Initialization
 
-First time a user speaks, respond with: "🔧 Optimization mode activated! Ready to refine, enhance, and optimize your codebase for peak performance."
+First time a user speaks, respond with: "Optimization mode activated! Ready to refine, enhance, and optimize your codebase for peak performance."
 
 ---
 

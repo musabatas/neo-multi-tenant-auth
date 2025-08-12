@@ -76,27 +76,44 @@ async def login(
                 full_name=keycloak_raw.get("full_name")
             )
         
-        # Map to response model
+        # Map to response model with complete user profile
         login_response = LoginResponse(
             access_token=result["access_token"],
             refresh_token=result["refresh_token"],
             token_type=result["token_type"],
             expires_in=result["expires_in"],
+            refresh_expires_in=result.get("refresh_expires_in"),
             session_id=result["session_id"],
             user=UserProfile(
                 id=result["user"]["id"],
                 email=result["user"]["email"],
                 username=result["user"]["username"],
-                first_name=result["user"]["first_name"],
-                last_name=result["user"]["last_name"],
-                display_name=result["user"]["display_name"],
-                is_superadmin=result["user"]["is_superadmin"],
-                avatar_url=result["user"]["avatar_url"],
-                timezone=result["user"].get("timezone"),
-                language=result["user"].get("language"),
+                first_name=result["user"].get("first_name"),
+                last_name=result["user"].get("last_name"),
+                display_name=result["user"].get("display_name"),
+                full_name=result["user"].get("full_name"),
+                avatar_url=result["user"].get("avatar_url"),
+                phone=result["user"].get("phone"),
+                job_title=result["user"].get("job_title"),
+                company=result["user"].get("company"),
+                departments=result["user"].get("departments", []),
+                timezone=result["user"].get("timezone", "UTC"),
+                locale=result["user"].get("locale", "en-US"),
+                language=result["user"].get("language", "en"),
+                notification_preferences=result["user"].get("notification_preferences", {}),
+                ui_preferences=result["user"].get("ui_preferences", {}),
+                is_onboarding_completed=result["user"].get("is_onboarding_completed", False),
+                profile_completion_percentage=result["user"].get("profile_completion_percentage", 0),
+                is_active=result["user"].get("is_active", True),
+                is_superadmin=result["user"].get("is_superadmin", False),
                 roles=result["user"]["roles"],
                 permissions=result["user"]["permissions"],
                 tenants=result["user"]["tenants"],
+                last_login_at=result["user"].get("last_login_at"),
+                created_at=result["user"].get("created_at"),
+                updated_at=result["user"].get("updated_at"),
+                external_auth_provider=result["user"].get("external_auth_provider"),
+                external_user_id=result["user"].get("external_user_id"),
                 keycloak=keycloak_data
             )
         )
@@ -255,21 +272,37 @@ async def get_current_user(
                 full_name=keycloak_raw.get("full_name")
             )
         
-        # Map to response model
+        # Map to response model with complete profile data
         user_profile = UserProfile(
             id=user_info["id"],
             email=user_info["email"],
             username=user_info["username"],
-            first_name=user_info["first_name"],
-            last_name=user_info["last_name"],
-            display_name=user_info["display_name"],
+            first_name=user_info.get("first_name"),
+            last_name=user_info.get("last_name"),
+            display_name=user_info.get("display_name"),
+            full_name=user_info.get("full_name"),
+            avatar_url=user_info.get("avatar_url"),
+            phone=user_info.get("phone"),
+            job_title=user_info.get("job_title"),
+            company=user_info.get("company"),
+            departments=user_info.get("departments", []),
+            timezone=user_info.get("timezone", "UTC"),
+            locale=user_info.get("locale", "en-US"),
+            language=user_info.get("language", "en"),
+            notification_preferences=user_info.get("notification_preferences", {}),
+            ui_preferences=user_info.get("ui_preferences", {}),
+            is_onboarding_completed=user_info.get("is_onboarding_completed", False),
+            profile_completion_percentage=user_info.get("profile_completion_percentage", 0),
+            is_active=user_info.get("is_active", True),
             is_superadmin=user_info.get("is_superadmin", False),
-            avatar_url=user_info["avatar_url"],
-            timezone=user_info.get("timezone"),
-            language=user_info.get("language"),
             roles=user_info["roles"],
             permissions=user_info["permissions"],
             tenants=user_info["tenants"],
+            last_login_at=user_info.get("last_login_at"),
+            created_at=user_info.get("created_at"),
+            updated_at=user_info.get("updated_at"),
+            external_auth_provider=user_info.get("external_auth_provider"),
+            external_user_id=user_info.get("external_user_id"),
             keycloak=keycloak_data
         )
         

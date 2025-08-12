@@ -47,31 +47,67 @@ class TokenResponse(BaseSchema):
 
 
 class UserProfile(BaseSchema):
-    """User profile model."""
+    """User profile model with complete onboarding and profile data."""
+    # Core identity fields
     id: str = Field(..., description="User unique identifier")
     username: str = Field(..., description="Username")
     email: str = Field(..., description="Email address")
+    
+    # Profile fields
     first_name: Optional[str] = Field(None, description="First name")
     last_name: Optional[str] = Field(None, description="Last name")
     display_name: Optional[str] = Field(None, description="Display name")
+    full_name: Optional[str] = Field(None, description="Full name (computed)")
     avatar_url: Optional[str] = Field(None, description="Avatar URL")
-    timezone: Optional[str] = Field(None, description="User timezone")
-    language: Optional[str] = Field(None, description="Preferred language")
+    phone: Optional[str] = Field(None, description="Phone number")
+    
+    # Professional information
+    job_title: Optional[str] = Field(None, description="Job title")
+    company: Optional[str] = Field(None, description="Company name")
+    departments: Optional[List[str]] = Field(default_factory=list, description="Department memberships")
+    
+    # Preferences
+    timezone: Optional[str] = Field("UTC", description="User timezone")
+    locale: Optional[str] = Field("en-US", description="User locale")
+    language: Optional[str] = Field("en", description="Preferred language (deprecated, use locale)")
+    notification_preferences: Dict[str, Any] = Field(default_factory=dict, description="Notification settings")
+    ui_preferences: Dict[str, Any] = Field(default_factory=dict, description="UI preferences")
+    
+    # Onboarding and profile completion
+    is_onboarding_completed: bool = Field(False, description="Whether onboarding is completed")
+    profile_completion_percentage: int = Field(0, description="Profile completion percentage (0-100)")
+    onboarding_steps: Optional[Dict[str, bool]] = Field(None, description="Onboarding steps completion status")
+    
+    # Status fields
+    is_active: bool = Field(True, description="Whether user is active")
     is_superadmin: bool = Field(False, description="Is platform superadmin")
+    
+    # Access control
     roles: List[Dict[str, Any]] = Field(default_factory=list, description="User roles")
     permissions: Union[List[str], List[PermissionDetail]] = Field(default_factory=list, description="User permissions")
     tenants: List[Dict[str, Any]] = Field(default_factory=list, description="Accessible tenants")
+    tenant_memberships: Optional[List[Dict[str, Any]]] = Field(None, description="Detailed tenant memberships")
+    
+    # Timestamps
+    last_login_at: Optional[datetime] = Field(None, description="Last login timestamp")
+    created_at: Optional[datetime] = Field(None, description="Account creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    
+    # External auth data
     keycloak: Optional[KeycloakUserData] = Field(None, description="Keycloak user data")
+    external_auth_provider: Optional[str] = Field(None, description="Authentication provider")
+    external_user_id: Optional[str] = Field(None, description="External provider user ID")
 
 
 class LoginResponse(BaseSchema):
-    """Login response model."""
+    """Login response model with complete user profile."""
     access_token: str = Field(..., description="JWT access token")
     refresh_token: str = Field(..., description="Refresh token")
     token_type: str = Field("Bearer", description="Token type")
     expires_in: int = Field(..., description="Access token expiry in seconds")
+    refresh_expires_in: Optional[int] = Field(None, description="Refresh token expiry in seconds")
     session_id: str = Field(..., description="Session identifier")
-    user: UserProfile = Field(..., description="User profile")
+    user: UserProfile = Field(..., description="Complete user profile with onboarding status")
 
 
 class SessionInfo(BaseSchema):

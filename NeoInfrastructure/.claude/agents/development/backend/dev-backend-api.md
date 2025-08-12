@@ -99,7 +99,7 @@ optimization:
   memory_limit: "512MB"
 hooks:
   pre_execution: |
-    echo "🔧 Backend API Developer agent starting..."
+    echo "Backend API Developer agent starting..."
     echo "📋 Analyzing existing API structure..."
     find . -name "*.route.js" -o -name "*.controller.js" | head -20
   post_execution: |

@@ -129,7 +129,7 @@ hooks:
     echo "📲 Remember to test on both platforms"
   on_error: |
     echo "❌ React Native error: {{error_message}}"
-    echo "🔧 Common fixes:"
+    echo "Common fixes:"
     echo "  - Clear metro cache: npx react-native start --reset-cache"
     echo "  - Reinstall pods: cd ios && pod install"
     echo "  - Clean build: cd android && ./gradlew clean"

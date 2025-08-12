@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>NeoAdminApi/src/common/exceptions/service.py</file>
+    <language>Py</language>
+    <loc>68</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-13</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="4" open_issues="1"/>
+    <metric name="performance" score="5" open_issues="0"/>
+    <metric name="maintainability" score="4" open_issues="1"/>
+    <metric name="consistency" score="4" open_issues="1"/>
+    <metric name="best_practices" score="4" open_issues="1"/>
+    <metric name="code_smell" score="3" open_issues="2"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="LOW">
+      <title>Sensitive Cache Key Exposure</title>
+      <location>Line 36-37</location>
+      <description>Cache keys are exposed in exception details without sanitization, which could leak sensitive information if keys contain PII or sensitive identifiers</description>
+      <recommendation>Consider masking or hashing cache keys in exception details, or only log key prefixes/patterns</recommendation>
+    </issue>
+    
+    <issue category="maintainability" severity="LOW">
+      <title>Missing Return Type Hints</title>
+      <location>Lines 12-20, 26-37, 43-51, 57-68</location>
+      <description>Constructor methods lack explicit return type hints (-> None)</description>
+      <recommendation>Add explicit return type hints to all __init__ methods for better type checking and IDE support</recommendation>
+    </issue>
+    
+    <issue category="consistency" severity="LOW">
+      <title>Inconsistent Status Code Assignment</title>
+      <location>Line 49 vs 147 in base.py</location>
+      <description>ExternalServiceError uses status_code=502 in service.py but 503 in base.py, creating potential confusion</description>
+      <recommendation>Consolidate to single ExternalServiceError definition or rename one to avoid conflict</recommendation>
+    </issue>
+    
+    <issue category="best_practices" severity="LOW">
+      <title>Missing Logging for Service Errors</title>
+      <location>All exception classes</location>
+      <description>Service errors are not automatically logged when raised, which could make debugging production issues difficult</description>
+      <recommendation>Consider adding automatic logging in exception constructors or implementing a logging mixin</recommendation>
+    </issue>
+    
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Duplicate ExternalServiceError Definition</title>
+      <location>Line 40-51</location>
+      <description>ExternalServiceError is defined both in service.py and base.py, creating ambiguity and potential import conflicts</description>
+      <recommendation>Remove duplicate definition and use single source of truth, likely keeping only the one in service.py with status_code=502</recommendation>
+    </issue>
+    
+    <issue category="code_smell" severity="LOW">
+      <title>Optional Parameters Without Clear Defaults</title>
+      <location>Lines 15, 29-30, 46, 60-61</location>
+      <description>Optional parameters use None defaults but their purpose when None isn't documented</description>
+      <recommendation>Add docstrings explaining when optional parameters should be provided and what happens when they're None</recommendation>
+    </issue>
+  </issues>
+
+  <summary>This module defines service and infrastructure-related exception classes for the NeoAdmin API. It provides specialized exceptions for database operations, caching, external services, and service availability issues. The module follows good inheritance patterns from NeoAdminException base class and provides appropriate HTTP status codes (500 for internal errors, 502 for bad gateway, 503 for service unavailable). However, there's a duplicate ExternalServiceError definition that needs resolution.</summary>
+
+  <positive_observations>
+    <observation>Excellent use of inheritance from NeoAdminException base class</observation>
+    <observation>Appropriate HTTP status code assignments (500 for internal, 502 for bad gateway, 503 for unavailable)</observation>
+    <observation>Consistent pattern for optional detail fields (operation, key, service, retry_after)</observation>
+    <observation>Clean and focused exception classes with single responsibility</observation>
+    <observation>Good use of super().__init__ to delegate to parent constructor</observation>
+    <observation>Proper detail field population pattern that extends base class details dict</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test file found for this exception module</tests>
+    <documentation>Module has basic docstrings but lacks comprehensive documentation for each exception class</documentation>
+    <configuration>No specific configuration required for exception classes</configuration>
+  </context>
+
+  <checklist>
+    <item completed="true">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="false">Documentation updated</item>
+    <item completed="true">Security review complete</item>
+    <item completed="true">Performance acceptable</item>
+  </checklist>
+</review>

@@ -65,7 +65,7 @@ Roo offers specialized modes for different aspects of the development process:
 - **Focus**: Provisions infrastructure, configures environments, and sets up CI/CD pipelines
 - **Best For**: Deployment and infrastructure management
 
-### 🔐 Supabase Admin
+### Supabase Admin
 - **Role**: Designs and implements database schemas, RLS policies, triggers, and functions
 - **Focus**: Ensures secure, efficient, and scalable data management with Supabase
 - **Best For**: Database management and Supabase integration
@@ -245,7 +245,7 @@ npx create-sparc init --force
 
 |  | Service        | Description                        |
 |:------|:---------------|:-----------------------------------|
-| 👥    | Facebook        | Social networking                 |
+|    | Facebook        | Social networking                 |
 | 📷    | Instagram       | Photo sharing                     |
 | 🐦    | Twitter         | Microblogging platform            |
 | 👽    | Reddit          | Social news aggregation           |

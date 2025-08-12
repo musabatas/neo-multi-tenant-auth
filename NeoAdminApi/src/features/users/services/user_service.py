@@ -55,33 +55,55 @@ class PlatformUserService(BaseService):
     
     async def get_user(self, user_id: str) -> PlatformUserResponse:
         """Get a platform user by ID."""
-        # Try cache first
-        cache_key = self.CACHE_KEY_USER.format(user_id=user_id)
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return PlatformUserResponse(**cached)
+        # Use centralized UserDataService
+        from .user_data_service import UserDataService
+        user_data_service = UserDataService()
         
-        # Get from repository
-        user = await self.repository.get_by_id(user_id)
-        
-        # Get additional data
-        platform_roles = await self._get_user_role_codes(user_id)
-        tenant_roles = await self._get_user_tenant_roles_summary(user_id)
-        permissions = await self.repository.get_user_permissions(user_id)
-        tenant_count = await self.repository.get_user_tenant_count(user_id)
-        
-        response = PlatformUserResponse.from_domain(
-            user,
-            platform_roles=platform_roles,
-            tenant_roles=tenant_roles,
-            permissions=permissions,
-            tenant_count=tenant_count
+        # Get complete user data
+        user_data = await user_data_service.get_complete_user_data(
+            user_id=user_id,
+            include_permissions=True,
+            include_roles=True,
+            include_tenants=True,
+            include_onboarding=True,
+            use_cache=True
         )
         
-        # Cache the response
-        await self.cache.set(cache_key, response.model_dump(), ttl=self.CACHE_TTL)
+        # Convert to PlatformUserResponse
+        # Map the data to match PlatformUserResponse model
+        response_data = {
+            "id": user_data["id"],
+            "email": user_data["email"],
+            "username": user_data["username"],
+            "first_name": user_data.get("first_name"),
+            "last_name": user_data.get("last_name"),
+            "display_name": user_data.get("display_name"),
+            "full_name": user_data.get("full_name"),
+            "avatar_url": user_data.get("avatar_url"),
+            "phone": user_data.get("phone"),
+            "timezone": user_data.get("timezone", "UTC"),
+            "locale": user_data.get("locale", "en-US"),
+            "job_title": user_data.get("job_title"),
+            "company": user_data.get("company"),
+            "departments": user_data.get("departments", []),
+            "notification_preferences": user_data.get("notification_preferences", {}),
+            "ui_preferences": user_data.get("ui_preferences", {}),
+            "is_active": user_data.get("is_active", True),
+            "is_superadmin": user_data.get("is_superadmin", False),
+            "is_onboarding_completed": user_data.get("is_onboarding_completed", False),
+            "profile_completion_percentage": user_data.get("profile_completion_percentage", 0),
+            "external_auth_provider": user_data.get("external_auth_provider"),
+            "external_user_id": user_data.get("external_user_id"),
+            "last_login_at": user_data.get("last_login_at"),
+            "created_at": user_data.get("created_at"),
+            "updated_at": user_data.get("updated_at"),
+            "platform_roles": user_data.get("platform_roles", []),
+            "tenant_roles": user_data.get("tenant_roles", {}),
+            "permissions": [p["code"] for p in user_data.get("permissions", [])],
+            "tenant_count": user_data.get("tenant_count", 0)
+        }
         
-        return response
+        return PlatformUserResponse(**response_data)
     
     async def get_user_by_email(self, email: str) -> PlatformUserResponse:
         """Get a platform user by email."""
@@ -535,3 +557,164 @@ class PlatformUserService(BaseService):
         
         for key in cache_keys:
             await self.cache.delete(key)
+    
+    # New methods for onboarding and profile completion
+    
+    async def get_user_with_complete_profile(self, user_id: str) -> Dict[str, Any]:
+        """Get user with complete profile including computed fields."""
+        # Use centralized UserDataService
+        from .user_data_service import UserDataService
+        user_data_service = UserDataService()
+        
+        # Get complete user data
+        return await user_data_service.get_complete_user_data(
+            user_id=user_id,
+            include_permissions=True,
+            include_roles=True,
+            include_tenants=True,
+            include_onboarding=True,
+            use_cache=True
+        )
+    
+    async def update_user_with_completion(
+        self, 
+        user_id: str, 
+        update_data: PlatformUserUpdate
+    ) -> PlatformUserResponse:
+        """Update user and recalculate profile completion."""
+        # Update user
+        updated_user = await self.update_user(user_id, update_data)
+        
+        # Recalculate profile completion
+        completion_percentage = self._calculate_profile_completion(updated_user)
+        
+        # Update completion percentage in database if changed
+        if completion_percentage != updated_user.profile_completion_percentage:
+            await self.repository.update(
+                user_id,
+                {"profile_completion_percentage": completion_percentage}
+            )
+            updated_user.profile_completion_percentage = completion_percentage
+            
+            # Invalidate cache to reflect new completion
+            user = await self.repository.get_by_id(user_id)
+            await self._invalidate_user_cache(user_id, user.email, user.username)
+        
+        return updated_user
+    
+    async def complete_user_onboarding(
+        self,
+        user_id: str,
+        completed_steps: Optional[Dict[str, bool]] = None
+    ) -> PlatformUserResponse:
+        """Mark user onboarding as complete."""
+        # Update onboarding status
+        updates = {
+            "is_onboarding_completed": True,
+            "metadata": {}
+        }
+        
+        # Store completed steps in metadata if provided
+        if completed_steps:
+            user = await self.repository.get_by_id(user_id)
+            metadata = user.metadata or {}
+            metadata["onboarding_steps"] = completed_steps
+            metadata["onboarding_completed_at"] = utc_now().isoformat()
+            updates["metadata"] = metadata
+        
+        # Update user
+        await self.repository.update(user_id, updates)
+        
+        # Get updated user
+        updated_user = await self.get_user(user_id)
+        
+        # Invalidate cache
+        user = await self.repository.get_by_id(user_id)
+        await self._invalidate_user_cache(user_id, user.email, user.username)
+        
+        return updated_user
+    
+    async def get_onboarding_status(self, user_id: str) -> Dict[str, Any]:
+        """Get detailed onboarding status for a user.
+        
+        This method now delegates to the centralized UserDataService to avoid redundancy.
+        """
+        from .user_data_service import UserDataService
+        user_data_service = UserDataService()
+        
+        # Get complete user data including onboarding information
+        user_data = await user_data_service.get_complete_user_data(
+            user_id=user_id,
+            include_onboarding=True,
+            use_cache=True
+        )
+        
+        # Simply return the onboarding-related data
+        return {
+            "is_completed": user_data.get("is_onboarding_completed", False),
+            "completion_percentage": user_data.get("profile_completion_percentage", 0),
+            "onboarding_steps": user_data.get("onboarding_steps", {}),
+            "user_type": "platform_admin" if (
+                user_data.get("is_superadmin") or 
+                any(role in ['platform_admin', 'organization_owner', 'organization_admin'] 
+                    for role in user_data.get("platform_roles", []))
+            ) else "tenant_user",
+            "user_created_at": user_data.get("created_at")
+        }
+    
+    def _calculate_profile_completion(self, user: PlatformUserResponse) -> int:
+        """Calculate profile completion percentage.
+        
+        Kept for backward compatibility with update_user_with_completion.
+        """
+        # Define weights for each field
+        field_weights = {
+            'first_name': 10,
+            'last_name': 10,
+            'display_name': 5,
+            'avatar_url': 10,
+            'phone': 10,
+            'job_title': 10,
+            'company': 10,
+            'departments': 10,
+            'timezone': 5,
+            'locale': 5,
+            'notification_preferences': 10,
+            'ui_preferences': 5
+        }
+        
+        total_weight = sum(field_weights.values())
+        completed_weight = 0
+        
+        # Check each field
+        if user.first_name and user.first_name.strip():
+            completed_weight += field_weights['first_name']
+        if user.last_name and user.last_name.strip():
+            completed_weight += field_weights['last_name']
+        if user.display_name and user.display_name.strip():
+            completed_weight += field_weights['display_name']
+        if user.avatar_url:
+            completed_weight += field_weights['avatar_url']
+        if user.phone:
+            completed_weight += field_weights['phone']
+        if user.job_title:
+            completed_weight += field_weights['job_title']
+        if user.company:
+            completed_weight += field_weights['company']
+        if user.departments and len(user.departments) > 0:
+            completed_weight += field_weights['departments']
+        if user.timezone and user.timezone != 'UTC':
+            completed_weight += field_weights['timezone']
+        if user.locale and user.locale != 'en-US':
+            completed_weight += field_weights['locale']
+        if user.notification_preferences and len(user.notification_preferences) > 0:
+            completed_weight += field_weights['notification_preferences']
+        if user.ui_preferences and len(user.ui_preferences) > 0:
+            completed_weight += field_weights['ui_preferences']
+        
+        return int((completed_weight / total_weight) * 100)
+    
+    def _is_profile_complete(self, user: PlatformUserResponse) -> bool:
+        """Check if user profile is sufficiently complete."""
+        # Consider profile complete if > 70% filled
+        return user.profile_completion_percentage >= 70

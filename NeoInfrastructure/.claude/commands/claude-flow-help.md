@@ -52,7 +52,7 @@ Claude-Flow is the ultimate multi-terminal orchestration platform that revolutio
 - `./claude-flow swarm "task" --ui` - Interactive UI
 - `./claude-flow swarm "task" --distributed` - Distributed coordination
 
-### 🌍 MCP Integration
+### MCP Integration
 - `./claude-flow mcp status` - MCP server status
 - `./claude-flow mcp tools` - List available tools
 - `./claude-flow mcp config` - Show configuration

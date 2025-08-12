@@ -424,13 +424,6 @@ class AuthService:
         if not external_id:
             raise UnauthorizedError("Invalid token claims")
         
-        # Check cache
-        if use_cache:
-            cache_key = f"auth:user:{external_id}:info"
-            cached_user = await self.cache.get(cache_key)
-            if cached_user:
-                return cached_user
-        
         # Get user from database by external ID
         user = await self.auth_repo.get_user_by_external_id(
             provider="keycloak",
@@ -450,14 +443,23 @@ class AuthService:
         if not user.get("is_active", False):
             raise ForbiddenError("Account is disabled")
         
-        # Get permissions and roles
-        permissions = await self.permission_repo.get_user_permissions(user['id'])
-        roles = await self.permission_repo.get_user_roles(user['id'])
-        tenant_access = await self.auth_repo.get_user_tenant_access(user['id'])
+        # Use centralized UserDataService for complete user data
+        from src.features.users.services.user_data_service import UserDataService
+        user_data_service = UserDataService()
         
-        # Extract Keycloak metadata
+        # Get complete user data using the centralized service
+        user_info = await user_data_service.get_complete_user_data(
+            user_id=user['id'],
+            include_permissions=True,
+            include_roles=True,
+            include_tenants=True,
+            include_onboarding=True,
+            use_cache=use_cache
+        )
+        
+        # Add Keycloak metadata
         metadata = user.get('metadata', {})
-        keycloak_section = {
+        user_info['keycloak'] = {
             "session_id": metadata.get('keycloak_session_id'),
             "realm": metadata.get('realm'),
             "email_verified": metadata.get('email_verified', False),
@@ -469,67 +471,22 @@ class AuthService:
             "full_name": metadata.get('keycloak_full_name')
         }
         
-        # Build user info
-        user_info = {
-            "id": user['id'],
-            "email": user['email'],
-            "username": user['username'],
-            "first_name": user.get('first_name'),
-            "last_name": user.get('last_name'),
-            "display_name": user.get('display_name'),
-            "is_active": user.get('is_active', True),
-            "is_superadmin": user.get('is_superadmin', False),
-            "avatar_url": user.get('avatar_url'),
-            "timezone": user.get('timezone'),
-            "language": user.get('language'),
-            "roles": [
-                {
-                    "id": role['role_id'],
-                    "name": role['role_name'],
-                    "display_name": role.get('role_display_name'),
-                    "level": role.get('role_level'),
-                    "priority": role.get('role_priority'),
-                    "role_config": role.get('role_config', {})
-                }
-                for role in roles
-            ],
-            "permissions": [
-                {
-                    "code": perm.get('name', f"{perm['resource']}:{perm['action']}"),
-                    "resource": perm['resource'],
-                    "action": perm['action'],
-                    "scope_level": perm.get('scope_level'),
-                    "is_dangerous": perm.get('is_dangerous', False),
-                    "requires_mfa": perm.get('requires_mfa', False),
-                    "requires_approval": perm.get('requires_approval', False),
-                    "config": perm.get('permissions_config', {}),
-                    "source": perm.get('source_type'),
-                    "priority": perm.get('priority', 0)
-                }
-                for perm in permissions
-            ],
-            "tenants": [
-                {
-                    "id": access['tenant_id'],
-                    "name": access.get('tenant_name'),
-                    "slug": access.get('tenant_slug'),
-                    "access_level": access.get('access_level'),
-                    "expires_at": access.get('expires_at')
-                }
-                for access in tenant_access
-            ],
-            "keycloak": keycloak_section
-        }
-        
-        # Cache user info
-        if use_cache:
-            await self.cache.set(
-                cache_key,
-                user_info,
-                ttl=300  # 5 minutes
-            )
-        
         return user_info
+    
+    async def invalidate_user_cache(self, user_id: str) -> None:
+        """
+        Invalidate user cache entries.
+        
+        Args:
+            user_id: User ID to invalidate cache for
+        """
+        # Get user to find external ID
+        user = await self.auth_repo.get_user_by_id(user_id)
+        if user:
+            external_id = user.get('external_user_id')
+            if external_id:
+                cache_key = f"auth:user:{external_id}:info"
+                await self.cache.delete(cache_key)
     
     async def _create_session(
         self,

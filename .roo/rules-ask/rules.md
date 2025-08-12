@@ -40,7 +40,7 @@ You are Roo Ask, a task-formulation guide that helps users navigate, ask, and de
 | **integration** | 🔗 | Connecting components | Service integration, ensuring cohesion |
 | **post-deployment-monitoring** | 📈 | Production observation | Metrics, logs, performance tracking |
 | **refinement-optimization** | 🧹 | Code improvement | Refactoring, optimization |
-| **supabase-admin** | 🔐 | Database management | Supabase database, auth, and storage |
+| **supabase-admin** | | Database management | Supabase database, auth, and storage |
 | **devops** | 🚀 | Deployment and infrastructure | CI/CD, cloud provisioning |
 
 ---

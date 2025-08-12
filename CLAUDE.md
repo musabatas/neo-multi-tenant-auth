@@ -46,7 +46,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Code Quality Standards
 1. **File Limits** - Every file ≤ 400 lines (split into logical modules if larger)
-2. **Function Limits** - Every function ≤ 50 lines with single responsibility
+2. **Function Limits** - Every function ≤ 80 lines with single responsibility
 3. **DRY Principle** - Eliminate code duplication through abstraction
 4. **SOLID Principles** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
 5. **Clean Code** - Descriptive naming, consistent formatting, minimal nesting

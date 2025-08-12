@@ -16,14 +16,14 @@ A robust, enterprise-grade multi-tenant platform designed for ultra-scalability,
 ## 🌟 Key Features
 
 ### Multi-Tenancy & Scalability
-- **🏢 Multi-Tenant Architecture**: Complete data isolation with schema-based or database-based tenancy
-- **🌍 Multi-Region Support**: Global deployment with geo-distributed databases
+- **Multi-Tenant Architecture**: Complete data isolation with schema-based or database-based tenancy
+- **Multi-Region Support**: Global deployment with geo-distributed databases
 - **📊 Multi-Database Strategy**: Supports multiple PostgreSQL instances with intelligent routing
 - **⚡ Ultra-High Performance**: Sub-millisecond permission checks with intelligent caching
 - **🔄 Dynamic Tenant Provisioning**: Automatic tenant schema creation and management
 
 ### Authentication & Security
-- **🔐 External Authentication**: Keycloak integration with multi-realm support
+- **External Authentication**: Keycloak integration with multi-realm support
 - **🛡️ Advanced RBAC**: Hierarchical role-based access control with fine-grained permissions
 - **🔒 Enterprise Security**: JWT validation, OAuth2, MFA support, audit logging
 - **🏛️ Multi-Realm Support**: Admin and tenant-specific realm configurations
@@ -84,14 +84,14 @@ The platform is designed as a microservices architecture with clear separation o
 - Keycloak configuration, themes, and SSL management
 - Infrastructure automation and deployment scripts
 
-**⚙️ NeoAdminApi**
+**NeoAdminApi**
 - Platform administration API
 - Tenant management and provisioning
 - User and organization management
 - Subscription and billing operations
 - System monitoring and health checks
 
-**🏢 NeoTenantApi**
+**NeoTenantApi**
 - Tenant-specific business logic API
 - User authentication and authorization
 - RBAC and permission management
@@ -107,13 +107,13 @@ The platform is designed as a microservices architecture with clear separation o
 - System monitoring and analytics
 - Billing and subscription management
 
-**🏢 NeoTenantAdmin**
+**NeoTenantAdmin**
 - Tenant administrator interface
 - User and role management
 - Tenant settings and configuration
 - Team and organization management
 
-**👥 NeoTenantFrontend**
+**NeoTenantFrontend**
 - End-user application interface
 - Tenant-specific user experience
 - Permission-based UI rendering
@@ -449,7 +449,7 @@ npm run dev
 - **pgAdmin**: http://localhost:5050 (admin@example.com/admin)
 - **RedisInsight**: http://localhost:5601 (Note: changed to avoid port conflict)
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -864,7 +864,7 @@ INSERT INTO admin.tenants (slug, database_connection_id, deployment_type)
 VALUES ('acme', (SELECT id FROM admin.database_connections WHERE connection_name = 'tenant-acme-primary'), 'database');
 ```
 
-## 🔐 Security & Authentication
+## Security & Authentication
 
 ### Keycloak Setup
 
@@ -1431,7 +1431,7 @@ KEYCLOAK_ADMIN_REALM="neo-admin"
 - Geo-DNS routing
 - Cross-region replication
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 

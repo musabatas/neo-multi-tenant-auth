@@ -157,7 +157,7 @@ mcp__github__create_pull_request {
 - **claude-flow**: v1.0.71 → v1.0.72
 - **ruv-swarm**: v1.0.11 → v1.0.12
 
-### 🔧 Changes
+### Changes
 #### Added
 - GitHub command modes: pr-manager, issue-tracker, sync-coordinator, release-manager
 - Swarm-coordinated GitHub workflows

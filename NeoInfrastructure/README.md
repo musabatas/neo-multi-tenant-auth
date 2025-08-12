@@ -180,7 +180,7 @@ migrations/
 └── requirements.txt                # Python dependencies
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 Environment variables are automatically created in `.env` file on first run.
 
@@ -207,7 +207,7 @@ cd NeoInfrastructure
 docker-compose -f docker/docker-compose.infrastructure.yml --profile tools up -d
 ```
 
-## 🔧 Scripts
+## Scripts
 
 ### start-infrastructure.sh
 - Creates `.env` with defaults if missing
@@ -247,7 +247,7 @@ NeoInfrastructure/
 └── .env                    # Environment configuration
 ```
 
-## 🌍 Multi-Region Features
+## Multi-Region Features
 
 - **Data Residency**: EU region for GDPR compliance
 - **Regional Isolation**: Separate databases per region
@@ -255,7 +255,7 @@ NeoInfrastructure/
 - **Health Monitoring**: Built-in health checks for all services
 - **Automatic Failover**: Ready for connection failover logic
 
-## 🔐 Security Notes
+## Security Notes
 
 - SSL is disabled in Keycloak for development
 - Default passwords should be changed for production

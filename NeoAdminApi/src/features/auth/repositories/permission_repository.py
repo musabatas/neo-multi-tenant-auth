@@ -52,6 +52,7 @@ class PermissionRepository:
                 ur.expires_at,
                 ur.is_active as assignment_is_active,
                 r.id as role_id,
+                r.code as role_code,
                 r.name as role_name,
                 r.display_name as role_display_name,
                 r.description as role_description,

@@ -106,7 +106,7 @@ hooks:
     fi
   on_error: |
     echo "⚠️ Documentation error: {{error_message}}"
-    echo "🔧 Check OpenAPI specification syntax"
+    echo "Check OpenAPI specification syntax"
 examples:
   - trigger: "create OpenAPI documentation for user API"
     response: "I'll create comprehensive OpenAPI 3.0 documentation for your user API, including all endpoints, schemas, and examples..."
