@@ -194,97 +194,97 @@
     "NeoAdminApi/src/integrations/keycloak/token_manager.py": {
       "language": "Py",
       "loc": 460,
-      "status": "in_progress"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/keycloak/client.py": {
       "language": "Py",
       "loc": 522,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/keycloak/__init__.py": {
       "language": "Py",
       "loc": 16,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/keycloak/async_client.py": {
       "language": "Py",
       "loc": 621,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/keycloak/realm_manager.py": {
       "language": "Py",
       "loc": 417,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/payment_gateways/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/payment_gateways/paddle/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/payment_gateways/stripe/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/notification_services/sms/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/integrations/notification_services/email/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/organizations/__init__.py": {
       "language": "Py",
       "loc": 7,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/migrations/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/regions/__init__.py": {
       "language": "Py",
       "loc": 9,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/security/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/auth/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/auth/dependencies.py": {
       "language": "Py",
       "loc": 288,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/roles/__init__.py": {
       "language": "Py",
       "loc": 7,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/tenants/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "completed"
     },
     "NeoAdminApi/src/features/users/__init__.py": {
       "language": "Py",
       "loc": 0,
-      "status": "not_reviewed"
+      "status": "in_progress"
     },
     "NeoAdminApi/src/features/monitoring/__init__.py": {
       "language": "Py",

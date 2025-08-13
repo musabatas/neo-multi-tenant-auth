@@ -24,8 +24,7 @@ from ..models.response import (
     LoginResponse,
     TokenResponse,
     LogoutResponse,
-    UserProfile,
-    KeycloakUserData
+    UserProfile
 )
 from ..services.auth_service import AuthService
 from ..services.permission_service import PermissionService
@@ -60,23 +59,10 @@ async def login(
             remember_me=request.remember_me
         )
         
-        # Prepare Keycloak data
-        keycloak_data = None
-        if "keycloak" in result["user"]:
-            keycloak_raw = result["user"]["keycloak"]
-            keycloak_data = KeycloakUserData(
-                session_id=keycloak_raw.get("session_id"),
-                realm=keycloak_raw.get("realm"),
-                email_verified=keycloak_raw.get("email_verified", False),
-                scopes=keycloak_raw.get("scopes", []),
-                realm_roles=keycloak_raw.get("realm_roles", []),
-                client_roles=keycloak_raw.get("client_roles", {}),
-                authorized_party=keycloak_raw.get("authorized_party"),
-                auth_context_class=keycloak_raw.get("auth_context_class"),
-                full_name=keycloak_raw.get("full_name")
-            )
+        # Extract Keycloak data for flattened fields
+        keycloak_data = result["user"].get("keycloak", {})
         
-        # Map to response model with complete user profile
+        # Map to response model with complete user profile using flattened structure
         login_response = LoginResponse(
             access_token=result["access_token"],
             refresh_token=result["refresh_token"],
@@ -114,7 +100,11 @@ async def login(
                 updated_at=result["user"].get("updated_at"),
                 external_auth_provider=result["user"].get("external_auth_provider"),
                 external_user_id=result["user"].get("external_user_id"),
-                keycloak=keycloak_data
+                # Flattened Keycloak fields
+                session_id=keycloak_data.get("session_id"),
+                realm=keycloak_data.get("realm"),
+                email_verified=keycloak_data.get("email_verified", False),
+                authorized_party=keycloak_data.get("authorized_party")
             )
         )
         
@@ -250,60 +240,10 @@ async def get_current_user(
     access_token = credentials.credentials
     
     try:
-        # Get user info
-        user_info = await auth_service.get_current_user(
+        # Use shared method from AuthService
+        user_profile = await auth_service.get_current_user_profile(
             access_token=access_token,
             use_cache=True
-        )
-        
-        # Prepare Keycloak data for /me endpoint
-        keycloak_data = None
-        if "keycloak" in user_info:
-            keycloak_raw = user_info["keycloak"]
-            keycloak_data = KeycloakUserData(
-                session_id=keycloak_raw.get("session_id"),
-                realm=keycloak_raw.get("realm"),
-                email_verified=keycloak_raw.get("email_verified", False),
-                scopes=keycloak_raw.get("scopes", []),
-                realm_roles=keycloak_raw.get("realm_roles", []),
-                client_roles=keycloak_raw.get("client_roles", {}),
-                authorized_party=keycloak_raw.get("authorized_party"),
-                auth_context_class=keycloak_raw.get("auth_context_class"),
-                full_name=keycloak_raw.get("full_name")
-            )
-        
-        # Map to response model with complete profile data
-        user_profile = UserProfile(
-            id=user_info["id"],
-            email=user_info["email"],
-            username=user_info["username"],
-            first_name=user_info.get("first_name"),
-            last_name=user_info.get("last_name"),
-            display_name=user_info.get("display_name"),
-            full_name=user_info.get("full_name"),
-            avatar_url=user_info.get("avatar_url"),
-            phone=user_info.get("phone"),
-            job_title=user_info.get("job_title"),
-            company=user_info.get("company"),
-            departments=user_info.get("departments", []),
-            timezone=user_info.get("timezone", "UTC"),
-            locale=user_info.get("locale", "en-US"),
-            language=user_info.get("language", "en"),
-            notification_preferences=user_info.get("notification_preferences", {}),
-            ui_preferences=user_info.get("ui_preferences", {}),
-            is_onboarding_completed=user_info.get("is_onboarding_completed", False),
-            profile_completion_percentage=user_info.get("profile_completion_percentage", 0),
-            is_active=user_info.get("is_active", True),
-            is_superadmin=user_info.get("is_superadmin", False),
-            roles=user_info["roles"],
-            permissions=user_info["permissions"],
-            tenants=user_info["tenants"],
-            last_login_at=user_info.get("last_login_at"),
-            created_at=user_info.get("created_at"),
-            updated_at=user_info.get("updated_at"),
-            external_auth_provider=user_info.get("external_auth_provider"),
-            external_user_id=user_info.get("external_user_id"),
-            keycloak=keycloak_data
         )
         
         return APIResponse.success_response(

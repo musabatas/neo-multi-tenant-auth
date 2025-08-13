@@ -216,6 +216,21 @@ curl http://localhost:8000/api/v1/migrations/dynamic/status
 curl -X POST http://localhost:8000/api/v1/migrations/dynamic/apply
 ```
 
+### API Test Users
+
+Use these users to test the API endpoints:
+
+```bash
+Super Admin:
+username: test
+password: 12345678
+
+Platform Admin:
+username: musab
+password: 12345678
+```
+
+
 ### Development Workflow
 
 ```bash
@@ -302,16 +317,24 @@ Only the admin database connection is configured in environment variables. All o
 - Multi-region intelligent routing
 
 ### Migration Execution
-Migrations are automatically executed when the deployment API starts:
-1. Platform common schema (V0001)
-2. Admin database migrations (V1001-V1008)
-3. Regional database migrations (V2001, V3001)
-4. Tenant schema migrations (dynamically per tenant)
+The system uses a **two-phase migration approach**:
 
-The API provides endpoints for:
-- Checking migration status: `GET /api/v1/migrations/status`
-- Manual migration triggers: `POST /api/v1/migrations/apply`
-- Tenant-specific migrations: `POST /api/v1/tenants/{tenant_id}/migrate`
+**Phase 1 - Startup Migrations (Automatic)**:
+- Runs automatically when deployment API starts
+- Handles admin database only: platform_common + admin schemas
+- Uses Flyway configuration files in `/app/flyway/conf/`
+
+**Phase 2 - Dynamic Migrations (API-triggered)**:
+- Handles ALL regional databases (shared + analytics)
+- Uses dynamic configuration from `admin.database_connections` table
+- Dependency resolver ensures correct order: platform_common → tenant_template
+- Triggered via: `POST /api/v1/migrations/dynamic`
+
+**Key API Endpoints**:
+- Admin migrations status: `GET /api/v1/migrations/status`
+- Dynamic migrations: `POST /api/v1/migrations/dynamic`
+- Migration status: `GET /api/v1/migrations/dynamic/status`
+- Tenant migrations: `POST /api/v1/tenants/{tenant_id}/migrate`
 
 ### Migration Files Naming Convention
 - **V0001-V0999**: Platform common schemas and functions

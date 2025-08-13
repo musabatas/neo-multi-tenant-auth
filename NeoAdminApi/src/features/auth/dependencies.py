@@ -1,17 +1,18 @@
 """
 Authentication dependencies for FastAPI routes.
 """
-from typing import Optional, List, Annotated, Dict, Any
-from fastapi import Depends, HTTPException, status, Request
+from typing import Optional, List, Annotated, Dict, Any, Union
+from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from loguru import logger
 
 from src.integrations.keycloak.token_manager import get_token_manager, ValidationStrategy
 from src.common.config.settings import settings
-from src.common.exceptions.base import UnauthorizedError, ForbiddenError
+from src.common.exceptions.base import UnauthorizedError, ForbiddenError, RateLimitError
 from src.features.auth.models.response import UserProfile
 from .services.auth_service import AuthService
 from .services.permission_service import PermissionService
+from .services.guest_auth_service import get_guest_auth_service, GuestAuthService
 
 
 # Security scheme
@@ -286,3 +287,157 @@ async def get_user_roles(
         roles.extend(client_access.get("roles", []))
     
     return list(set(roles))
+
+
+# ============================================================================
+# GUEST AUTHENTICATION DEPENDENCIES
+# ============================================================================
+
+# Optional security scheme for guest tokens
+guest_security = HTTPBearer(
+    description="Optional guest session token for tracking",
+    auto_error=False
+)
+
+
+class GuestOrAuthenticated:
+    """
+    Dependency that allows both authenticated users and guest access.
+    
+    Provides session tracking for guests while maintaining full functionality
+    for authenticated users.
+    """
+    
+    def __init__(self, required_permissions: Optional[list] = None):
+        """
+        Initialize guest/authenticated dependency.
+        
+        Args:
+            required_permissions: Permissions required for authenticated access
+        """
+        self.required_permissions = required_permissions or []
+    
+    async def __call__(
+        self,
+        request: Request,
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(guest_security),
+        x_guest_session: Optional[str] = Header(None, description="Guest session token"),
+        guest_service: GuestAuthService = Depends(get_guest_auth_service)
+    ) -> Dict[str, Any]:
+        """
+        Validate either authenticated user or create guest session.
+        
+        Returns:
+            User data (authenticated) or guest session data
+        """
+        # Extract client information
+        client_ip = self._get_client_ip(request)
+        user_agent = request.headers.get("user-agent")
+        referrer = request.headers.get("referer")
+        
+        # Try authenticated access first
+        if credentials and credentials.credentials:
+            try:
+                # Use existing authentication system
+                auth_check = CheckPermission(self.required_permissions, scope="platform")
+                user_data = await auth_check(credentials, request)
+                
+                # Add user type marker
+                user_data["user_type"] = "authenticated"
+                user_data["session_type"] = "keycloak"
+                
+                logger.debug(f"Authenticated user {user_data['id']} accessing reference data")
+                return user_data
+                
+            except Exception as e:
+                logger.debug(f"Authentication failed, falling back to guest: {e}")
+                # Fall through to guest access
+        
+        # Handle guest access
+        try:
+            # Get or create guest session
+            guest_token = x_guest_session or (credentials.credentials if credentials else None)
+            
+            session_data = await guest_service.get_or_create_guest_session(
+                session_token=guest_token,
+                ip_address=client_ip,
+                user_agent=user_agent,
+                referrer=referrer
+            )
+            
+            # Format session token for response
+            if not guest_token or not guest_token.startswith("guest_"):
+                session_data["new_session_token"] = f"{session_data['session_id']}:{session_data['session_token']}"
+            
+            logger.debug(f"Guest session {session_data['session_id']} accessing reference data")
+            return session_data
+            
+        except RateLimitError as e:
+            logger.warning(f"Rate limit exceeded for IP {client_ip}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(e),
+                headers={"Retry-After": "3600"}  # 1 hour
+            )
+        except Exception as e:
+            logger.error(f"Guest authentication failed: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Unable to create guest session"
+            )
+    
+    def _get_client_ip(self, request: Request) -> str:
+        """Extract client IP address from request."""
+        # Check X-Forwarded-For header (load balancer/proxy)
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            # Take the first IP in the chain
+            return forwarded_for.split(",")[0].strip()
+        
+        # Check X-Real-IP header (nginx)
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip.strip()
+        
+        # Fall back to direct connection
+        if hasattr(request, "client") and request.client:
+            return request.client.host
+        
+        return "unknown"
+
+
+class GuestSessionInfo:
+    """Dependency to extract guest session information."""
+    
+    async def __call__(
+        self,
+        x_guest_session: Optional[str] = Header(None),
+        guest_service: GuestAuthService = Depends(get_guest_auth_service)
+    ) -> Optional[Dict[str, Any]]:
+        """Get guest session stats if session token provided."""
+        if not x_guest_session:
+            return None
+        
+        try:
+            return await guest_service.get_session_stats(x_guest_session)
+        except Exception as e:
+            logger.debug(f"Failed to get guest session stats: {e}")
+            return None
+
+
+# Common dependency instances
+get_reference_data_access = GuestOrAuthenticated(required_permissions=["reference_data:read"])
+get_guest_session_info = GuestSessionInfo()
+
+
+def create_guest_or_authenticated(required_permissions: Optional[list] = None):
+    """
+    Create a guest/authenticated dependency with specific permissions.
+    
+    Args:
+        required_permissions: Permissions required for authenticated users
+        
+    Returns:
+        Configured dependency instance
+    """
+    return GuestOrAuthenticated(required_permissions)

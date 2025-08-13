@@ -27,8 +27,11 @@ async def lifespan(app: FastAPI):
         # Initialize database connections
         await init_database()
         
-        # Initialize cache
-        await init_cache()
+        # Initialize cache (optional - will warn if unavailable)
+        try:
+            await init_cache()
+        except Exception as e:
+            logger.warning(f"Cache initialization failed, continuing without cache: {e}")
         
         # Sync permissions on startup
         from src.features.auth.services.permission_manager import PermissionSyncManager
@@ -61,8 +64,11 @@ async def lifespan(app: FastAPI):
         # Close database connections
         await close_database()
         
-        # Close cache connections
-        await close_cache()
+        # Close cache connections (if available)
+        try:
+            await close_cache()
+        except Exception as e:
+            logger.warning(f"Cache shutdown failed (non-critical): {e}")
         
         logger.info("Application shutdown complete")
         
@@ -134,6 +140,7 @@ def _import_routers():
     from src.features.users.routers.v1 import router as users_router
     from src.features.users.routers.me import router as users_me_router
     from src.features.roles import roles_router
+    from src.features.reference_data import reference_data_router
     
     return {
         "auth": {
@@ -154,6 +161,9 @@ def _import_routers():
         "infrastructure": {
             "regions": (region_router, "/regions", ["Regions"]),
             "databases": (database_router, "/databases", ["Database Connections"])
+        },
+        "reference_data": {
+            "reference_data": (reference_data_router, "", [])
         }
     }
 
@@ -213,6 +223,7 @@ def register_routers(app: FastAPI) -> None:
     logger.info("  Organization Management: /organizations")
     logger.info("  Tenant Management: /tenants")
     logger.info("  Infrastructure: /regions, /databases")
+    logger.info("  Reference Data: /currencies, /countries, /languages")
     
     if settings.enable_prefix_routes and settings.api_prefix:
         logger.info(f"  📦 Compatibility routes with {settings.api_prefix} prefix (hidden from docs)")

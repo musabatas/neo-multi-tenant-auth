@@ -93,8 +93,13 @@ class UserProfile(BaseSchema):
     created_at: Optional[datetime] = Field(None, description="Account creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     
+    # Flattened Keycloak fields (moved from nested keycloak object)
+    session_id: Optional[str] = Field(None, description="Keycloak session ID")
+    realm: Optional[str] = Field(None, description="Keycloak realm")
+    email_verified: bool = Field(False, description="Email verification status from Keycloak")
+    authorized_party: Optional[str] = Field(None, description="OAuth authorized party")
+    
     # External auth data
-    keycloak: Optional[KeycloakUserData] = Field(None, description="Keycloak user data")
     external_auth_provider: Optional[str] = Field(None, description="Authentication provider")
     external_user_id: Optional[str] = Field(None, description="External provider user ID")
 

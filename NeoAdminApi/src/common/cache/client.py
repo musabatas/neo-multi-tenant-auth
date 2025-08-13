@@ -19,27 +19,74 @@ class CacheManager:
         self.redis_client: Optional[Redis] = None
         self.pool: Optional[ConnectionPool] = None
         self.key_prefix = settings.get_cache_key_prefix()
+        self.is_available = False  # Track Redis availability
+        self.connection_attempted = False  # Track if we've tried to connect
         
-    async def connect(self) -> Redis:
-        """Create and return Redis connection."""
-        if self.redis_client is None:
-            logger.info("Creating Redis connection pool...")
+    async def connect(self) -> Optional[Redis]:
+        """Create and return Redis connection.
+        
+        Returns None if Redis is not configured or unavailable.
+        """
+        # Skip if already attempted and failed
+        if self.connection_attempted and not self.is_available:
+            return None
             
-            # Parse Redis URL
+        if self.redis_client is None:
+            # Check if Redis URL is configured
+            if not settings.is_cache_enabled:
+                # Redis not configured
+                if not self.connection_attempted:
+                    logger.info(
+                        "Redis URL not configured (REDIS_URL environment variable not set). "
+                        "Running without cache - this will impact performance! "
+                        "Set REDIS_URL to enable caching for better performance."
+                    )
+                    self.connection_attempted = True
+                return None
+            
             redis_url = str(settings.redis_url)
             
-            self.pool = ConnectionPool.from_url(
-                redis_url,
-                max_connections=settings.redis_pool_size,
-                decode_responses=settings.redis_decode_responses,
-                health_check_interval=30
-            )
-            
-            self.redis_client = Redis(connection_pool=self.pool)
-            
-            # Test connection
-            await self.redis_client.ping()
-            logger.info("Redis connection established successfully")
+            try:
+                logger.info("Creating Redis connection pool...")
+                
+                self.pool = ConnectionPool.from_url(
+                    redis_url,
+                    max_connections=settings.redis_pool_size,
+                    decode_responses=settings.redis_decode_responses,
+                    health_check_interval=30
+                )
+                
+                self.redis_client = Redis(connection_pool=self.pool)
+                
+                # Test connection
+                await self.redis_client.ping()
+                logger.info("Redis connection established successfully")
+                self.is_available = True
+                self.connection_attempted = True
+                
+            except Exception as e:
+                logger.warning(
+                    f"Redis connection failed: {e}. "
+                    "Running without cache - this will impact performance!"
+                )
+                self.is_available = False
+                self.connection_attempted = True
+                
+                # Clean up failed connection
+                if self.redis_client:
+                    try:
+                        await self.redis_client.close()
+                    except:
+                        pass
+                if self.pool:
+                    try:
+                        await self.pool.disconnect()
+                    except:
+                        pass
+                    
+                self.redis_client = None
+                self.pool = None
+                return None
             
         return self.redis_client
     
@@ -67,6 +114,10 @@ class CacheManager:
     ) -> Optional[Any]:
         """Get value from cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return None (cache miss)
+            return None
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -121,6 +172,10 @@ class CacheManager:
     ) -> bool:
         """Set value in cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return False (cache write failed)
+            return False
+            
         full_key = self._make_key(key, namespace)
         
         if ttl is None:
@@ -154,6 +209,10 @@ class CacheManager:
     async def delete(self, key: str, namespace: Optional[str] = None) -> bool:
         """Delete value from cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return False
+            return False
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -166,6 +225,10 @@ class CacheManager:
     async def delete_pattern(self, pattern: str, namespace: Optional[str] = None) -> int:
         """Delete all keys matching a pattern."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return 0
+            return 0
+            
         full_pattern = self._make_key(pattern, namespace)
         
         try:
@@ -184,6 +247,10 @@ class CacheManager:
     async def exists(self, key: str, namespace: Optional[str] = None) -> bool:
         """Check if key exists in cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return False
+            return False
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -200,6 +267,10 @@ class CacheManager:
     ) -> bool:
         """Set expiration time for a key."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return False
+            return False
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -216,6 +287,10 @@ class CacheManager:
     ) -> Optional[int]:
         """Increment a counter in cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return None
+            return None
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -232,6 +307,10 @@ class CacheManager:
     ) -> Optional[int]:
         """Decrement a counter in cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return None
+            return None
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -247,6 +326,10 @@ class CacheManager:
     ) -> Dict[str, Any]:
         """Get multiple values from cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return empty dict
+            return {}
+            
         full_keys = [self._make_key(key, namespace) for key in keys]
         
         try:
@@ -274,6 +357,9 @@ class CacheManager:
     ) -> bool:
         """Set multiple values in cache."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return False
+            return False
         
         if ttl is None:
             ttl = settings.cache_ttl_default
@@ -303,11 +389,31 @@ class CacheManager:
         """Check Redis health."""
         try:
             client = await self.connect()
+            if not client:
+                # Redis not available
+                return False
             await client.ping()
             return True
         except Exception as e:
             logger.error(f"Redis health check failed: {e}")
             return False
+    
+    def get_cache_status(self) -> Dict[str, Any]:
+        """Get cache status information."""
+        return {
+            "redis_configured": settings.is_cache_enabled,
+            "redis_available": self.is_available,
+            "connection_attempted": self.connection_attempted,
+            "redis_url": str(settings.redis_url) if settings.redis_url else None,
+            "performance_impact": not self.is_available,
+            "warnings": [
+                "Redis not configured - set REDIS_URL environment variable",
+                "Using database for all operations (no caching)",
+                "Performance may be significantly impacted",
+                "Permission checks will be slower (no 10-minute cache)",
+                "Tenant lookups will be slower (no 10-minute cache)"
+            ] if not self.is_available else []
+        }
     
     # Redis Set operations
     async def sadd(
@@ -318,6 +424,10 @@ class CacheManager:
     ) -> int:
         """Add one or more members to a set."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return 0
+            return 0
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -333,6 +443,10 @@ class CacheManager:
     ) -> set:
         """Get all members of a set."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return empty set
+            return set()
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -349,6 +463,10 @@ class CacheManager:
     ) -> int:
         """Remove one or more members from a set."""
         client = await self.connect()
+        if not client:
+            # Redis not available, return 0
+            return 0
+            
         full_key = self._make_key(key, namespace)
         
         try:
@@ -357,21 +475,6 @@ class CacheManager:
             logger.error(f"Cache srem error for key {full_key}: {e}")
             return 0
     
-    async def expire(
-        self, 
-        key: str, 
-        ttl: int, 
-        namespace: Optional[str] = None
-    ) -> bool:
-        """Set TTL on a key."""
-        client = await self.connect()
-        full_key = self._make_key(key, namespace)
-        
-        try:
-            return await client.expire(full_key, ttl)
-        except Exception as e:
-            logger.error(f"Cache expire error for key {full_key}: {e}")
-            return False
 
 
 # Global cache manager instance
@@ -390,13 +493,28 @@ async def init_cache():
     """Initialize cache connection."""
     logger.info("Initializing cache...")
     cache = get_cache()
-    await cache.connect()
-    logger.info("Cache initialization complete")
+    client = await cache.connect()
+    
+    if client:
+        logger.info("Cache initialization complete - Redis is available")
+    else:
+        logger.warning(
+            "Cache initialization skipped - Redis is not available. "
+            "Application will run without caching. "
+            "This may impact performance significantly for:"
+            "\n  - Permission checks (normally cached for 10 minutes)"
+            "\n  - Tenant lookups (normally cached for 10 minutes)"
+            "\n  - Token validation (repeated Keycloak calls)"
+            "\n  - Rate limiting (if implemented)"
+        )
 
 
 async def close_cache():
     """Close cache connection."""
-    logger.info("Closing cache connection...")
     cache = get_cache()
-    await cache.disconnect()
-    logger.info("Cache connection closed")
+    if cache.is_available:
+        logger.info("Closing cache connection...")
+        await cache.disconnect()
+        logger.info("Cache connection closed")
+    else:
+        logger.debug("No cache connection to close")

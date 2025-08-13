@@ -61,21 +61,35 @@ def register_health_endpoints(app: FastAPI) -> None:
             cache_healthy = await cache.health_check()
             latency = (time.time() - start) * 1000
             
+            # Get cache status info
+            cache_status = cache.get_cache_status()
+            
             services["cache"] = ServiceHealth(
                 name="Redis",
-                status=HealthStatus.HEALTHY if cache_healthy else HealthStatus.UNHEALTHY,
-                latency_ms=latency
+                status=HealthStatus.HEALTHY if cache_healthy else HealthStatus.DEGRADED,
+                latency_ms=latency if cache_healthy else None,
+                details={
+                    "configured": cache_status["redis_configured"],
+                    "available": cache_status["redis_available"],
+                    "connection_attempted": cache_status["connection_attempted"],
+                    "performance_impact": cache_status["performance_impact"],
+                    "warnings": cache_status["warnings"]
+                }
             )
             
-            if not cache_healthy:
-                if overall_status == HealthStatus.HEALTHY:
-                    overall_status = HealthStatus.DEGRADED
+            # Cache unavailable is degraded performance, not unhealthy
+            if not cache_healthy and overall_status == HealthStatus.HEALTHY:
+                overall_status = HealthStatus.DEGRADED
                     
         except Exception as e:
             services["cache"] = ServiceHealth(
                 name="Redis",
-                status=HealthStatus.UNHEALTHY,
-                error=str(e)
+                status=HealthStatus.DEGRADED,
+                error=str(e),
+                details={
+                    "message": "Cache unavailable - application running without cache",
+                    "performance_impact": True
+                }
             )
             if overall_status == HealthStatus.HEALTHY:
                 overall_status = HealthStatus.DEGRADED
@@ -86,6 +100,45 @@ def register_health_endpoints(app: FastAPI) -> None:
             environment=settings.environment,
             timestamp=utc_now(),
             services=services
+        )
+    
+    @app.get("/health/cache", tags=["Health"])
+    async def cache_health():
+        """Detailed cache health and status endpoint."""
+        from src.common.cache.client import get_cache
+        from src.common.utils.datetime import utc_now
+        
+        cache = get_cache()
+        cache_status = cache.get_cache_status()
+        
+        # Get cache stats if available
+        cache_stats = {}
+        if cache.is_available:
+            try:
+                # Try to get Redis info if available
+                client = await cache.connect()
+                if client:
+                    info = await client.info()
+                    cache_stats = {
+                        "connected_clients": info.get("connected_clients", 0),
+                        "used_memory_human": info.get("used_memory_human", "N/A"),
+                        "keyspace_hits": info.get("keyspace_hits", 0),
+                        "keyspace_misses": info.get("keyspace_misses", 0)
+                    }
+            except Exception:
+                pass
+        
+        return APIResponse.success_response(
+            data={
+                "timestamp": utc_now(),
+                "cache_status": cache_status,
+                "cache_stats": cache_stats,
+                "recommendations": [
+                    "Install and configure Redis for optimal performance" if not cache_status["redis_available"] else None,
+                    "Consider Redis clustering for production workloads" if cache_status["redis_available"] and settings.is_production else None
+                ]
+            },
+            message="Cache status retrieved successfully"
         )
     
     # Root endpoint

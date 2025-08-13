@@ -473,6 +473,79 @@ class AuthService:
         
         return user_info
     
+    async def get_current_user_profile(
+        self,
+        access_token: str,
+        use_cache: bool = True
+    ) -> "UserProfile":
+        """
+        Get current user as UserProfile model with flattened Keycloak fields.
+        
+        This method centralizes the logic shared between /auth/me and /user/me endpoints.
+        
+        Args:
+            access_token: Access token
+            use_cache: Whether to use cached user info
+            
+        Returns:
+            UserProfile model with flattened Keycloak fields
+            
+        Raises:
+            UnauthorizedError: Invalid token
+            NotFoundError: User not found
+        """
+        # Import here to avoid circular imports
+        from ..models.response import UserProfile
+        
+        # Get raw user info
+        user_info = await self.get_current_user(
+            access_token=access_token,
+            use_cache=use_cache
+        )
+        
+        # Extract Keycloak data for flattened fields
+        keycloak_data = user_info.get("keycloak", {})
+        
+        # Map to UserProfile model with flattened structure
+        user_profile = UserProfile(
+            id=user_info["id"],
+            email=user_info["email"],
+            username=user_info["username"],
+            first_name=user_info.get("first_name"),
+            last_name=user_info.get("last_name"),
+            display_name=user_info.get("display_name"),
+            full_name=user_info.get("full_name"),
+            avatar_url=user_info.get("avatar_url"),
+            phone=user_info.get("phone"),
+            job_title=user_info.get("job_title"),
+            company=user_info.get("company"),
+            departments=user_info.get("departments", []),
+            timezone=user_info.get("timezone", "UTC"),
+            locale=user_info.get("locale", "en-US"),
+            language=user_info.get("language", "en"),
+            notification_preferences=user_info.get("notification_preferences", {}),
+            ui_preferences=user_info.get("ui_preferences", {}),
+            is_onboarding_completed=user_info.get("is_onboarding_completed", False),
+            profile_completion_percentage=user_info.get("profile_completion_percentage", 0),
+            is_active=user_info.get("is_active", True),
+            is_superadmin=user_info.get("is_superadmin", False),
+            roles=user_info.get("roles", []),
+            permissions=user_info.get("permissions", []),
+            tenants=user_info.get("tenants", []),
+            last_login_at=user_info.get("last_login_at"),
+            created_at=user_info.get("created_at"),
+            updated_at=user_info.get("updated_at"),
+            external_auth_provider=user_info.get("external_auth_provider"),
+            external_user_id=user_info.get("external_user_id"),
+            # Flattened Keycloak fields
+            session_id=keycloak_data.get("session_id"),
+            realm=keycloak_data.get("realm"),
+            email_verified=keycloak_data.get("email_verified", False),
+            authorized_party=keycloak_data.get("authorized_party")
+        )
+        
+        return user_profile
+    
     async def invalidate_user_cache(self, user_id: str) -> None:
         """
         Invalidate user cache entries.

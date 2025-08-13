@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     db_pool_recycle: int = Field(default=3600, env="DB_POOL_RECYCLE")
     db_echo: bool = Field(default=False, env="DB_ECHO")
     
-    # Redis Cache
-    redis_url: RedisDsn = Field(
-        default="redis://:redis@localhost:6379/0",
+    # Redis Cache (Optional - improves performance when available)
+    redis_url: Optional[RedisDsn] = Field(
+        default=None,
         env="REDIS_URL"
     )
     redis_pool_size: int = Field(default=10, env="REDIS_POOL_SIZE")
@@ -166,6 +166,11 @@ class Settings(BaseSettings):
         if isinstance(self.cors_origins, str):
             return [origin.strip() for origin in self.cors_origins.split(",")]
         return self.cors_origins
+    
+    @property
+    def is_cache_enabled(self) -> bool:
+        """Check if Redis caching is configured."""
+        return self.redis_url is not None
 
 
 @lru_cache()

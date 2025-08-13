@@ -316,6 +316,181 @@ All responses use the standardized APIResponse model:
 }
 ```
 
+### Guest Authentication for Public Endpoints
+
+The API supports guest authentication for public reference data endpoints (currencies, countries, languages). This provides:
+
+- **Session Tracking**: Automatic session creation for unauthenticated users
+- **Rate Limiting**: Per-session and per-IP rate limits to prevent abuse
+- **Usage Analytics**: Track anonymous usage patterns without requiring authentication
+- **Seamless Experience**: Works for both authenticated and unauthenticated users
+
+#### Guest Authentication Flow
+
+1. **Automatic Session Creation**: First request to reference data endpoints creates a guest session
+2. **Session Token Return**: New session token returned in response headers or session endpoint
+3. **Subsequent Requests**: Include session token via `Authorization` header or `X-Guest-Session` header
+4. **Rate Limiting**: 1000 requests per session, 5000 requests per IP per day
+
+#### Usage Examples
+
+**Create Guest Session (Automatic)**:
+```bash
+# First request automatically creates guest session
+curl http://localhost:8001/currencies
+# Response includes new_session_token in data
+```
+
+**Use Guest Session Token**:
+```bash
+# Include session token in subsequent requests
+curl -H "X-Guest-Session: guest_abc123:token456" http://localhost:8001/countries
+
+# Or use Authorization header
+curl -H "Authorization: Bearer guest_abc123:token456" http://localhost:8001/languages
+```
+
+**Check Session Information**:
+```bash
+curl -H "X-Guest-Session: guest_abc123:token456" http://localhost:8001/session
+```
+
+#### Guest Session Data Structure
+
+```json
+{
+  "session_id": "guest_abc123",
+  "user_type": "guest",
+  "permissions": ["reference_data:read"],
+  "rate_limit": {
+    "requests_remaining": 999,
+    "reset_time": "2024-01-01T13:00:00Z"
+  },
+  "request_count": 1,
+  "created_at": "2024-01-01T12:00:00Z",
+  "expires_at": "2024-01-01T13:00:00Z"
+}
+```
+
+#### Implementation Pattern for Other Public Endpoints
+
+To add guest authentication to other endpoints:
+
+1. **Import Guest Dependencies**:
+```python
+from src.features.auth.dependencies.guest_auth import get_reference_data_access
+```
+
+2. **Replace Authentication Dependency**:
+```python
+# Before: Required authentication
+@require_permission("resource:read", scope="platform")
+async def get_resource(
+    current_user: dict = Depends(CheckPermission(["resource:read"]))
+):
+    pass
+
+# After: Guest or authenticated access
+async def get_resource(
+    current_user: dict = Depends(get_reference_data_access)
+):
+    # current_user["user_type"] will be "guest" or "authenticated"
+    pass
+```
+
+3. **Handle Session Information**:
+```python
+# Check user type in endpoint
+if current_user.get("user_type") == "guest":
+    # Handle guest user (limited functionality)
+    logger.info(f"Guest session {current_user['session_id']} accessed resource")
+else:
+    # Handle authenticated user (full functionality)
+    logger.info(f"User {current_user['id']} accessed resource")
+```
+
+#### Rate Limiting Configuration
+
+Guest authentication includes built-in rate limiting:
+
+- **Session Limits**: 1000 requests per 1-hour session
+- **IP Limits**: 5000 requests per IP per 24 hours
+- **Error Responses**: HTTP 429 with Retry-After header
+
+#### Security Considerations
+
+- **No Sensitive Data**: Guest sessions only access public reference data
+- **Session Expiry**: 1-hour session timeout with automatic cleanup
+- **IP Tracking**: Rate limiting prevents abuse from single IP addresses
+- **No Persistence**: Guest sessions are cache-only (Redis) with automatic expiration
+
+### OpenAPI Documentation & Nested Tags
+
+The API uses a nested tag system for better organization in Scalar documentation. Tags are organized into groups that create collapsible sections in the API docs.
+
+#### Adding New Feature Tags
+
+When creating new features, ensure the tag groups are updated in `src/common/openapi_config.py`:
+
+1. **Add your feature tags** to the appropriate tag group in the `get_tag_groups()` function
+2. **Use consistent tag naming**: 
+   - Group name: Descriptive group name (e.g., `"Reference Data"`)
+   - Tags: Simple, clear names (e.g., `"Currencies"`, `"Countries"`, `"Languages"`)
+
+Example tag group configuration:
+```python
+{
+    "name": "Reference Data",
+    "tags": ["Currencies", "Countries", "Languages"]
+}
+```
+
+#### Router Tag Patterns
+
+**Single Feature Router** (most features):
+```python
+router = NeoAPIRouter(tags=["Feature Name"])
+```
+
+**Multi-Router Feature** (complex features like regions, reference_data):
+```python
+# Main router (no tags to avoid duplication)
+router = NeoAPIRouter()
+
+# Sub-routers with specific tags and prefixes
+currency_router = NeoAPIRouter(prefix="/currencies", tags=["Currencies"])
+country_router = NeoAPIRouter(prefix="/countries", tags=["Countries"])
+
+# Include sub-routers in main router
+router.include_router(currency_router)
+router.include_router(country_router)
+```
+
+**⚠️ Important**: 
+- If using multiple sub-routers, don't add tags to the main router to avoid duplicate tag assignments
+- Use empty tags `[]` in the app router registration to prevent default tag assignment
+- Only sub-routers should have tags when using tag groups
+
+**App Router Registration** (in `src/app.py`):
+```python
+"reference_data": {
+    "reference_data": (reference_data_router, "", [])  # Empty tags!
+}
+```
+
+#### Current Tag Groups
+
+- **Authentication & Authorization**: `["Authentication", "Permissions", "Roles"]`
+- **User Management**: `["Platform Users", "User Profile", "User Settings"]`
+- **Organization Management**: `["Organizations", "Organization Settings", "Organization Members"]`
+- **Tenant Management**: `["Tenants", "Tenant Settings", "Tenant Users"]`
+- **Infrastructure**: `["Regions", "Database Connections", "Health"]`
+- **Reference Data**: `["Currencies", "Countries", "Languages"]`
+- **💳 Billing & Subscriptions**: `["Billing", "Subscriptions", "Invoices", "Payment Methods"]`
+- **📊 Analytics & Reports**: `["Analytics", "Reports", "Metrics"]`
+- **System**: `["Health", "Configuration", "Migrations", "Monitoring"]`
+- **Debug**: `["Debug", "Test", "Root"]`
+
 ## Security Considerations
 
 1. **Token Validation**: Use python-keycloak's async methods

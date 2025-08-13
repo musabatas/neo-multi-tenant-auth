@@ -1,6 +1,6 @@
 ---
 title: Global Project Patterns
-entry_count: 55
+entry_count: 73
 last_updated: 2025-08-13
 ---
 
@@ -59,3 +59,21 @@ last_updated: 2025-08-13
 53. Exception classes include to_dict() method for API response serialization with error, message, details, and status_code fields
 54. Base service classes provide common patterns for pagination metadata, error handling, and response formatting
 55. Integration modules should have proper __init__.py with exports even if subdirectories handle specific implementations
+56. Token validation modules use dual strategy pattern: fast local JWT validation and secure server-side introspection
+57. JWT handling includes backward compatibility fallbacks for audience validation failures with configurable settings
+58. Background tasks created with asyncio.create_task() should have proper error handling and task references stored
+59. Keycloak integration uses dual validation strategy with local JWT validation and server-side introspection based on criticality
+60. HTTP clients should use shared AsyncClient instances with connection pooling instead of creating new instances per request
+61. Keycloak integrations wrap synchronous python-keycloak library with asyncio.to_thread for async compatibility
+62. Realm configuration includes comprehensive security settings like password policies and brute force protection
+63. Keycloak realm names stored in tenants.external_auth_realm column and cached with 1-hour TTL
+64. Payment gateway integration modules exist as placeholders with empty __init__.py files awaiting implementation
+65. SMS notification service integration modules exist as placeholders with empty __init__.py files awaiting implementation
+66. Email notification service integration module exists as placeholder with empty __init__.py file awaiting implementation
+67. Migration feature module exists as placeholder with complete directory structure but all __init__.py files empty awaiting implementation
+68. Feature module __init__.py files export multiple routers with descriptive aliases (e.g., database_router, region_router)
+69. Security feature module exists as placeholder with empty __init__.py files throughout the module structure awaiting implementation
+70. Auth feature module has complete subdirectory structure (routers, services, repositories, models, cache, decorators) but empty __init__.py needs exports
+71. Authentication dependencies use CurrentUser class pattern with required flag and permission list parameters for flexible auth requirements
+72. Permission checking supports both any_of (OR) and all (AND) logic with wildcard pattern matching for resource:action permissions
+73. Tenants feature module has complete subdirectory structure (routers, services, models, repositories, cache, provisioning) requiring proper exports

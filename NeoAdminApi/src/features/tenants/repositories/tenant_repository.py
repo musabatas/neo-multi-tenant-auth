@@ -578,6 +578,108 @@ class TenantRepository:
             uuid_fields=['id']
         )
     
+    async def get_organization_info(self, organization_id: str) -> Dict[str, Any]:
+        """Get organization summary information.
+        
+        Args:
+            organization_id: Organization UUID
+            
+        Returns:
+            Organization information dictionary
+        """
+        query = """
+            SELECT 
+                id, name, slug, is_active
+            FROM admin.organizations
+            WHERE id = $1
+        """
+        
+        result = await self.db.fetchrow(query, organization_id)
+        
+        if not result:
+            raise NotFoundError("Organization", organization_id)
+        
+        return process_database_record(
+            result,
+            uuid_fields=['id']
+        )
+    
+    async def get_region_info(self, region_id: str) -> Dict[str, Any]:
+        """Get region summary information.
+        
+        Args:
+            region_id: Region UUID
+            
+        Returns:
+            Region information dictionary
+        """
+        query = """
+            SELECT 
+                id, code, name, country_code, is_active
+            FROM admin.regions
+            WHERE id = $1
+        """
+        
+        result = await self.db.fetchrow(query, region_id)
+        
+        if not result:
+            raise NotFoundError("Region", region_id)
+        
+        return process_database_record(
+            result,
+            uuid_fields=['id']
+        )
+    
+    async def get_subscription_info(self, tenant_id: str) -> Optional[Dict[str, Any]]:
+        """Get subscription information for a tenant.
+        
+        Args:
+            tenant_id: Tenant UUID
+            
+        Returns:
+            Subscription information dictionary or None
+        """
+        query = """
+            SELECT 
+                s.id,
+                sp.name as plan_name,
+                sp.tier as plan_tier,
+                s.status,
+                s.current_period_end
+            FROM admin.subscriptions s
+            JOIN admin.subscription_plans sp ON s.plan_id = sp.id
+            WHERE s.tenant_id = $1
+            ORDER BY s.created_at DESC
+            LIMIT 1
+        """
+        
+        result = await self.db.fetchrow(query, tenant_id)
+        
+        if not result:
+            return None
+        
+        return process_database_record(
+            result,
+            uuid_fields=['id']
+        )
+    
+    async def get_tenant_stats(self, tenant_id: str) -> Dict[str, Any]:
+        """Get tenant statistics.
+        
+        Args:
+            tenant_id: Tenant UUID
+            
+        Returns:
+            Statistics dictionary
+        """
+        # For now, return mock stats until we have the actual tenant schemas
+        # In production, this would query the tenant's schema for real stats
+        return {
+            'user_count': 0,
+            'active_user_count': 0,
+            'storage_used_mb': 0.0
+        }
+    
     def _map_to_domain(self, row) -> Tenant:
         """Map database row to domain model.
         

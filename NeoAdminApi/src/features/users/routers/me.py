@@ -10,7 +10,7 @@ from src.common.routers.base import NeoAPIRouter
 from src.common.models.base import APIResponse
 from src.common.exceptions.base import NotFoundError, ValidationError, UnauthorizedError
 from src.features.auth.dependencies import security
-from src.features.auth.models.response import UserProfile, KeycloakUserData
+from src.features.auth.models.response import UserProfile
 from src.features.auth.services.auth_service import AuthService
 from loguru import logger
 
@@ -43,60 +43,10 @@ async def get_my_profile(
     access_token = credentials.credentials
     
     try:
-        # Get user info (this uses centralized UserDataService)
-        user_info = await auth_service.get_current_user(
+        # Use shared method from AuthService (same as /auth/me)
+        user_profile = await auth_service.get_current_user_profile(
             access_token=access_token,
             use_cache=True
-        )
-        
-        # Prepare Keycloak data (same as /auth/me)
-        keycloak_data = None
-        if "keycloak" in user_info:
-            keycloak_raw = user_info["keycloak"]
-            keycloak_data = KeycloakUserData(
-                session_id=keycloak_raw.get("session_id"),
-                realm=keycloak_raw.get("realm"),
-                email_verified=keycloak_raw.get("email_verified", False),
-                scopes=keycloak_raw.get("scopes", []),
-                realm_roles=keycloak_raw.get("realm_roles", []),
-                client_roles=keycloak_raw.get("client_roles", {}),
-                authorized_party=keycloak_raw.get("authorized_party"),
-                auth_context_class=keycloak_raw.get("auth_context_class"),
-                full_name=keycloak_raw.get("full_name")
-            )
-        
-        # Map to UserProfile model (exactly like /auth/me)
-        user_profile = UserProfile(
-            id=user_info["id"],
-            email=user_info["email"],
-            username=user_info["username"],
-            first_name=user_info.get("first_name"),
-            last_name=user_info.get("last_name"),
-            display_name=user_info.get("display_name"),
-            full_name=user_info.get("full_name"),
-            avatar_url=user_info.get("avatar_url"),
-            phone=user_info.get("phone"),
-            job_title=user_info.get("job_title"),
-            company=user_info.get("company"),
-            departments=user_info.get("departments", []),
-            timezone=user_info.get("timezone", "UTC"),
-            locale=user_info.get("locale", "en-US"),
-            language=user_info.get("language", "en"),
-            notification_preferences=user_info.get("notification_preferences", {}),
-            ui_preferences=user_info.get("ui_preferences", {}),
-            is_onboarding_completed=user_info.get("is_onboarding_completed", False),
-            profile_completion_percentage=user_info.get("profile_completion_percentage", 0),
-            is_active=user_info.get("is_active", True),
-            is_superadmin=user_info.get("is_superadmin", False),
-            roles=user_info.get("roles", []),
-            permissions=user_info.get("permissions", []),
-            tenants=user_info.get("tenants", []),
-            last_login_at=user_info.get("last_login_at"),
-            created_at=user_info.get("created_at"),
-            updated_at=user_info.get("updated_at"),
-            external_auth_provider=user_info.get("external_auth_provider"),
-            external_user_id=user_info.get("external_user_id"),
-            keycloak=keycloak_data
         )
         
         return APIResponse.success_response(

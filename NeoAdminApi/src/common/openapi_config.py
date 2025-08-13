@@ -56,6 +56,10 @@ def get_tag_groups() -> List[Dict[str, Any]]:
             "tags": ["Regions", "Database Connections", "Health"]
         },
         {
+            "name": "Reference Data",
+            "tags": ["Currencies", "Countries", "Languages"]
+        },
+        {
             "name": "💳 Billing & Subscriptions",
             "tags": ["Billing", "Subscriptions", "Invoices", "Payment Methods"]
         },
