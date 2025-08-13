@@ -6,7 +6,7 @@ echo "🚀 Starting NeoMigrations with Infrastructure Integration"
 
 # Check if infrastructure is running
 if ! docker network ls | grep -q neo-infrastructure; then
-    echo "🔧 Creating neo-infrastructure network..."
+    echo "Creating neo-infrastructure network..."
     docker network create neo-infrastructure
 fi
 
@@ -45,4 +45,4 @@ echo "🌐 Access your services:"
 echo "   📊 PostgreSQL US: localhost:5432"
 echo "   🇪🇺 PostgreSQL EU: localhost:5433" 
 echo "   🔴 Redis: localhost:6379"
-echo "   🔐 Keycloak: http://localhost:8080"
+echo "   Keycloak: http://localhost:8080"

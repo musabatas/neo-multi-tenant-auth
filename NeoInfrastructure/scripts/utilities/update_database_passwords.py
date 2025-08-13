@@ -29,7 +29,7 @@ async def update_passwords():
     # The password to encrypt for all connections
     db_password = os.getenv('POSTGRES_PASSWORD', 'postgres')
     
-    print(f"🔐 Encrypting database passwords...")
+    print(f"Encrypting database passwords...")
     print(f"   Using APP_ENCRYPTION_KEY: {os.getenv('APP_ENCRYPTION_KEY', 'not set')[:10]}...")
     
     # Encrypt the password

@@ -43,7 +43,7 @@ def main():
     encrypted = encrypt_password(password)
     
     print("\n" + "=" * 60)
-    print("🔐 Password Encryption")
+    print("Password Encryption")
     print("=" * 60)
     print(f"Original:  {password}")
     print(f"Encrypted: {encrypted}")

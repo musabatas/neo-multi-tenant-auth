@@ -12,7 +12,7 @@ capabilities:
 priority: critical
 hooks:
   pre: |
-    echo "🔐 Security Manager securing: $TASK"
+    echo "Security Manager securing: $TASK"
     # Initialize security protocols
     if [[ "$TASK" == *"consensus"* ]]; then
       echo "🛡️  Activating cryptographic verification"

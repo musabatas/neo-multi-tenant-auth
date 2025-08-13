@@ -125,7 +125,7 @@ npx create-sparc init --force
 
 |  | Service        | Description                        |
 |:------|:---------------|:-----------------------------------|
-| 👥    | Facebook        | Social networking                 |
+|    | Facebook        | Social networking                 |
 | 📷    | Instagram       | Photo sharing                     |
 | 🐦    | Twitter         | Microblogging platform            |
 | 👽    | Reddit          | Social news aggregation           |

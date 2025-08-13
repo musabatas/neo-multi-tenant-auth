@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>NeoAdminApi/src/common/utils/datetime.py</file>
+    <language>Py</language>
+    <loc>248</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-13</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="5" open_issues="0"/>
+    <metric name="performance" score="4" open_issues="2"/>
+    <metric name="maintainability" score="4" open_issues="1"/>
+    <metric name="consistency" score="5" open_issues="0"/>
+    <metric name="best_practices" score="4" open_issues="1"/>
+    <metric name="code_smell" score="5" open_issues="0"/>
+  </scores>
+
+  <issues>
+    <issue category="performance" severity="LOW">
+      <title>ZoneInfo object recreation on each call</title>
+      <location>Lines 45, 73, 202</location>
+      <description>ZoneInfo objects are created on every function call when timezone strings are provided. These could be cached for frequently used timezones to avoid recreation overhead.</description>
+      <recommendation>Consider implementing a simple LRU cache for ZoneInfo objects or using functools.lru_cache on a wrapper function to cache timezone objects.</recommendation>
+    </issue>
+    <issue category="performance" severity="LOW">
+      <title>Repeated timezone checks could be optimized</title>
+      <location>Lines 41-54, 69-74, 100-103, 118-121, 140-143, 160-166</location>
+      <description>Multiple functions perform similar naive datetime checks and UTC conversions. This repeated logic could be extracted to reduce redundant operations.</description>
+      <recommendation>Consider extracting a helper function like _ensure_utc_aware() to centralize the timezone checking and conversion logic.</recommendation>
+    </issue>
+    <issue category="maintainability" severity="LOW">
+      <title>Missing format_iso8601 from __init__.py exports</title>
+      <location>Line 221 (datetime.py)</location>
+      <description>The format_iso8601 function is defined in datetime.py but not exported in the __init__.py __all__ list, despite being mentioned in the global project patterns as a required utility.</description>
+      <recommendation>Add 'format_iso8601' to the __all__ list in utils/__init__.py and import it at the top of the file.</recommendation>
+    </issue>
+    <issue category="best_practices" severity="LOW">
+      <title>No explicit validation for timezone string inputs</title>
+      <location>Lines 29, 58, 187</location>
+      <description>Functions accepting timezone strings don't explicitly validate the input, relying on ZoneInfo to raise exceptions. This could lead to unclear error messages for invalid timezone names.</description>
+      <recommendation>Consider adding try-except blocks around ZoneInfo creation with more descriptive error messages, or document that ZoneInfoNotFoundError may be raised.</recommendation>
+    </issue>
+  </issues>
+
+  <summary>Comprehensive datetime utility module providing timezone-aware operations with a strong UTC focus. The module handles naive and aware datetimes consistently, provides conversion utilities between timezones, and includes helper functions for expiry checking and formatting. The code is well-documented and follows project conventions.</summary>
+
+  <positive_observations>
+    <observation>Excellent consistent handling of naive datetimes by assuming UTC throughout the module</observation>
+    <observation>Comprehensive docstrings for all functions with clear parameter and return type documentation</observation>
+    <observation>Good use of Python 3.9+ zoneinfo module instead of pytz for timezone handling</observation>
+    <observation>All functions respect the 80-line limit per project standards</observation>
+    <observation>Strong UTC focus aligns with project pattern #41 for datetime utilities</observation>
+    <observation>Clean separation of concerns with single-purpose functions</observation>
+    <observation>Proper use of type hints throughout with Optional and Union types</observation>
+    <observation>format_iso8601 function correctly implements consistent UTC notation as per project requirements</observation>
+    <observation>Defensive programming with timezone checks before operations</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test file found in tests/common/utils/ directory for datetime.py</tests>
+    <documentation>Module and function-level docstrings are comprehensive and clear</documentation>
+    <configuration>No specific configuration required for this utility module</configuration>
+  </context>
+
+  <checklist>
+    <item completed="true">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="true">Security review complete</item>
+    <item completed="true">Performance acceptable</item>
+  </checklist>
+</review>

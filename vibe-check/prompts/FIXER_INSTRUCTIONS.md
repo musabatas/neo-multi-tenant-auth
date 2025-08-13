@@ -75,36 +75,63 @@ For each issue in ISSUES_TO_FIX:
 
 Always follow these project-specific patterns from CLAUDE.md:
 
-#### SupaFastAPI Patterns
+#### NeoMultiTenant Platform Patterns
 - **Feature-Based Organization**: Keep related code within feature modules
-- **Dependency Injection**: Use FastAPI's dependency system
-- **Custom Exceptions**: Use src.common.exceptions classes
-- **Async/Await**: Ensure all database operations are async
-- **UTC Timezone**: Use datetime.now(timezone.utc) for timestamps
-- **Type Safety**: Add comprehensive type hints
-- **Error Handling**: Use custom exceptions, never generic HTTPException
+- **Multi-Tenant Architecture**: Enforce tenant isolation at all levels
+- **Async Database Operations**: Use asyncpg for database operations, never ORMs for permission checks
+- **Repository Pattern**: All database operations through repository classes
+- **Cache Aggressively**: Redis for permissions with proper invalidation
+- **UUIDv7 Generation**: Use UUIDv7 for time-ordering and database consistency
+- **Structured Logging**: Include tenant_id, user_id, request_id context
+- **Graceful Error Handling**: Never expose internal details in error messages
+- **Performance First**: Sub-millisecond permission checks are critical
 
 #### Import Patterns
 ```python
-# Follow project import style
+# NeoMultiTenant import style
 from src.common.exceptions import ValidationError, ResourceNotFoundError
-from src.features.users.services import user_service
-from src.core.security import require_permission
+from src.common.database.connection import get_database_connection
+from src.features.auth.repositories.permission_repository import PermissionRepository
+from src.features.users.services.user_service import UserService
+from src.integrations.keycloak.auth import validate_token
+from src.integrations.redis.cache import get_cache_manager
 ```
 
 #### Service Layer Pattern
 ```python
-# Use dependency injection
+# NeoMultiTenant service pattern with async repository
 class UserService:
     def __init__(self, user_repo: Optional[UserRepository] = None):
         self.user_repo = user_repo or UserRepository()
+        self.cache_manager = get_cache_manager()
+    
+    async def get_user_permissions(self, user_id: str, tenant_id: str) -> List[str]:
+        """Get user permissions with Redis caching."""
+        cache_key = f"permissions:{tenant_id}:{user_id}"
+        cached = await self.cache_manager.get(cache_key)
+        if cached:
+            return cached
+        
+        permissions = await self.user_repo.get_permissions(user_id, tenant_id)
+        await self.cache_manager.set(cache_key, permissions, ttl=300)
+        return permissions
 ```
 
 #### Cache Usage
 ```python
-# Use project's cache manager
-from src.core.cache import get_cache_manager
+# NeoMultiTenant Redis caching with tenant isolation
+from src.integrations.redis.cache import get_cache_manager
+from src.common.utils.tenant import get_current_tenant_id
+
 cache_manager = get_cache_manager()
+tenant_id = get_current_tenant_id()
+
+# Tenant-isolated cache keys
+cache_key = f"tenant:{tenant_id}:permissions:{user_id}"
+await cache_manager.set(cache_key, data, ttl=300)
+
+# Cache invalidation on permission changes
+await cache_manager.delete_pattern(f"tenant:{tenant_id}:permissions:*")
 ```
 
 ### Step 5: Apply Fixes Incrementally
@@ -137,13 +164,18 @@ For each fix applied:
 1. **Preserve Functionality**: Never change the core behavior of the code
 2. **Follow Project Patterns**: Use existing conventions and architectural patterns
 3. **Security First**: Always prioritize security fixes
-4. **Incremental Changes**: Make minimal changes to fix specific issues
-5. **Type Safety**: Add type hints where missing
-6. **Error Handling**: Use project's custom exception patterns
-7. **Documentation**: Add docstrings following Google style
-8. **Testing Compatibility**: Ensure fixes don't break existing tests
-9. **Import Management**: Keep imports organized and remove unused ones
-10. **Performance Awareness**: Don't introduce performance regressions
+4. **Multi-Tenant Isolation**: Ensure tenant data isolation at all levels
+5. **Performance First**: Sub-millisecond permission checks are critical
+6. **Async Patterns**: All I/O operations must be async
+7. **UUIDv7 Usage**: Use UUIDv7 for all UUID generation (time-ordered)
+8. **Repository Pattern**: Database operations through repository classes only
+9. **Redis Caching**: Implement tenant-isolated caching with proper invalidation
+10. **Structured Logging**: Include tenant_id, user_id, request_id context
+11. **Type Safety**: Add comprehensive type hints with Pydantic models
+12. **Error Handling**: Use custom exceptions, never expose internal details
+13. **Documentation**: Add docstrings following Google style
+14. **Testing Compatibility**: Ensure fixes don't break existing tests
+15. **Import Management**: Keep imports organized and remove unused ones
 
 ## Common Fix Patterns
 
@@ -152,10 +184,13 @@ For each fix applied:
 # Before
 from typing import Union, List, Optional, TypeVar
 from src.common.exceptions import ResourceNotFoundError, ValidationError
+from src.integrations.keycloak.auth import validate_token
+from uuid import uuid4
 
-# After (if Union and ResourceNotFoundError are unused)
+# After (if Union, ResourceNotFoundError, and uuid4 are unused)
 from typing import List, Optional, TypeVar
 from src.common.exceptions import ValidationError
+from src.integrations.keycloak.auth import validate_token
 ```
 
 ### Adding Type Hints
@@ -164,26 +199,42 @@ from src.common.exceptions import ValidationError
 def process_user_data(user_data):
     return user_data
 
-# After
-def process_user_data(user_data: Dict[str, Any]) -> Dict[str, Any]:
+# After - NeoMultiTenant style with comprehensive typing
+from typing import Dict, Any, Optional
+from uuid import UUID
+
+async def process_user_data(
+    user_data: Dict[str, Any], 
+    tenant_id: UUID, 
+    user_id: Optional[UUID] = None
+) -> Dict[str, Any]:
+    """Process user data with tenant context."""
     return user_data
 ```
 
 ### Extracting Long Methods
 ```python
 # Before: 80-line method
-def complex_validation(self, data):
+async def complex_validation(self, data, tenant_id: UUID):
     # 80+ lines of mixed validation logic
 
-# After: Extracted methods
-def validate_input(self, data: Dict[str, Any]) -> List[str]:
+# After: Extracted methods with NeoMultiTenant patterns
+async def validate_input(self, data: Dict[str, Any], tenant_id: UUID) -> List[str]:
+    \"\"\"Validate input data with tenant context.\"\"\"
     errors = []
-    errors.extend(self._validate_length_requirements(data))
-    errors.extend(self._validate_format_requirements(data))
+    errors.extend(await self._validate_length_requirements(data, tenant_id))
+    errors.extend(await self._validate_format_requirements(data, tenant_id))
+    errors.extend(await self._validate_tenant_permissions(data, tenant_id))
     return errors
 
-def _validate_length_requirements(self, data: Dict[str, Any]) -> List[str]:
-    # Focused validation logic
+async def _validate_length_requirements(self, data: Dict[str, Any], tenant_id: UUID) -> List[str]:
+    \"\"\"Validate length requirements with tenant-specific rules.\"\"\"
+    # Focused validation logic with async database checks
+    pass
+
+async def _validate_tenant_permissions(self, data: Dict[str, Any], tenant_id: UUID) -> List[str]:
+    \"\"\"Validate tenant-specific permission requirements.\"\"\"
+    # Check permissions with Redis caching
     pass
 ```
 
@@ -192,12 +243,32 @@ def _validate_length_requirements(self, data: Dict[str, Any]) -> List[str]:
 # Before
 result = await operation()
 
-# After
+# After - NeoMultiTenant error handling with structured logging
+import structlog
+from src.common.exceptions import ValidationError, DatabaseError
+
+logger = structlog.get_logger()
+
 try:
     result = await operation()
 except (ValueError, TypeError) as e:
-    logger.error(f"Operation failed: {type(e).__name__}")
+    logger.error(
+        "Operation failed",
+        tenant_id=tenant_id,
+        user_id=user_id,
+        error_type=type(e).__name__,
+        request_id=get_request_id()
+    )
     raise ValidationError("Invalid operation parameters")
+except Exception as e:
+    logger.error(
+        "Unexpected error",
+        tenant_id=tenant_id,
+        user_id=user_id,
+        error=str(e),
+        request_id=get_request_id()
+    )
+    raise DatabaseError("Operation failed")
 ```
 
 ## Error Handling

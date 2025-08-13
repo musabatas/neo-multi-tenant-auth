@@ -39,7 +39,7 @@ Advanced multi-agent coordination system with timeout-free execution, distribute
 - **mesh** - Peer-to-peer agent collaboration
 - **hybrid** - Mixed coordination strategies
 
-## ⚙️ Common Options
+## Common Options
 - `--strategy <type>` - Execution strategy
 - `--mode <type>` - Coordination mode
 - `--max-agents <n>` - Maximum concurrent agents (default: 5)
@@ -179,7 +179,7 @@ Swarms automatically use distributed memory for collaboration:
 - Data encryption
 - Input validation
 
-## 🔧 Advanced Configuration
+## Advanced Configuration
 
 ### Dry run to preview:
 ```bash

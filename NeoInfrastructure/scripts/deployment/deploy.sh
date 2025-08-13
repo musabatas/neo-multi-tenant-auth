@@ -254,10 +254,10 @@ if [ "$keycloak_ready" = false ]; then
     exit 1
 fi
 
-echo -e "${CYAN}🔐 Ensuring admin realm exists (platform-admin)...${NC}"
+echo -e "${CYAN}Ensuring admin realm exists (platform-admin)...${NC}"
 docker exec -i neo-deployment-api python /app/api/provision_keycloak.py --admin-realm | sed 's/.*/   &/' || true
 
-echo -e "${CYAN}👥 Provisioning tenant realms and clients (missing only)...${NC}"
+echo -e "${CYAN}Provisioning tenant realms and clients (missing only)...${NC}"
 docker exec -i neo-deployment-api python /app/api/provision_keycloak.py | sed 's/.*/   &/' || true
 
 # Step 4: Run Seed Data (if requested)
@@ -338,7 +338,7 @@ echo "   • neofast_shared_eu (EU Region - GDPR)"
 echo "   • neofast_analytics_eu (EU Analytics - GDPR)"
 
 echo ""
-echo -e "${BLUE}🔧 Management Commands:${NC}"
+echo -e "${BLUE}Management Commands:${NC}"
 echo "   Stop all:     $INFRASTRUCTURE_DIR/stop.sh"
 echo "   Reset all:    $INFRASTRUCTURE_DIR/reset.sh"
 echo "   View logs:    docker-compose -f docker/docker-compose.infrastructure.yml logs -f"

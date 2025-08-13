@@ -13,7 +13,7 @@ priority: high
 sparc_phase: refinement
 hooks:
   pre: |
-    echo "🔧 SPARC Refinement phase initiated"
+    echo "SPARC Refinement phase initiated"
     memory_store "sparc_phase" "refinement"
     # Run initial tests
     npm test --if-present || echo "No tests yet"

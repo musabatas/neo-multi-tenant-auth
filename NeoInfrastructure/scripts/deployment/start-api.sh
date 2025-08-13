@@ -74,7 +74,7 @@ echo "   python cli_client.py migrate --scope all"
 echo "   python cli_client.py status"
 
 echo ""
-echo -e "${BLUE}🔧 Management:${NC}"
+echo -e "${BLUE}Management:${NC}"
 echo "   View logs:  docker logs -f neo-deployment-api"
 echo "   Stop API:   docker-compose -f migrations/docker-compose.api.yml down"
 echo "   Restart:    docker-compose -f migrations/docker-compose.api.yml restart"

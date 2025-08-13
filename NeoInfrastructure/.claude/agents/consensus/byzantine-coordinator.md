@@ -20,7 +20,7 @@ hooks:
   post: |
     echo "✅ Byzantine consensus complete"
     # Validate consensus results
-    echo "🔐 Verifying message signatures and ordering"
+    echo "Verifying message signatures and ordering"
 ---
 
 # Byzantine Consensus Coordinator

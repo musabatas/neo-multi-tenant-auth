@@ -108,7 +108,7 @@ mapping:
     
   # Map agent types to labels
   agents:
-    coder: "🔧 Development"
+    coder: "Development"
     tester: "🧪 Testing"
     analyst: "📊 Analysis"
     designer: "🎨 Design"

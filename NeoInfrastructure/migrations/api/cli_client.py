@@ -390,7 +390,7 @@ def migrate_tenant(ctx, tenant_id, slug, database, schema):
     """Migrate a tenant schema"""
     client = ctx.obj['client']
     
-    console.print(Panel.fit(f"🏢 Migrating Tenant: {slug}", style="bold blue"))
+    console.print(Panel.fit(f"Migrating Tenant: {slug}", style="bold blue"))
     
     try:
         result = client.migrate_tenant(tenant_id, slug, database, schema)

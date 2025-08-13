@@ -34,7 +34,7 @@ Use `new_task` to assign:
 - `/sparc-ask` - ❓Ask
 - `/sparc-devops` - 🚀 DevOps
 - `/sparc-tutorial` - 📘 SPARC Tutorial
-- `/sparc-supabase-admin` - 🔐 Supabase Admin
+- `/sparc-supabase-admin` - Supabase Admin
 - `/sparc-spec-pseudocode` - 📋 Specification Writer
 - `/sparc-mcp` - ♾️ MCP Integration
 - `/sparc-sparc` - ⚡️ SPARC Orchestrator

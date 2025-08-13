@@ -2,24 +2,18 @@
 FastAPI application factory and configuration.
 """
 from contextlib import asynccontextmanager
-from typing import Any, Dict
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from typing import Dict
+from fastapi import FastAPI
 from scalar_fastapi import get_scalar_api_reference
 from loguru import logger
-import time
 
 from src.common.config.settings import settings
 from src.common.database.connection import init_database, close_database
 from src.common.cache.client import init_cache, close_cache
-from src.common.exceptions.base import NeoAdminException
-from src.common.models.base import (
-    APIResponse,
-    HealthCheckResponse,
-    HealthStatus,
-    ServiceHealth
-)
 from src.common.middleware import setup_middleware
+from src.common.openapi_config import configure_openapi
+from src.common.endpoints import register_health_endpoints, register_debug_endpoints
+from src.common.exception_handlers import register_exception_handlers
 
 
 @asynccontextmanager
@@ -90,6 +84,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
     
+    # Configure nested tag groups for better API documentation organization
+    if not settings.is_production:
+        configure_openapi(app)
+    
     # Setup organized middleware stack
     middleware_manager = setup_middleware(app)
     logger.info(f"Configured middleware stack for {settings.environment} environment")
@@ -99,44 +97,8 @@ def create_app() -> FastAPI:
         middleware_status = middleware_manager.get_middleware_status()
         logger.info("Active middleware:", **middleware_status)
     
-    # Exception handlers
-    @app.exception_handler(NeoAdminException)
-    async def neo_admin_exception_handler(request: Request, exc: NeoAdminException):
-        """Handle application-specific exceptions."""
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=APIResponse.error_response(
-                message=exc.message,
-                errors=[exc.to_dict()]
-            ).model_dump()
-        )
-    
-    @app.exception_handler(ValueError)
-    async def value_error_handler(request: Request, exc: ValueError):
-        """Handle value errors."""
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content=APIResponse.error_response(
-                message=str(exc)
-            ).model_dump()
-        )
-    
-    @app.exception_handler(Exception)
-    async def general_exception_handler(request: Request, exc: Exception):
-        """Handle unexpected exceptions."""
-        logger.error(f"Unhandled exception: {exc}", exc_info=True)
-        
-        if settings.is_production:
-            message = "An unexpected error occurred"
-        else:
-            message = str(exc)
-        
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=APIResponse.error_response(
-                message=message
-            ).model_dump()
-        )
+    # Register exception handlers
+    register_exception_handlers(app)
     
     # Register routers
     register_routers(app)
@@ -151,133 +113,77 @@ def create_app() -> FastAPI:
                 scalar_favicon_url="https://fastapi.tiangolo.com/img/favicon.png"
             )
     
-    # Add health check endpoint
-    @app.get("/health", response_model=HealthCheckResponse, tags=["Health"])
-    async def health_check():
-        """Health check endpoint."""
-        from src.common.database.connection import get_database
-        from src.common.cache.client import get_cache
-        from src.common.utils.datetime import utc_now
-        
-        services = {}
-        overall_status = HealthStatus.HEALTHY
-        
-        # Check database
-        try:
-            start = time.time()
-            db = get_database()
-            db_healthy = await db.health_check()
-            latency = (time.time() - start) * 1000
-            
-            services["database"] = ServiceHealth(
-                name="PostgreSQL",
-                status=HealthStatus.HEALTHY if db_healthy else HealthStatus.UNHEALTHY,
-                latency_ms=latency
-            )
-            
-            if not db_healthy:
-                overall_status = HealthStatus.UNHEALTHY
-                
-        except Exception as e:
-            services["database"] = ServiceHealth(
-                name="PostgreSQL",
-                status=HealthStatus.UNHEALTHY,
-                error=str(e)
-            )
-            overall_status = HealthStatus.UNHEALTHY
-        
-        # Check cache
-        try:
-            start = time.time()
-            cache = get_cache()
-            cache_healthy = await cache.health_check()
-            latency = (time.time() - start) * 1000
-            
-            services["cache"] = ServiceHealth(
-                name="Redis",
-                status=HealthStatus.HEALTHY if cache_healthy else HealthStatus.UNHEALTHY,
-                latency_ms=latency
-            )
-            
-            if not cache_healthy:
-                if overall_status == HealthStatus.HEALTHY:
-                    overall_status = HealthStatus.DEGRADED
-                    
-        except Exception as e:
-            services["cache"] = ServiceHealth(
-                name="Redis",
-                status=HealthStatus.UNHEALTHY,
-                error=str(e)
-            )
-            if overall_status == HealthStatus.HEALTHY:
-                overall_status = HealthStatus.DEGRADED
-        
-        return HealthCheckResponse(
-            status=overall_status,
-            version=settings.app_version,
-            environment=settings.environment,
-            timestamp=utc_now(),
-            services=services
-        )
-    
-    # Add middleware status endpoint (development only)
-    if not settings.is_production:
-        @app.get("/middleware", tags=["Debug"], include_in_schema=False)
-        async def middleware_status():
-            """Get middleware configuration and status."""
-            from src.common.middleware import get_middleware_status
-            from src.common.middleware.timing import get_performance_summary
-            
-            return {
-                "middleware_status": get_middleware_status(),
-                "performance_summary": get_performance_summary(),
-                "environment": settings.environment,
-                "note": "This endpoint is only available in non-production environments"
-            }
-        
-        @app.get("/metadata-test", tags=["Debug"], include_in_schema=False)
-        async def test_metadata():
-            """Test endpoint to verify metadata collection."""
-            from src.common.database.connection import get_database
-            from src.common.cache.client import get_cache
-            from src.common.utils.metadata import MetadataCollector
-            
-            # Simulate some database operations
-            db = get_database()
-            await db.fetchval("SELECT 1")
-            await db.fetchval("SELECT 2")
-            
-            # Simulate some cache operations
-            cache = get_cache()
-            await cache.get("test_key_that_does_not_exist")  # Miss
-            await cache.set("test_key", "test_value", ttl=10)  # Set
-            await cache.get("test_key")  # Hit
-            
-            return APIResponse.success_response(
-                data={
-                    "message": "Metadata test endpoint",
-                    "operations_simulated": {
-                        "db_queries": 2,
-                        "cache_operations": 3
-                    }
-                },
-                message="Test completed successfully"
-            )
-    
-    # Root endpoint
-    @app.get("/", tags=["Root"])
-    async def root():
-        """Root endpoint."""
-        return {
-            "name": settings.app_name,
-            "version": settings.app_version,
-            "environment": settings.environment,
-            "docs": "/docs" if not settings.is_production else None,
-            "swagger": "/swagger" if not settings.is_production else None,
-            "redoc": "/redoc" if not settings.is_production else None
-        }
+    # Register health and debug endpoints
+    register_health_endpoints(app)
+    register_debug_endpoints(app)
     
     return app
+
+
+def _import_routers():
+    """Import all application routers.
+    
+    Returns:
+        Dictionary of router groups with their routers
+    """
+    from src.features.regions import database_router, region_router
+    from src.features.auth.routers.auth import router as auth_router
+    from src.features.auth.routers.permissions import router as permissions_router
+    from src.features.tenants.routers.v1 import router as tenants_router
+    from src.features.organizations.routers.v1 import router as organizations_router
+    from src.features.users.routers.v1 import router as users_router
+    from src.features.users.routers.me import router as users_me_router
+    from src.features.roles import roles_router
+    
+    return {
+        "auth": {
+            "auth": (auth_router, "/auth", ["Authentication"]),
+            "permissions": (permissions_router, "/permissions", ["Permissions"]),
+            "roles": (roles_router, "/roles", ["Roles"])
+        },
+        "users": {
+            "users_me": (users_me_router, "/users/me", ["User Profile"]),
+            "users": (users_router, "/users", ["Platform Users"])
+        },
+        "organizations": {
+            "organizations": (organizations_router, "/organizations", ["Organizations"])
+        },
+        "tenants": {
+            "tenants": (tenants_router, "/tenants", ["Tenants"])
+        },
+        "infrastructure": {
+            "regions": (region_router, "/regions", ["Regions"]),
+            "databases": (database_router, "/databases", ["Database Connections"])
+        }
+    }
+
+
+def _register_router_group(app: FastAPI, routers: Dict, with_prefix: bool = False) -> None:
+    """Register a group of routers.
+    
+    Args:
+        app: FastAPI application instance
+        routers: Dictionary of routers with their configuration
+        with_prefix: Whether to include API prefix
+    """
+    for router_info in routers.values():
+        router, path, tags = router_info
+        
+        if with_prefix and settings.api_prefix:
+            # Register with API prefix, hidden from docs
+            app.include_router(
+                router,
+                prefix=f"{settings.api_prefix}{path}",
+                tags=tags,
+                include_in_schema=False
+            )
+        else:
+            # Register without prefix, shown in docs
+            app.include_router(
+                router,
+                prefix=path,
+                tags=tags
+            )
 
 
 def register_routers(app: FastAPI) -> None:
@@ -286,105 +192,27 @@ def register_routers(app: FastAPI) -> None:
     By default, routers are registered without a prefix (e.g., /databases).
     If ENABLE_PREFIX_ROUTES is true, they are ALSO registered with the API prefix.
     """
-    
-    # Import routers here to avoid circular imports
-    from src.features.regions import database_router, region_router
-    from src.features.auth.routers.auth import router as auth_router
-    from src.features.auth.routers.permissions import router as permissions_router
-    from src.features.tenants.routers.v1 import router as tenants_router
-    from src.features.organizations.routers.v1 import router as organizations_router
-    from src.features.users.routers.v1 import router as users_router
+    # Import all routers
+    router_groups = _import_routers()
     
     # PRIMARY: Register WITHOUT API prefix (default, shown in docs)
-    app.include_router(
-        auth_router,
-        prefix="/auth",
-        tags=["Authentication"]
-    )
-    app.include_router(
-        permissions_router,
-        prefix="/permissions",
-        tags=["Permissions"]
-    )
-    app.include_router(
-        database_router,
-        prefix="/databases",
-        tags=["Database Connections"]
-    )
-    app.include_router(
-        region_router,
-        prefix="/regions",
-        tags=["Regions"]
-    )
-    app.include_router(
-        tenants_router,
-        prefix="/tenants",
-        tags=["Tenants"]
-    )
-    app.include_router(
-        organizations_router,
-        prefix="/organizations",
-        tags=["Organizations"]
-    )
-    app.include_router(
-        users_router,
-        prefix="/users",
-        tags=["Platform Users"]
-    )
+    # Note: Order matters - /users/me must be registered before /users
+    for group_name, routers in router_groups.items():
+        _register_router_group(app, routers, with_prefix=False)
     
     # OPTIONAL: Also register WITH API prefix (for backward compatibility)
     # Only if explicitly enabled to avoid duplication in docs
     if settings.enable_prefix_routes and settings.api_prefix:
-        # Include with prefix but exclude from OpenAPI schema to avoid duplication
-        app.include_router(
-            auth_router,
-            prefix=f"{settings.api_prefix}/auth",
-            tags=["Authentication"],
-            include_in_schema=False  # Hide from docs to avoid duplication
-        )
-        app.include_router(
-            permissions_router,
-            prefix=f"{settings.api_prefix}/permissions",
-            tags=["Permissions"],
-            include_in_schema=False  # Hide from docs to avoid duplication
-        )
-        app.include_router(
-            database_router,
-            prefix=f"{settings.api_prefix}/databases",
-            tags=["Database Connections"],
-            include_in_schema=False  # Hide from docs to avoid duplication
-        )
-        app.include_router(
-            region_router,
-            prefix=f"{settings.api_prefix}/regions",
-            tags=["Regions"],
-            include_in_schema=False  # Hide from docs to avoid duplication
-        )
-        app.include_router(
-            tenants_router,
-            prefix=f"{settings.api_prefix}/tenants",
-            tags=["Tenants"],
-            include_in_schema=False  # Hide from docs to avoid duplication
-        )
-        app.include_router(
-            organizations_router,
-            prefix=f"{settings.api_prefix}/organizations",
-            tags=["Organizations"],
-            include_in_schema=False  # Hide from docs to avoid duplication
-        )
-        app.include_router(
-            users_router,
-            prefix=f"{settings.api_prefix}/users",
-            tags=["Platform Users"],
-            include_in_schema=False  # Hide from docs to avoid duplication
-        )
+        for group_name, routers in router_groups.items():
+            _register_router_group(app, routers, with_prefix=True)
     
-    # Register other routers with same pattern as they are implemented
-    # app.include_router(auth_router, prefix="/auth", tags=["Authentication"])
-    # if settings.enable_prefix_routes and settings.api_prefix:
-    #     app.include_router(auth_router, prefix=f"{settings.api_prefix}/auth", tags=["Authentication"], include_in_schema=False)
+    # Log registration summary
+    logger.info("Registered routers with organized tag groups:")
+    logger.info("  Auth & Authorization: /auth, /permissions, /roles")
+    logger.info("  User Management: /users")
+    logger.info("  Organization Management: /organizations")
+    logger.info("  Tenant Management: /tenants")
+    logger.info("  Infrastructure: /regions, /databases")
     
-    logger.info("Registered routers for authentication, permissions, database, region, tenant, organization and user management")
-    logger.info("  - Primary routes: /auth, /permissions, /databases, /regions, /tenants, /organizations, /users (shown in docs)")
     if settings.enable_prefix_routes and settings.api_prefix:
-        logger.info(f"  - Compatibility routes: {settings.api_prefix}/auth, {settings.api_prefix}/permissions, {settings.api_prefix}/databases, {settings.api_prefix}/regions, {settings.api_prefix}/tenants, {settings.api_prefix}/organizations, {settings.api_prefix}/users (hidden from docs)")
+        logger.info(f"  📦 Compatibility routes with {settings.api_prefix} prefix (hidden from docs)")
