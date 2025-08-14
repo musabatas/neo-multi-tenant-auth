@@ -60,8 +60,8 @@ async def list_users(
     company: Optional[str] = Query(None, description="Filter by company"),
     department: Optional[str] = Query(None, description="Filter by department"),
     job_title: Optional[str] = Query(None, description="Filter by job title"),
-    has_role: Optional[str] = Query(None, description="Filter by role code"),
-    has_permission: Optional[str] = Query(None, description="Filter by permission code"),
+    has_role: Optional[str] = Query(None, description="Filter by role codes (comma-separated)"),
+    has_permission: Optional[str] = Query(None, description="Filter by permission codes (comma-separated)"),
     tenant_access: Optional[UUID] = Query(None, description="Filter by tenant access"),
     # Pagination
     page: int = Query(1, ge=1, description="Page number"),
@@ -76,6 +76,15 @@ async def list_users(
     """
     service = PlatformUserService()
     
+    # Parse comma-separated values for multi-role and multi-permission filters
+    role_list = None
+    if has_role:
+        role_list = [role.strip() for role in has_role.split(',') if role.strip()]
+    
+    permission_list = None
+    if has_permission:
+        permission_list = [perm.strip() for perm in has_permission.split(',') if perm.strip()]
+    
     # Build filters
     filters = PlatformUserFilter(
         search=search,
@@ -87,8 +96,8 @@ async def list_users(
         company=company,
         department=department,
         job_title=job_title,
-        has_role=has_role,
-        has_permission=has_permission,
+        has_role=role_list,
+        has_permission=permission_list,
         tenant_access=tenant_access
     )
     
@@ -202,80 +211,6 @@ async def get_user(
         )
 
 
-@router.get(
-    "/email/{email}",
-    response_model=APIResponse[PlatformUserResponse],
-    status_code=status.HTTP_200_OK,
-    summary="Get user by email",
-    description="Get platform user details by email"
-)
-@require_permission("users:read", scope="platform", description="View user details")
-async def get_user_by_email(
-    email: str,
-    current_user: dict = Depends(CheckPermission(["users:read"], scope="platform"))
-) -> APIResponse[PlatformUserResponse]:
-    """
-    Get platform user details by email.
-    
-    Requires platform-level permission to read user details.
-    """
-    service = PlatformUserService()
-    
-    try:
-        result = await service.get_user_by_email(email)
-        
-        return APIResponse.success_response(
-            data=result,
-            message="User retrieved successfully"
-        )
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve user"
-        )
-
-
-@router.get(
-    "/username/{username}",
-    response_model=APIResponse[PlatformUserResponse],
-    status_code=status.HTTP_200_OK,
-    summary="Get user by username",
-    description="Get platform user details by username"
-)
-@require_permission("users:read", scope="platform", description="View user details")
-async def get_user_by_username(
-    username: str,
-    current_user: dict = Depends(CheckPermission(["users:read"], scope="platform"))
-) -> APIResponse[PlatformUserResponse]:
-    """
-    Get platform user details by username.
-    
-    Requires platform-level permission to read user details.
-    """
-    service = PlatformUserService()
-    
-    try:
-        result = await service.get_user_by_username(username)
-        
-        return APIResponse.success_response(
-            data=result,
-            message="User retrieved successfully"
-        )
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve user"
-        )
 
 
 @router.put(

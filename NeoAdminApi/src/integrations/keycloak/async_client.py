@@ -4,7 +4,6 @@ Provides high-performance authentication and user management.
 """
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta
-import asyncio
 from functools import lru_cache
 from loguru import logger
 
@@ -28,10 +27,11 @@ class KeycloakAsyncClient:
     
     Features:
     - Connection pooling for performance
+    - Native async operations (a_token, a_introspect, etc.)
     - Automatic retry with exponential backoff
     - Token caching and refresh
     - Multi-realm support
-    - Async operations using httpx
+    - Non-blocking authentication operations
     """
     
     def __init__(self):
@@ -131,9 +131,8 @@ class KeycloakAsyncClient:
         client = self._get_realm_client(realm)
         
         try:
-            # Authenticate user
-            token_response = await asyncio.to_thread(
-                client.token,
+            # Authenticate user using async method
+            token_response = await client.a_token(
                 username=username,
                 password=password
             )
@@ -184,9 +183,8 @@ class KeycloakAsyncClient:
         client = self._get_realm_client(realm)
         
         try:
-            # Introspect token
-            introspection = await asyncio.to_thread(
-                client.introspect,
+            # Introspect token using async method
+            introspection = await client.a_introspect(
                 token
             )
             
@@ -228,9 +226,8 @@ class KeycloakAsyncClient:
         client = self._get_realm_client(realm)
         
         try:
-            # Refresh the token
-            token_response = await asyncio.to_thread(
-                client.refresh_token,
+            # Refresh the token using async method
+            token_response = await client.a_refresh_token(
                 refresh_token
             )
             
@@ -270,9 +267,8 @@ class KeycloakAsyncClient:
         client = self._get_realm_client(realm)
         
         try:
-            # Logout user
-            await asyncio.to_thread(
-                client.logout,
+            # Logout user using async method
+            await client.a_logout(
                 refresh_token
             )
             
@@ -307,9 +303,8 @@ class KeycloakAsyncClient:
         client = self._get_realm_client(realm)
         
         try:
-            # Get user info
-            userinfo = await asyncio.to_thread(
-                client.userinfo,
+            # Get user info using async method
+            userinfo = await client.a_userinfo(
                 token
             )
             
@@ -350,18 +345,16 @@ class KeycloakAsyncClient:
         
         try:
             if validate:
-                # Decode with validation using python-keycloak
+                # Decode with validation using async method
                 # Based on research: Use validate=True for full validation
-                decoded = await asyncio.to_thread(
-                    client.decode_token,
+                decoded = await client.a_decode_token(
                     token,
                     validate=True
                 )
             else:
                 # Decode without validation (for debugging)
                 # Based on research: Use validate=False to bypass validation
-                decoded = await asyncio.to_thread(
-                    client.decode_token,
+                decoded = await client.a_decode_token(
                     token,
                     validate=False
                 )
@@ -380,8 +373,7 @@ class KeycloakAsyncClient:
                 if settings.jwt_audience_fallback:
                     # Try decoding without validation as fallback
                     try:
-                        decoded = await asyncio.to_thread(
-                            client.decode_token,
+                        decoded = await client.a_decode_token(
                             token,
                             validate=False
                         )
@@ -425,8 +417,8 @@ class KeycloakAsyncClient:
         client = self._get_realm_client(realm)
         
         try:
-            # Get public key
-            public_key = await asyncio.to_thread(client.public_key)
+            # Get public key using async method
+            public_key = await client.a_public_key()
             
             # Format as PEM
             formatted_key = f"-----BEGIN PUBLIC KEY-----\n{public_key}\n-----END PUBLIC KEY-----"
@@ -484,7 +476,7 @@ class KeycloakAsyncClient:
         }
         
         try:
-            await asyncio.to_thread(admin.create_realm, realm_data)
+            await admin.a_create_realm(realm_data)
             logger.info(f"Created realm: {realm_name}")
             return True
             
@@ -521,8 +513,7 @@ class KeycloakAsyncClient:
         admin.realm_name = realm
         
         try:
-            users = await asyncio.to_thread(
-                admin.get_users,
+            users = await admin.a_get_users(
                 query={"username": username, "exact": True}
             )
             
@@ -578,8 +569,7 @@ class KeycloakAsyncClient:
             if existing_user:
                 # Update existing user
                 user_id = existing_user["id"]
-                await asyncio.to_thread(
-                    admin.update_user,
+                await admin.a_update_user(
                     user_id,
                     user_data
                 )
@@ -587,8 +577,7 @@ class KeycloakAsyncClient:
                 user_data["id"] = user_id
             else:
                 # Create new user
-                user_id = await asyncio.to_thread(
-                    admin.create_user,
+                user_id = await admin.a_create_user(
                     user_data
                 )
                 logger.info(f"Created user {username} in realm {realm}")

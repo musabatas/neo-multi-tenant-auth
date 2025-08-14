@@ -196,6 +196,167 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                 where_conditions.append(f"last_login_at <= ${param_counter}")
                 params.append(filters.last_login_before)
                 param_counter += 1
+            
+            # Role filtering - check if user has any of the specified platform roles
+            if filters.has_role:
+                if len(filters.has_role) == 1:
+                    # Single role - use exact match
+                    where_conditions.append(f"""
+                        EXISTS (
+                            SELECT 1 FROM admin.platform_user_roles pur
+                            JOIN admin.platform_roles pr ON pur.role_id = pr.id
+                            WHERE pur.user_id = platform_users.id 
+                            AND pr.code = ${param_counter}
+                            AND pur.is_active = true
+                            AND (pur.expires_at IS NULL OR pur.expires_at > NOW())
+                        )
+                    """)
+                    params.append(filters.has_role[0])
+                    param_counter += 1
+                else:
+                    # Multiple roles - use IN clause
+                    role_placeholders = ','.join([f'${param_counter + i}' for i in range(len(filters.has_role))])
+                    where_conditions.append(f"""
+                        EXISTS (
+                            SELECT 1 FROM admin.platform_user_roles pur
+                            JOIN admin.platform_roles pr ON pur.role_id = pr.id
+                            WHERE pur.user_id = platform_users.id 
+                            AND pr.code IN ({role_placeholders})
+                            AND pur.is_active = true
+                            AND (pur.expires_at IS NULL OR pur.expires_at > NOW())
+                        )
+                    """)
+                    params.extend(filters.has_role)
+                    param_counter += len(filters.has_role)
+            
+            # Permission filtering - check if user has any of the specified permissions (from roles or direct grants)
+            if filters.has_permission:
+                if len(filters.has_permission) == 1:
+                    # Single permission - use exact match
+                    where_conditions.append(f"""
+                        (
+                            -- Permission from platform roles
+                            EXISTS (
+                                SELECT 1 FROM admin.platform_user_roles pur
+                                JOIN admin.role_permissions rp ON pur.role_id = rp.role_id
+                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                WHERE pur.user_id = platform_users.id 
+                                AND pp.code = ${param_counter}
+                                AND pur.is_active = true
+                                AND (pur.expires_at IS NULL OR pur.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                            OR
+                            -- Direct platform permissions
+                            EXISTS (
+                                SELECT 1 FROM admin.platform_user_permissions pup
+                                JOIN admin.platform_permissions pp ON pup.permission_id = pp.id
+                                WHERE pup.user_id = platform_users.id 
+                                AND pp.code = ${param_counter}
+                                AND pup.is_active = true 
+                                AND pup.is_granted = true
+                                AND (pup.expires_at IS NULL OR pup.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                            OR
+                            -- Permission from tenant roles  
+                            EXISTS (
+                                SELECT 1 FROM admin.tenant_user_roles tur
+                                JOIN admin.role_permissions rp ON tur.role_id = rp.role_id
+                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                WHERE tur.user_id = platform_users.id 
+                                AND pp.code = ${param_counter}
+                                AND tur.is_active = true
+                                AND (tur.expires_at IS NULL OR tur.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                            OR
+                            -- Direct tenant permissions
+                            EXISTS (
+                                SELECT 1 FROM admin.tenant_user_permissions tup
+                                JOIN admin.platform_permissions pp ON tup.permission_id = pp.id
+                                WHERE tup.user_id = platform_users.id 
+                                AND pp.code = ${param_counter}
+                                AND tup.is_active = true 
+                                AND tup.is_granted = true
+                                AND (tup.expires_at IS NULL OR tup.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                        )
+                    """)
+                    params.append(filters.has_permission[0])
+                    param_counter += 1
+                else:
+                    # Multiple permissions - use IN clauses with shared parameters
+                    perm_placeholders = ','.join([f'${param_counter + i}' for i in range(len(filters.has_permission))])
+                    where_conditions.append(f"""
+                        (
+                            -- Permission from platform roles
+                            EXISTS (
+                                SELECT 1 FROM admin.platform_user_roles pur
+                                JOIN admin.role_permissions rp ON pur.role_id = rp.role_id
+                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                WHERE pur.user_id = platform_users.id 
+                                AND pp.code IN ({perm_placeholders})
+                                AND pur.is_active = true
+                                AND (pur.expires_at IS NULL OR pur.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                            OR
+                            -- Direct platform permissions
+                            EXISTS (
+                                SELECT 1 FROM admin.platform_user_permissions pup
+                                JOIN admin.platform_permissions pp ON pup.permission_id = pp.id
+                                WHERE pup.user_id = platform_users.id 
+                                AND pp.code IN ({perm_placeholders})
+                                AND pup.is_active = true 
+                                AND pup.is_granted = true
+                                AND (pup.expires_at IS NULL OR pup.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                            OR
+                            -- Permission from tenant roles  
+                            EXISTS (
+                                SELECT 1 FROM admin.tenant_user_roles tur
+                                JOIN admin.role_permissions rp ON tur.role_id = rp.role_id
+                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                WHERE tur.user_id = platform_users.id 
+                                AND pp.code IN ({perm_placeholders})
+                                AND tur.is_active = true
+                                AND (tur.expires_at IS NULL OR tur.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                            OR
+                            -- Direct tenant permissions
+                            EXISTS (
+                                SELECT 1 FROM admin.tenant_user_permissions tup
+                                JOIN admin.platform_permissions pp ON tup.permission_id = pp.id
+                                WHERE tup.user_id = platform_users.id 
+                                AND pp.code IN ({perm_placeholders})
+                                AND tup.is_active = true 
+                                AND tup.is_granted = true
+                                AND (tup.expires_at IS NULL OR tup.expires_at > NOW())
+                                AND pp.deleted_at IS NULL
+                            )
+                        )
+                    """)
+                    # Add parameters only once since all IN clauses use the same placeholders
+                    params.extend(filters.has_permission)
+                    param_counter += len(filters.has_permission)
+            
+            # Tenant access filtering - check if user has access to specific tenant
+            if filters.tenant_access:
+                where_conditions.append(f"""
+                    EXISTS (
+                        SELECT 1 FROM admin.tenant_user_roles tur
+                        WHERE tur.user_id = platform_users.id 
+                        AND tur.tenant_id = ${param_counter}
+                        AND tur.is_active = true
+                        AND (tur.expires_at IS NULL OR tur.expires_at > NOW())
+                    )
+                """)
+                params.append(filters.tenant_access)
+                param_counter += 1
         
         where_clause = " AND ".join(where_conditions)
         
