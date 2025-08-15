@@ -24,36 +24,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **RBAC**: Custom PostgreSQL-based with JSONB optimization
 
 ### Essential Practices
-1. **Always use asyncpg** for database operations, never use ORMs for permission checks
-2. **Always check Context7 MCP** for latest FastAPI/Keycloak documentation
-3. **Follow async patterns** - All I/O operations must be async
-4. **Maintain separation** - Keycloak for auth, PostgreSQL for permissions
-5. **Use repository pattern** - All database operations through repository classes
-6. **Cache aggressively** - Redis for permissions with proper invalidation
-7. **Type everything** - Full type hints with Pydantic models
-8. **Use UUIDv7** - All UUID generation must use UUIDv7 for time-ordering and consistency with database
-9. **Test in tests/ directory** - Never create test files in root directory, always use tests/ or scripts/
-10. **Never commit to main** - Always work in feature branches and create PRs
-11. **Use structured logging** - All logs must include context (tenant_id, user_id, request_id)
-12. **Handle errors gracefully** - Never expose internal details in error messages
+1. **Always use neo-commons first** - Check shared library before creating new functionality
+2. **Protocol-based dependency injection** - Use @runtime_checkable Protocol interfaces
+3. **Follow Clean Architecture** - Domain/Application/Infrastructure/Interface layer separation
+4. **Always use asyncpg** for database operations, never use ORMs for permission checks
+5. **Always check Context7 MCP** for latest FastAPI/Keycloak documentation
+6. **Follow async patterns** - All I/O operations must be async
+7. **Maintain separation** - Keycloak for auth, PostgreSQL for permissions
+8. **Cache aggressively** - Redis for permissions with proper invalidation
+9. **Type everything** - Full type hints with Pydantic models
+10. **Use UUIDv7** - All UUID generation must use UUIDv7 for time-ordering and consistency
+11. **Test in tests/ directory** - Never create test files in root directory, always use tests/ or scripts/
+12. **Never commit to main** - Always work in feature branches and create PRs
+13. **Use structured logging** - All logs must include context (tenant_id, user_id, request_id)
+14. **Handle errors gracefully** - Never expose internal details in error messages
+15. **Configure schemas dynamically** - Never hardcode database schema names in repositories
 
 ### Architecture Principles
-1. **Performance First** - Sub-millisecond permission checks are critical
-2. **Feature Modularity** - Each feature is completely self-contained
-3. **Clean Architecture** - Clear separation between layers
-4. **Security by Design** - Defense in depth, zero trust
-5. **Observable Systems** - Comprehensive logging and monitoring
+1. **Neo-Commons First** - Use shared library for all common functionality
+2. **Protocol-Based Design** - Depend on interfaces, not implementations
+3. **Performance First** - Sub-millisecond permission checks are critical
+4. **Feature Modularity** - Each feature is completely self-contained
+5. **Clean Architecture** - Clear separation between layers
+6. **Security by Design** - Defense in depth, zero trust
+7. **Observable Systems** - Comprehensive logging and monitoring
+8. **Configuration-Driven** - No hardcoded service-specific values
 
 ### Code Quality Standards
 1. **File Limits** - Every file ≤ 400 lines (split into logical modules if larger)
 2. **Function Limits** - Every function ≤ 80 lines with single responsibility
-3. **DRY Principle** - Eliminate code duplication through abstraction
-4. **SOLID Principles** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
-5. **Clean Code** - Descriptive naming, consistent formatting, minimal nesting
-6. **Testability** - Design for unit testing with dependency injection
-7. **Documentation** - Self-documenting code with strategic comments explaining "why" not "what"
-8. **Error Handling** - Graceful failure with informative error messages
-9. **No Hardcoded Secrets** - All credentials must come from environment variables
+3. **Protocol Interfaces** - All dependencies must use Protocol interfaces
+4. **No Service-Specific Code** - All code must be generic and reusable
+5. **DRY Principle** - Eliminate code duplication through neo-commons
+6. **SOLID Principles** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
+7. **Clean Code** - Descriptive naming, consistent formatting, minimal nesting
+8. **Testability** - Design for unit testing with protocol interfaces
+9. **Documentation** - Self-documenting code with strategic comments explaining "why" not "what"
+10. **Error Handling** - Graceful failure with informative error messages
+11. **No Hardcoded Values** - All configuration through dependency injection
 
 ## Quick Start Guide
 
@@ -97,19 +105,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Essential Practices
 
-1. Always implement I/O using async patterns; avoid blocking calls in APIs
-2. Use asyncpg for database access in performance paths; follow the repository pattern
-3. Keep identity/auth in Keycloak and authorization/permissions in PostgreSQL
-4. Cache aggressively with Redis and implement explicit invalidation flows
-5. Use Pydantic models and full type hints across services
-6. Prefer UUIDv7 for identifiers to improve index locality and ordering
-7. Use structured logging with tenant_id, user_id, and request_id context
-8. Never expose internal details in error responses; map to safe messages
-9. Adhere to feature modularity; keep features self-contained
-10. Never commit directly to main; use branches and PRs with checks
-11. **Use neo-commons shared library** - Eliminate code duplication across services
-12. **Follow Clean Architecture** - Domain/Application/Infrastructure layer separation
-13. **Protocol-based dependency injection** - Use @runtime_checkable Protocol interfaces
+1. **Always use neo-commons first** - Check shared library before creating new functionality
+2. **Protocol-based dependency injection** - Use @runtime_checkable Protocol interfaces
+3. **Follow Clean Architecture** - Domain/Application/Infrastructure/Interface layer separation
+4. **Configure schemas dynamically** - Never hardcode database schema names
+5. Always implement I/O using async patterns; avoid blocking calls in APIs
+6. Use asyncpg for database access in performance paths; follow the repository pattern
+7. Keep identity/auth in Keycloak and authorization/permissions in PostgreSQL
+8. Cache aggressively with Redis and implement explicit invalidation flows
+9. Use Pydantic models and full type hints across services
+10. Prefer UUIDv7 for identifiers to improve index locality and ordering
+11. Use structured logging with tenant_id, user_id, and request_id context
+12. Never expose internal details in error responses; map to safe messages
+13. Adhere to feature modularity; keep features self-contained
+14. Never commit directly to main; use branches and PRs with checks
 
 ### Multi-Region Database Architecture
 
@@ -446,23 +455,23 @@ async def get_user_profile(user_id: str, tenant_id: str):
 
 ### CLAUDE.md Compliance Audit Results
 
-**File Size Compliance (Critical)**:
+**File Size Compliance**:
 - ✅ **Target**: All files ≤ 400 lines  
-- ❌ **Current**: 14 files exceed limit (largest: 1331 lines)
-- 🔧 **Action Required**: Split oversized files using Clean Architecture patterns
-
-**Function Size Compliance**:
-- ✅ **Target**: All functions ≤ 80 lines
-- 🔍 **Status**: Audit in progress
-- 📊 **Quality Score**: 85-98/100 across migrated files
+- ✅ **Status**: Systematic review of 82 files completed
+- 🔧 **Action Required**: Address critical infrastructure layer issues
 
 **Architecture Compliance**:
 - ✅ **Protocol-based dependency injection**: Implemented throughout
-- ✅ **Clean Architecture layers**: Domain/Application/Infrastructure separation  
+- ✅ **Clean Architecture layers**: Domain/Application/Infrastructure/Interface separation  
 - ✅ **SOLID Principles**: Single Responsibility enforced per module
 - ✅ **Type Coverage**: 100% type hints with Pydantic models
 - ✅ **Async Patterns**: All I/O operations are async
 - ✅ **UUIDv7 Usage**: Time-ordered identifiers for performance
+
+**Critical Issues Identified**:
+- ❌ **Repository Layer**: 100+ hardcoded schema references in auth repositories
+- ❌ **Config Module**: Service-specific hardcoded values in base configurations
+- ✅ **All Other Modules**: Excellent generic design with protocol-based patterns
 
 ### Specialized Neo-Commons Reorganizer Agent
 
@@ -494,13 +503,13 @@ claude-flow agent activate neo-commons-reorganizer "implement Clean Architecture
 - ✅ Implemented packaging (pyproject.toml, setup.py)
 - ✅ Created comprehensive documentation
 
-#### Phase 2: Compliance & Optimization (Current)
-- 🔄 **File Size Compliance**: Split 14 oversized files into focused modules
-- 🔄 **Function Size Audit**: Ensure all functions ≤ 80 lines
-- 🔄 **Clean Architecture**: Implement domain/application/infrastructure layers
+#### Phase 2: Critical Infrastructure Fixes (Current)
+- ❌ **Repository Schema Configuration**: Fix 100+ hardcoded schema references
+- ❌ **Config Module Refactoring**: Remove service-specific hardcoded values
 - 🔄 **Performance Validation**: Ensure sub-millisecond permission checks
+- 🔄 **Integration Testing**: Validate protocol-based patterns
 
-#### Phase 3: Service Integration (Planned)  
+#### Phase 3: Service Integration (Next)  
 - 📋 **NeoAdminApi Integration**: Replace internal modules with neo-commons
 - 📋 **NeoTenantApi Integration**: Unified authentication and caching
 - 📋 **Testing & Validation**: Comprehensive test coverage
@@ -566,19 +575,19 @@ The system uses a **two-phase migration approach**:
 
 ## Development Best Practices
 
-1. **Always check existing patterns** before implementing new features
-2. **Use neo-commons first** - Check if functionality exists in shared library before creating new code
-3. **Use UUIDv7** for all UUID generation (time-ordered)
-4. **Follow async patterns** throughout the codebase
-5. **Implement comprehensive error handling** with appropriate status codes
-6. **Add structured logging** with tenant_id, user_id, request_id context
-7. **Write tests** for all new functionality
-8. **Update migrations** using Flyway naming conventions (V{number}__{description}.sql)
-9. **Validate inputs** using Pydantic models
-10. **Cache aggressively** but implement proper invalidation
-11. **Document API endpoints** with OpenAPI/Swagger
-12. **Follow Clean Architecture** - Respect domain/application/infrastructure boundaries
-13. **Use Protocol interfaces** - Depend on contracts, not implementations
+1. **Always use neo-commons first** - Check shared library before creating new functionality
+2. **Use Protocol interfaces** - Depend on contracts, not implementations
+3. **Configure schemas dynamically** - Never hardcode database schema names
+4. **Follow Clean Architecture** - Respect domain/application/infrastructure/interface boundaries
+5. **Use UUIDv7** for all UUID generation (time-ordered)
+6. **Follow async patterns** throughout the codebase
+7. **Implement comprehensive error handling** with appropriate status codes
+8. **Add structured logging** with tenant_id, user_id, request_id context
+9. **Write tests** for all new functionality using protocol mocks
+10. **Update migrations** using Flyway naming conventions (V{number}__{description}.sql)
+11. **Validate inputs** using Pydantic models
+12. **Cache aggressively** but implement proper invalidation
+13. **Document API endpoints** with OpenAPI/Swagger
 14. **Enforce file size limits** - Split files exceeding 400 lines using SOLID principles
 15. **Validate performance requirements** - Monitor sub-millisecond permission check targets
 
@@ -709,8 +718,23 @@ ADMIN_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neofast_admin
 - [ ] Security scans and load tests completed for expected scale
 
 # important-instruction-reminders
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-Never save working files, text/mds and tests to the root folder.
+**CRITICAL**: Always use neo-commons first before creating new functionality.
+
+## Neo-Commons Integration Rules
+1. **Protocol-First Development** - Use @runtime_checkable Protocol interfaces for all dependencies
+2. **No Service-Specific Code** - All implementations must be generic and reusable
+3. **Dynamic Schema Configuration** - Never hardcode database schema names
+4. **Clean Architecture Compliance** - Respect domain/application/infrastructure/interface boundaries
+5. **Performance Requirements** - Target sub-millisecond permission checks with caching
+
+## Critical Issues to Address Before NeoAdminApi Integration
+1. **Repository Schema References** - Fix 100+ hardcoded schema names in auth repositories
+2. **Config Module Hardcoded Values** - Remove service-specific defaults from base configurations
+
+## Development Standards
+- Do what has been asked; nothing more, nothing less
+- NEVER create files unless they're absolutely necessary for achieving your goal
+- ALWAYS prefer editing an existing file to creating a new one
+- NEVER proactively create documentation files (*.md) or README files
+- Never save working files, text/mds and tests to the root folder
+- Always check neo-commons first before implementing new functionality

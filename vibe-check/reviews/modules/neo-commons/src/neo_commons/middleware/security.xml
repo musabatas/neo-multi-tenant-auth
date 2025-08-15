@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/middleware/security.py</file>
+    <language>Py</language>
+    <loc>396</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-15</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="4" open_issues="1"/>
+    <metric name="performance" score="3" open_issues="2"/>
+    <metric name="maintainability" score="4" open_issues="1"/>
+    <metric name="consistency" score="5" open_issues="0"/>
+    <metric name="best_practices" score="4" open_issues="1"/>
+    <metric name="code_smell" score="4" open_issues="1"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="LOW">
+      <title>X-XSS-Protection header is deprecated</title>
+      <location>Line 93</location>
+      <description>X-XSS-Protection header is deprecated and may cause vulnerabilities in older browsers. Modern browsers rely on CSP instead.</description>
+      <recommendation>Consider removing X-XSS-Protection header and relying on Content-Security-Policy alone for XSS protection</recommendation>
+    </issue>
+    
+    <issue category="performance" severity="MEDIUM">
+      <title>In-memory rate limiting not suitable for production</title>
+      <location>Line 298</location>
+      <description>Rate limiting uses in-memory storage which won't work in distributed/multi-instance deployments and will reset on restart</description>
+      <recommendation>Implement Redis-based rate limiting for production use or make storage backend configurable</recommendation>
+    </issue>
+    
+    <issue category="performance" severity="MEDIUM">
+      <title>Inefficient rate limit cleanup</title>
+      <location>Line 343</location>
+      <description>Rate limit cleanup iterates through all timestamps on every request, creating O(n) complexity</description>
+      <recommendation>Implement background cleanup or use sliding window algorithm with better time complexity</recommendation>
+    </issue>
+    
+    <issue category="maintainability" severity="LOW">
+      <title>Long parameter lists in constructors</title>
+      <location>Line 26</location>
+      <description>SecurityHeadersMiddleware constructor has many parameters making it hard to use and maintain</description>
+      <recommendation>Consider using a configuration class or dataclass to group related parameters</recommendation>
+    </issue>
+    
+    <issue category="best_practices" severity="LOW">
+      <title>Hardcoded CSP directive allows unsafe-eval</title>
+      <location>Line 126</location>
+      <description>Default CSP allows 'unsafe-eval' which can enable XSS attacks through eval() usage</description>
+      <recommendation>Remove 'unsafe-eval' from default CSP and require explicit configuration if needed</recommendation>
+    </issue>
+    
+    <issue category="code_smell" severity="LOW">
+      <title>Large class with multiple responsibilities</title>
+      <location>Line 16</location>
+      <description>SecurityHeadersMiddleware handles too many different security headers, violating single responsibility principle</description>
+      <recommendation>Consider splitting into specialized middleware classes (CSPMiddleware, HSTSMiddleware, etc.)</recommendation>
+    </issue>
+  </issues>
+
+  <summary>Comprehensive security middleware implementation with three main classes: SecurityHeadersMiddleware for HTTP security headers, CORSSecurityMiddleware for enhanced CORS handling, and RateLimitMiddleware for basic rate limiting. The code demonstrates good security awareness with proper header configuration and environment-based defaults. Main concerns are around production scalability of rate limiting and some deprecated security practices.</summary>
+
+  <positive_observations>
+    <observation>Comprehensive security header coverage including CSP, HSTS, X-Frame-Options, and modern headers like Cross-Origin-Embedder-Policy</observation>
+    <observation>Environment-aware configuration with proper defaults for development vs production</observation>
+    <observation>Good documentation with clear docstrings explaining each middleware's purpose and features</observation>
+    <observation>Flexible configuration options allowing customization of security policies</observation>
+    <observation>Proper handling of proxy headers for HTTPS detection and client IP extraction</observation>
+    <observation>Sensible defaults for Content Security Policy with development-friendly adjustments</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this middleware module</tests>
+    <documentation>Good inline documentation with comprehensive docstrings for all classes and key methods</documentation>
+    <configuration>Environment-aware configuration using os.getenv with appropriate defaults</configuration>
+  </context>
+
+  <checklist>
+    <item completed="true">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="true">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>

@@ -1,4 +1,4 @@
-"""Database utilities for NeoMultiTenant services."""
+"""Database utilities for neo-commons applications."""
 
 from .connection import (
     DatabaseManager,

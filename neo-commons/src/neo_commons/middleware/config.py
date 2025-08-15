@@ -9,13 +9,12 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from neo_commons.middleware.logging import StructuredLoggingMiddleware
+from neo_commons.middleware.unified_context import UnifiedContextMiddleware
 from neo_commons.middleware.security import (
     SecurityHeadersMiddleware,
     CORSSecurityMiddleware,
     RateLimitMiddleware
 )
-from neo_commons.middleware.timing import TimingMiddleware, ResponseSizeMiddleware
 
 
 @dataclass
@@ -25,16 +24,34 @@ class MiddlewareConfig:
     # Environment detection
     environment: str = field(default_factory=lambda: os.getenv("ENVIRONMENT", "development").lower())
     
-    # Logging middleware
-    logging_enabled: bool = True
-    logging_config: Dict[str, Any] = field(default_factory=lambda: {
+    # Unified context middleware (combines logging, timing, and metadata)
+    unified_context_enabled: bool = True
+    unified_context_config: Dict[str, Any] = field(default_factory=lambda: {
+        # Request context options
+        "generate_request_id": True,
+        "generate_correlation_id": True,
+        "extract_user_context": True,
+        
+        # Logging options
         "log_requests": True,
         "log_responses": True,
-        "log_body": False,
-        "log_headers": False,
+        "log_response_body": False,
+        "sensitive_headers": ["authorization", "cookie", "x-api-key", "x-keycloak-token"],
+        
+        # Timing options
+        "add_timing_header": True,
+        "log_slow_requests": True,
+        "slow_request_threshold": 1.0,
+        "very_slow_threshold": 5.0,
+        
+        # Metadata tracking options
+        "track_cache_operations": True,
+        "track_db_queries": True,
+        "track_performance_markers": True,
+        
+        # Path filtering
         "exclude_paths": ["/health", "/metrics", "/docs", "/openapi.json", "/swagger"],
-        "max_body_size": 1024,
-        "sensitive_headers": ["authorization", "cookie", "x-api-key", "x-keycloak-token"]
+        "include_health_endpoints": False
     })
     
     # Security middleware
@@ -46,26 +63,6 @@ class MiddlewareConfig:
         "content_security_policy": None,  # Will use default
         "frame_options": "DENY",
         "exclude_paths": ["/docs", "/swagger", "/redoc", "/openapi.json"]
-    })
-    
-    # Timing middleware
-    timing_enabled: bool = True
-    timing_config: Dict[str, Any] = field(default_factory=lambda: {
-        "add_timing_header": True,
-        "log_slow_requests": True,
-        "slow_request_threshold": 1.0,
-        "very_slow_threshold": 5.0,
-        "exclude_paths": ["/health", "/metrics", "/docs"],
-        "track_detailed_timing": True  # Will adjust based on environment
-    })
-    
-    # Response size middleware
-    response_size_enabled: bool = True
-    response_size_config: Dict[str, Any] = field(default_factory=lambda: {
-        "add_size_header": True,  # Will adjust based on environment
-        "log_large_responses": True,
-        "large_response_threshold": 1024 * 1024,  # 1MB
-        "exclude_paths": ["/health", "/metrics"]
     })
     
     # Rate limiting middleware
@@ -94,13 +91,11 @@ class MiddlewareConfig:
     
     # Middleware order (important for proper functioning)
     middleware_order: List[str] = field(default_factory=lambda: [
-        "trusted_hosts",  # First - validate host
-        "security",       # Security headers
-        "cors",           # CORS handling
-        "rate_limit",     # Rate limiting
-        "logging",        # Request/response logging
-        "timing",         # Performance timing
-        "response_size"   # Response size tracking
+        "trusted_hosts",      # First - validate host
+        "security",           # Security headers
+        "cors",               # CORS handling
+        "rate_limit",         # Rate limiting
+        "unified_context"     # Unified context, logging, timing, and metadata
     ])
     
     @property
@@ -141,10 +136,8 @@ class MiddlewareManager:
     def __init__(self, config: Optional[MiddlewareConfig] = None):
         self.config = config or MiddlewareConfig()
         self._middleware_registry: Dict[str, Type[BaseHTTPMiddleware]] = {
-            "logging": StructuredLoggingMiddleware,
+            "unified_context": UnifiedContextMiddleware,
             "security": SecurityHeadersMiddleware,
-            "timing": TimingMiddleware,
-            "response_size": ResponseSizeMiddleware,
             "rate_limit": RateLimitMiddleware,
         }
     
@@ -175,28 +168,16 @@ class MiddlewareManager:
                 **self.config.cors_config
             )
         
-        elif middleware_name == "logging" and self.config.logging_enabled:
+        elif middleware_name == "unified_context" and self.config.unified_context_enabled:
             app.add_middleware(
-                StructuredLoggingMiddleware,
-                **self.config.logging_config
+                UnifiedContextMiddleware,
+                **self.config.unified_context_config
             )
         
         elif middleware_name == "security" and self.config.security_enabled:
             app.add_middleware(
                 SecurityHeadersMiddleware,
                 **self.config.security_config
-            )
-        
-        elif middleware_name == "timing" and self.config.timing_enabled:
-            app.add_middleware(
-                TimingMiddleware,
-                **self.config.timing_config
-            )
-        
-        elif middleware_name == "response_size" and self.config.response_size_enabled:
-            app.add_middleware(
-                ResponseSizeMiddleware,
-                **self.config.response_size_config
             )
         
         elif middleware_name == "rate_limit" and self.config.rate_limit_enabled:
@@ -210,9 +191,6 @@ class MiddlewareManager:
         status = {}
         
         for middleware_name in self.config.middleware_order:
-            enabled_attr = f"{middleware_name}_enabled"
-            config_attr = f"{middleware_name}_config"
-            
             # Handle special cases
             if middleware_name == "trusted_hosts":
                 enabled = self.config.trusted_hosts_enabled
@@ -220,7 +198,19 @@ class MiddlewareManager:
             elif middleware_name == "cors":
                 enabled = self.config.cors_enabled
                 config = self.config.cors_config
+            elif middleware_name == "unified_context":
+                enabled = self.config.unified_context_enabled
+                config = self.config.unified_context_config
+            elif middleware_name == "security":
+                enabled = self.config.security_enabled
+                config = self.config.security_config
+            elif middleware_name == "rate_limit":
+                enabled = self.config.rate_limit_enabled
+                config = self.config.rate_limit_config
             else:
+                # Fallback for any other middleware
+                enabled_attr = f"{middleware_name}_enabled"
+                config_attr = f"{middleware_name}_config"
                 enabled = getattr(self.config, enabled_attr, False)
                 config = getattr(self.config, config_attr, {})
             
@@ -234,7 +224,16 @@ class MiddlewareManager:
     
     def update_config(self, middleware_name: str, **kwargs) -> None:
         """Update configuration for a specific middleware."""
-        config_attr = f"{middleware_name}_config"
+        # Map middleware names to actual config attributes
+        config_mapping = {
+            "unified_context": "unified_context_config",
+            "security": "security_config", 
+            "rate_limit": "rate_limit_config",
+            "cors": "cors_config",
+            "trusted_hosts": "trusted_hosts_config"
+        }
+        
+        config_attr = config_mapping.get(middleware_name, f"{middleware_name}_config")
         
         if hasattr(self.config, config_attr):
             current_config = getattr(self.config, config_attr)
@@ -244,7 +243,16 @@ class MiddlewareManager:
     
     def enable_middleware(self, middleware_name: str) -> None:
         """Enable a specific middleware."""
-        enabled_attr = f"{middleware_name}_enabled"
+        # Map middleware names to actual enabled attributes
+        enabled_mapping = {
+            "unified_context": "unified_context_enabled",
+            "security": "security_enabled", 
+            "rate_limit": "rate_limit_enabled",
+            "cors": "cors_enabled",
+            "trusted_hosts": "trusted_hosts_enabled"
+        }
+        
+        enabled_attr = enabled_mapping.get(middleware_name, f"{middleware_name}_enabled")
         
         if hasattr(self.config, enabled_attr):
             setattr(self.config, enabled_attr, True)
@@ -253,7 +261,16 @@ class MiddlewareManager:
     
     def disable_middleware(self, middleware_name: str) -> None:
         """Disable a specific middleware."""
-        enabled_attr = f"{middleware_name}_enabled"
+        # Map middleware names to actual enabled attributes
+        enabled_mapping = {
+            "unified_context": "unified_context_enabled",
+            "security": "security_enabled", 
+            "rate_limit": "rate_limit_enabled",
+            "cors": "cors_enabled",
+            "trusted_hosts": "trusted_hosts_enabled"
+        }
+        
+        enabled_attr = enabled_mapping.get(middleware_name, f"{middleware_name}_enabled")
         
         if hasattr(self.config, enabled_attr):
             setattr(self.config, enabled_attr, False)
@@ -266,27 +283,19 @@ def create_development_config() -> MiddlewareConfig:
     config = MiddlewareConfig()
     
     # Development-specific adjustments
-    config.logging_config.update({
+    config.unified_context_config.update({
         "log_requests": True,
         "log_responses": True,
-        "log_body": True,
-        "log_headers": True,
-        "max_body_size": 2048
+        "log_response_body": True,
+        "add_timing_header": True,
+        "track_cache_operations": True,
+        "track_db_queries": True,
+        "track_performance_markers": True
     })
     
     config.security_config.update({
         "force_https": False,
         "exclude_paths": ["/docs", "/swagger", "/redoc", "/openapi.json", "/scalar"]
-    })
-    
-    config.timing_config.update({
-        "add_timing_header": True,
-        "track_detailed_timing": True,
-        "slow_request_threshold": 0.5  # Lower threshold for dev
-    })
-    
-    config.response_size_config.update({
-        "add_size_header": True
     })
     
     config.rate_limit_enabled = False  # Disable in development
@@ -299,12 +308,15 @@ def create_production_config() -> MiddlewareConfig:
     config = MiddlewareConfig()
     
     # Production-specific adjustments
-    config.logging_config.update({
+    config.unified_context_config.update({
         "log_requests": True,
         "log_responses": False,  # Reduce logging volume
-        "log_body": False,
-        "log_headers": False,
-        "max_body_size": 512
+        "log_response_body": False,
+        "add_timing_header": False,  # Don't expose timing in production
+        "slow_request_threshold": 2.0,  # Higher threshold for production
+        "track_cache_operations": True,
+        "track_db_queries": True,
+        "track_performance_markers": False  # Reduce overhead in production
     })
     
     config.security_config.update({
@@ -312,16 +324,6 @@ def create_production_config() -> MiddlewareConfig:
         "hsts_max_age": 31536000,  # 1 year
         "hsts_include_subdomains": True,
         "hsts_preload": True
-    })
-    
-    config.timing_config.update({
-        "add_timing_header": False,  # Don't expose timing in production
-        "track_detailed_timing": False,
-        "slow_request_threshold": 2.0  # Higher threshold for production
-    })
-    
-    config.response_size_config.update({
-        "add_size_header": False  # Don't expose size in production
     })
     
     config.rate_limit_enabled = True
@@ -334,16 +336,17 @@ def create_testing_config() -> MiddlewareConfig:
     config = MiddlewareConfig()
     
     # Testing-specific adjustments
-    config.logging_config.update({
+    config.unified_context_config.update({
         "log_requests": False,
         "log_responses": False,
-        "log_body": False,
-        "log_headers": False
+        "log_response_body": False,
+        "add_timing_header": False,
+        "track_cache_operations": False,
+        "track_db_queries": False,
+        "track_performance_markers": False
     })
     
     config.security_enabled = False  # Disable security headers in tests
-    config.timing_enabled = False   # Disable timing in tests
-    config.response_size_enabled = False  # Disable size tracking in tests
     config.rate_limit_enabled = False  # Disable rate limiting in tests
     
     return config

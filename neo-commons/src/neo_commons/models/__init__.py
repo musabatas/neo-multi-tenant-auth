@@ -2,7 +2,7 @@
 Neo Commons Models Package
 
 This package contains reusable Pydantic models for FastAPI applications
-in the NeoMultiTenant platform.
+using the neo-commons library.
 
 Components:
 - Base: Common schemas, mixins, and base models
@@ -33,6 +33,18 @@ from .pagination import (
     CursorPaginatedResponse
 )
 
+# Aliases for common patterns
+BaseModel = BaseSchema
+
+# Create properly ordered mixin classes
+class TimestampedModel(TimestampMixin, BaseSchema):
+    """BaseSchema with timestamp mixin."""
+    pass
+
+class TenantModel(UUIDMixin, TimestampMixin, BaseSchema):
+    """BaseSchema with UUID and timestamp mixins."""
+    pass
+
 __all__ = [
     # Base schemas and mixins
     "BaseSchema",
@@ -62,5 +74,10 @@ __all__ = [
     "PaginatedResponse", 
     "PaginationParams",
     "CursorPaginationParams",
-    "CursorPaginatedResponse"
+    "CursorPaginatedResponse",
+    
+    # Aliases
+    "BaseModel",
+    "TimestampedModel",
+    "TenantModel"
 ]

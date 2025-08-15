@@ -12,7 +12,6 @@ class LoginRequest(BaseSchema):
     """Login request model."""
     username: str = Field(..., min_length=3, max_length=50, description="Username or email")
     password: str = Field(..., min_length=8, max_length=100, description="Password")
-    tenant_id: Optional[str] = Field(None, description="Optional tenant context for scoped login")
     remember_me: bool = Field(False, description="Remember this session")
     
     @field_validator('username')

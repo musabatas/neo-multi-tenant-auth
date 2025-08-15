@@ -5,7 +5,7 @@ Re-exports all exceptions for backward compatibility.
 
 # Base and HTTP exceptions
 from .base import (
-    NeoAdminException,
+    NeoCommonsException,
     ValidationError,
     NotFoundError,
     ConflictError,
@@ -32,9 +32,13 @@ from .service import (
     ServiceUnavailableError,
 )
 
+# Aliases for common patterns
+AuthenticationError = UnauthorizedError
+AuthorizationError = ForbiddenError
+
 __all__ = [
     # Base
-    "NeoAdminException",
+    "NeoCommonsException",
     "ValidationError",
     "NotFoundError",
     "ConflictError",
@@ -53,4 +57,7 @@ __all__ = [
     "DatabaseError",
     "CacheError",
     "ServiceUnavailableError",
+    # Aliases
+    "AuthenticationError",
+    "AuthorizationError",
 ]

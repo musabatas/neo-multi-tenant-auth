@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/middleware/unified_context.py</file>
+    <language>Py</language>
+    <loc>586</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-15</date>
+    <status>in_progress</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="" open_issues=""/>
+    <metric name="performance" score="" open_issues=""/>
+    <metric name="maintainability" score="" open_issues=""/>
+    <metric name="consistency" score="" open_issues=""/>
+    <metric name="best_practices" score="" open_issues=""/>
+    <metric name="code_smell" score="" open_issues=""/>
+  </scores>
+
+  <issues>
+    <!-- Issues will be added here -->
+  </issues>
+
+  <summary></summary>
+
+  <positive_observations>
+    <!-- Positive observations will be added here -->
+  </positive_observations>
+
+  <context>
+    <tests></tests>
+    <documentation></documentation>
+    <configuration></configuration>
+  </context>
+
+  <checklist>
+    <item completed="false">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="false">Documentation updated</item>
+    <item completed="false">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>

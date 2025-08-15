@@ -55,7 +55,6 @@ async def login(
         result = await auth_service.authenticate(
             username=request.username,
             password=request.password,
-            tenant_id=request.tenant_id,
             remember_me=request.remember_me
         )
         

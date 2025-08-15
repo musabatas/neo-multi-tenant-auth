@@ -3,10 +3,10 @@ Service and infrastructure-related exceptions.
 """
 from typing import Optional
 
-from .base import NeoAdminException
+from .base import NeoCommonsException
 
 
-class DatabaseError(NeoAdminException):
+class DatabaseError(NeoCommonsException):
     """Raised when database operation fails."""
     
     def __init__(
@@ -20,7 +20,7 @@ class DatabaseError(NeoAdminException):
             self.details["operation"] = operation
 
 
-class CacheError(NeoAdminException):
+class CacheError(NeoCommonsException):
     """Raised when cache operation fails."""
     
     def __init__(
@@ -37,7 +37,7 @@ class CacheError(NeoAdminException):
             self.details["key"] = key
 
 
-class ExternalServiceError(NeoAdminException):
+class ExternalServiceError(NeoCommonsException):
     """Raised when external service call fails."""
     
     def __init__(
@@ -51,7 +51,7 @@ class ExternalServiceError(NeoAdminException):
             self.details["service"] = service
 
 
-class ServiceUnavailableError(NeoAdminException):
+class ServiceUnavailableError(NeoCommonsException):
     """Raised when a service is temporarily unavailable."""
     
     def __init__(

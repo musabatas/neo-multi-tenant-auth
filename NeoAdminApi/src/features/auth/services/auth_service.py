@@ -49,7 +49,6 @@ class AuthService:
         self,
         username: str,
         password: str,
-        tenant_id: Optional[str] = None,
         remember_me: bool = False
     ) -> Dict[str, Any]:
         """
@@ -58,7 +57,6 @@ class AuthService:
         Args:
             username: Username or email
             password: User password
-            tenant_id: Optional tenant context for scoped login
             remember_me: Extend session duration
             
         Returns:
@@ -139,29 +137,22 @@ class AuthService:
                 logger.warning(f"Authentication failed: Inactive user - {user['id']}")
                 raise ForbiddenError("Account is disabled")
             
-            # STEP 5: If tenant_id provided, check access
-            if tenant_id:
-                access = await self.auth_repo.check_tenant_access(user['id'], tenant_id)
-                if not access:
-                    logger.warning(f"User {user['id']} lacks access to tenant {tenant_id}")
-                    raise ForbiddenError("No access to specified tenant")
+            # STEP 5: Platform-level authentication complete
             
             # Update last login
             await self.auth_repo.update_last_login(user['id'])
             
-            # Get user permissions
+            # Get user permissions (platform-level only)
             permissions = await self.permission_repo.get_user_permissions(
-                user['id'],
-                tenant_id
+                user['id']
             )
             logger.info(f"Permissions fetched for user {user['id']}: {len(permissions)} permissions")
             if permissions:
                 logger.info(f"First permission: {permissions[0]}")
             
-            # Get user roles
+            # Get user roles (platform-level only)
             roles = await self.permission_repo.get_user_roles(
-                user['id'],
-                tenant_id
+                user['id']
             )
             logger.info(f"Roles fetched for user {user['id']}: {len(roles)} roles")
             if roles:
@@ -180,7 +171,6 @@ class AuthService:
                 access_token=token_response['access_token'],
                 refresh_token=token_response['refresh_token'],
                 expires_in=token_response.get('expires_in', 3600),
-                tenant_id=tenant_id,
                 remember_me=remember_me
             )
             

@@ -305,6 +305,131 @@ class EnvironmentConfigProtocol(Protocol):
 
 
 @runtime_checkable
+class KeycloakConfigProtocol(Protocol):
+    """Protocol for Keycloak configuration management."""
+    
+    @property
+    def keycloak_url(self) -> str:
+        """Keycloak server URL."""
+        ...
+    
+    @property
+    def keycloak_admin_realm(self) -> str:
+        """Admin realm name."""
+        ...
+    
+    @property
+    def keycloak_admin_client_id(self) -> str:
+        """Admin client ID."""
+        ...
+    
+    @property
+    def keycloak_admin_client_secret(self) -> str:
+        """Admin client secret."""
+        ...
+    
+    @property
+    def keycloak_admin_username(self) -> str:
+        """Admin username."""
+        ...
+    
+    @property
+    def keycloak_admin_password(self) -> str:
+        """Admin password."""
+        ...
+
+
+@runtime_checkable
+class JWTConfigProtocol(Protocol):
+    """Protocol for JWT configuration management."""
+    
+    @property
+    def jwt_algorithm(self) -> str:
+        """JWT algorithm."""
+        ...
+    
+    @property
+    def jwt_issuer(self) -> str:
+        """JWT issuer."""
+        ...
+    
+    @property
+    def jwt_audience(self) -> str:
+        """JWT audience."""
+        ...
+    
+    @property
+    def jwt_public_key_cache_ttl(self) -> int:
+        """JWT public key cache TTL."""
+        ...
+    
+    @property
+    def jwt_verify_audience(self) -> bool:
+        """Verify JWT audience."""
+        ...
+    
+    @property
+    def jwt_audience_fallback(self) -> bool:
+        """Allow audience fallback."""
+        ...
+    
+    @property
+    def jwt_debug_claims(self) -> bool:
+        """Debug JWT claims."""
+        ...
+    
+    @property
+    def jwt_verify_issuer(self) -> bool:
+        """Verify JWT issuer."""
+        ...
+
+
+@runtime_checkable
+class BusinessConfigProtocol(Protocol):
+    """Protocol for business logic configuration management."""
+    
+    @property
+    def enable_prefix_routes(self) -> bool:
+        """Enable prefix routes for backward compatibility."""
+        ...
+    
+    @property
+    def tenant_schema_prefix(self) -> str:
+        """Tenant schema prefix."""
+        ...
+    
+    @property
+    def tenant_provisioning_timeout(self) -> int:
+        """Tenant provisioning timeout in seconds."""
+        ...
+    
+    @property
+    def task_queue_enabled(self) -> bool:
+        """Background task queue enabled."""
+        ...
+    
+    @property
+    def task_queue_broker_url(self) -> Optional[str]:
+        """Background task queue broker URL."""
+        ...
+    
+    @property
+    def feature_multi_region(self) -> bool:
+        """Multi-region feature enabled."""
+        ...
+    
+    @property
+    def feature_billing(self) -> bool:
+        """Billing feature enabled."""
+        ...
+    
+    @property
+    def feature_analytics(self) -> bool:
+        """Analytics feature enabled."""
+        ...
+
+
+@runtime_checkable
 class BaseConfigProtocol(
     DatabaseConfigProtocol,
     CacheConfigProtocol,
@@ -316,6 +441,9 @@ class BaseConfigProtocol(
     PaginationConfigProtocol,
     MonitoringConfigProtocol,
     EnvironmentConfigProtocol,
+    KeycloakConfigProtocol,
+    JWTConfigProtocol,
+    BusinessConfigProtocol,
     Protocol
 ):
     """

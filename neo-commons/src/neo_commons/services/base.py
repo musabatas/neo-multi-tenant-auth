@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any, TypeVar, Generic
 from abc import ABC
 import logging
 
-from neo_commons.exceptions.base import NeoAdminException, NotFoundError, ConflictError, ValidationError
+from neo_commons.exceptions.base import NeoCommonsException, NotFoundError, ConflictError, ValidationError
 from neo_commons.models.pagination import PaginationParams, PaginationMetadata
 
 T = TypeVar('T')

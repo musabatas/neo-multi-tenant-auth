@@ -60,17 +60,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self.custom_headers = custom_headers or {}
         self.exclude_paths = exclude_paths or []
         
-        # Build CSP
-        if content_security_policy is None:
-            self.content_security_policy = self._build_default_csp()
-        else:
-            self.content_security_policy = content_security_policy
-        
-        # Build Permissions Policy
-        if permissions_policy is None:
-            self.permissions_policy = self._build_default_permissions_policy()
-        else:
-            self.permissions_policy = permissions_policy
+        # Build CSP and Permissions Policy
+        self.content_security_policy = content_security_policy or self._build_default_csp()
+        self.permissions_policy = permissions_policy or self._build_default_permissions_policy()
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Add security headers to response."""
@@ -381,19 +373,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def _is_rate_limited(self, client_ip: str) -> bool:
         """Check if client IP is rate limited."""
-        # This is a simplified implementation
-        # In production, use proper sliding window with Redis
         current_time = int(time.time())
         
         if client_ip not in self._request_counts:
             return False
         
-        # Clean old entries (simple cleanup)
+        # Clean old entries and check limits
         counts = self._request_counts[client_ip]
-        recent_requests = [t for t in counts if current_time - t < 3600]  # Last hour
+        recent_requests = [t for t in counts if current_time - t < 3600]
         self._request_counts[client_ip] = recent_requests
         
-        # Check limits
         minute_requests = len([t for t in recent_requests if current_time - t < 60])
         hour_requests = len(recent_requests)
         
@@ -402,8 +391,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _record_request(self, client_ip: str):
         """Record request timestamp."""
         current_time = int(time.time())
-        
         if client_ip not in self._request_counts:
             self._request_counts[client_ip] = []
-        
         self._request_counts[client_ip].append(current_time)

@@ -82,15 +82,15 @@ class AdminTagGroupProvider(DefaultTagGroupProvider):
             },
             {
                 "name": "User Management",
-                "tags": ["Platform Users", "User Profile", "User Settings"]
+                "tags": ["Users", "User Profile", "User Settings"]
             },
             {
                 "name": "Organization Management",
                 "tags": ["Organizations", "Organization Settings", "Organization Members"]
             },
             {
-                "name": "Tenant Management", 
-                "tags": ["Tenants", "Tenant Settings", "Tenant Users"]
+                "name": "Client Management", 
+                "tags": ["Clients", "Client Settings", "Client Users"]
             },
             {
                 "name": "Infrastructure",

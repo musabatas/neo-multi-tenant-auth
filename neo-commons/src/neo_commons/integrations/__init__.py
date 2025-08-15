@@ -3,23 +3,41 @@ External integrations for neo-commons library.
 Protocol-based dependency injection for maximum reusability across different API services.
 """
 
-# Import Keycloak integration
+# Import Keycloak integration - main components
 from .keycloak import (
-    KeycloakClient,
-    DefaultTokenValidationConfig,
+    # Clients
+    EnhancedKeycloakAsyncClient,
+    KeycloakAsyncClient,  # Alias for convenience
+    BaseKeycloakClient,
+    # Managers  
+    EnhancedTokenManager,
+    TenantRealmManager,
+    # Protocols
     TokenValidationConfigProtocol,
     HttpClientProtocol,
-    create_keycloak_client,
-    get_keycloak_client,
-    set_global_keycloak_client
+    KeycloakConfigProtocol,
+    # Config
+    DefaultTokenValidationConfig,
+    DefaultKeycloakConfig,
+    # Exceptions
+    RealmManagerException
 )
 
 __all__ = [
-    "KeycloakClient",
-    "DefaultTokenValidationConfig", 
+    # Clients
+    "EnhancedKeycloakAsyncClient", 
+    "KeycloakAsyncClient",  # Alias for convenience
+    "BaseKeycloakClient",
+    # Managers
+    "EnhancedTokenManager",
+    "TenantRealmManager",
+    # Protocols
     "TokenValidationConfigProtocol",
     "HttpClientProtocol",
-    "create_keycloak_client",
-    "get_keycloak_client",
-    "set_global_keycloak_client"
+    "KeycloakConfigProtocol",
+    # Config
+    "DefaultTokenValidationConfig",
+    "DefaultKeycloakConfig",
+    # Exceptions
+    "RealmManagerException"
 ]

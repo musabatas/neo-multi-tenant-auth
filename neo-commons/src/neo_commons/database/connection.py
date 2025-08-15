@@ -1,5 +1,5 @@
 """
-Database connection management using asyncpg for NeoMultiTenant services.
+Database connection management using asyncpg for neo-commons applications.
 """
 import asyncio
 import os
@@ -19,11 +19,11 @@ class DatabaseManager:
         """Initialize DatabaseManager.
         
         Args:
-            database_url: Database URL (defaults to ADMIN_DATABASE_URL env var)
+            database_url: Database URL (defaults to DATABASE_URL env var)
             **pool_config: Additional pool configuration options
         """
         self.pool: Optional[Pool] = None
-        self.dsn = database_url or os.getenv("ADMIN_DATABASE_URL", "")
+        self.dsn = database_url or os.getenv("DATABASE_URL", "")
         if "+asyncpg" in self.dsn:
             self.dsn = self.dsn.replace("+asyncpg", "")
         
@@ -117,20 +117,22 @@ class DatabaseManager:
 class DynamicDatabaseManager:
     """Manages dynamic database connections for multi-region support."""
     
-    def __init__(self, admin_db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, admin_db_manager: Optional[DatabaseManager] = None, schema_name: str = "admin"):
         """Initialize DynamicDatabaseManager.
         
         Args:
             admin_db_manager: DatabaseManager for admin database queries
+            schema_name: Schema name for connection metadata tables (default: "admin")
         """
         self.pools: Dict[str, Pool] = {}
         self.connections_cache: Dict[str, Dict[str, Any]] = {}
         self.last_refresh: Optional[float] = None
         self.admin_db = admin_db_manager or get_database()
+        self.schema_name = schema_name
         
     async def load_database_connections(self) -> Dict[str, Dict[str, Any]]:
-        """Load database connections from admin.database_connections table."""
-        query = """
+        """Load database connections from the configured schema's database_connections table."""
+        query = f"""
             SELECT 
                 dc.id as connection_id,
                 dc.connection_name,
@@ -147,8 +149,8 @@ class DynamicDatabaseManager:
                 1 as priority,
                 r.code as region_code,
                 r.name as region_name
-            FROM admin.database_connections dc
-            LEFT JOIN admin.regions r ON dc.region_id = r.id
+            FROM {self.schema_name}.database_connections dc
+            LEFT JOIN {self.schema_name}.regions r ON dc.region_id = r.id
             WHERE dc.is_active = true
             ORDER BY dc.connection_name
         """
@@ -293,11 +295,11 @@ def get_database(database_url: Optional[str] = None) -> DatabaseManager:
     return _database_manager
 
 
-def get_dynamic_database(admin_db_manager: Optional[DatabaseManager] = None) -> DynamicDatabaseManager:
+def get_dynamic_database(admin_db_manager: Optional[DatabaseManager] = None, schema_name: str = "admin") -> DynamicDatabaseManager:
     """Get the global dynamic database manager instance."""
     global _dynamic_database_manager
     if _dynamic_database_manager is None:
-        _dynamic_database_manager = DynamicDatabaseManager(admin_db_manager)
+        _dynamic_database_manager = DynamicDatabaseManager(admin_db_manager, schema_name)
     return _dynamic_database_manager
 
 

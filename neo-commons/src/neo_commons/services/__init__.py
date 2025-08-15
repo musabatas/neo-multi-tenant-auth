@@ -2,7 +2,7 @@
 Neo Commons Services Package
 
 This package contains reusable service patterns for business logic
-in the NeoMultiTenant platform.
+using the neo-commons library.
 
 Components:
 - Base: Abstract base service with common business logic patterns

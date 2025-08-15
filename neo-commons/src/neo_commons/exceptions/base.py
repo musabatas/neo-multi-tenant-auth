@@ -4,8 +4,8 @@ Base exception classes for NeoMultiTenant services.
 from typing import Optional, Any, Dict, List
 
 
-class NeoAdminException(Exception):
-    """Base exception for all application exceptions."""
+class NeoCommonsException(Exception):
+    """Base exception for all neo-commons exceptions."""
     
     def __init__(
         self,
@@ -30,7 +30,7 @@ class NeoAdminException(Exception):
         }
 
 
-class ValidationError(NeoAdminException):
+class ValidationError(NeoCommonsException):
     """Raised when validation fails."""
     
     def __init__(
@@ -43,7 +43,7 @@ class ValidationError(NeoAdminException):
         self.details["errors"] = errors or []
 
 
-class NotFoundError(NeoAdminException):
+class NotFoundError(NeoCommonsException):
     """Raised when a resource is not found."""
     
     def __init__(
@@ -65,7 +65,7 @@ class NotFoundError(NeoAdminException):
             self.details["identifier"] = str(identifier)
 
 
-class ConflictError(NeoAdminException):
+class ConflictError(NeoCommonsException):
     """Raised when there's a conflict with existing data."""
     
     def __init__(
@@ -82,7 +82,7 @@ class ConflictError(NeoAdminException):
             self.details["value"] = str(conflicting_value)
 
 
-class UnauthorizedError(NeoAdminException):
+class UnauthorizedError(NeoCommonsException):
     """Raised when authentication is required but not provided."""
     
     def __init__(
@@ -93,7 +93,7 @@ class UnauthorizedError(NeoAdminException):
         super().__init__(message, status_code=401, **kwargs)
 
 
-class ForbiddenError(NeoAdminException):
+class ForbiddenError(NeoCommonsException):
     """Raised when user doesn't have permission."""
     
     def __init__(
@@ -110,7 +110,7 @@ class ForbiddenError(NeoAdminException):
             self.details["resource"] = resource
 
 
-class BadRequestError(NeoAdminException):
+class BadRequestError(NeoCommonsException):
     """Raised when request is malformed or invalid."""
     
     def __init__(
@@ -121,7 +121,7 @@ class BadRequestError(NeoAdminException):
         super().__init__(message, status_code=400, **kwargs)
 
 
-class RateLimitError(NeoAdminException):
+class RateLimitError(NeoCommonsException):
     """Raised when rate limit is exceeded."""
     
     def __init__(
@@ -135,7 +135,7 @@ class RateLimitError(NeoAdminException):
             self.details["retry_after"] = retry_after
 
 
-class ExternalServiceError(NeoAdminException):
+class ExternalServiceError(NeoCommonsException):
     """Raised when an external service call fails."""
     
     def __init__(

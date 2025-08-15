@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neo-commons"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Common utilities for NeoMultiTenant microservices"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -54,6 +54,11 @@ test = [
     "pytest-mock>=3.11.0",
     "httpx>=0.24.0",
 ]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.23.0",
+]
 
 [project.urls]
 Documentation = "https://github.com/your-org/neo-commons"
@@ -63,6 +68,9 @@ Tracker = "https://github.com/your-org/neo-commons/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["neo_commons*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "neo_commons.__version__"}
 
 [tool.black]
 line-length = 88

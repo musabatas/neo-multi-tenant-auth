@@ -2,7 +2,7 @@
 Neo Commons Utils Package
 
 This package contains common utility functions and helpers
-for the NeoMultiTenant platform.
+for neo-commons applications.
 
 Components:
 - Datetime: Timezone-aware datetime utilities and formatting
@@ -36,16 +36,8 @@ from .encryption import (
     validate_encryption_key
 )
 
-from .metadata import (
-    MetadataCollector,
-    PerformanceTracker,
-    get_api_metadata,
-    track_cache_operation,
-    track_db_operation,
-    create_operation_metadata,
-    get_cache_statistics,
-    reset_all_counters
-)
+# Note: metadata functionality moved to middleware.unified_context
+# Use UnifiedRequestContext for metadata collection
 
 from .uuid import (
     generate_uuid_v7,
@@ -60,6 +52,10 @@ from .uuid import (
     uuid_v7_age_in_seconds,
     is_uuid_v7_recent
 )
+
+# Aliases for backward compatibility and convenience
+generate_uuid7 = generate_uuid_v7
+extract_timestamp_from_uuid7 = extract_timestamp_from_uuid_v7
 
 __all__ = [
     # Datetime utilities
@@ -84,15 +80,7 @@ __all__ = [
     "decrypt_data_to_string",
     "validate_encryption_key",
     
-    # Metadata utilities
-    "MetadataCollector",
-    "PerformanceTracker",
-    "get_api_metadata",
-    "track_cache_operation",
-    "track_db_operation",
-    "create_operation_metadata",
-    "get_cache_statistics",
-    "reset_all_counters",
+    # Note: Metadata utilities moved to middleware.unified_context
     
     # UUID utilities
     "generate_uuid_v7",
@@ -105,5 +93,8 @@ __all__ = [
     "compare_uuid_v7_timestamps", 
     "sort_uuids_by_timestamp",
     "uuid_v7_age_in_seconds",
-    "is_uuid_v7_recent"
+    "is_uuid_v7_recent",
+    # Aliases
+    "generate_uuid7",
+    "extract_timestamp_from_uuid7"
 ]

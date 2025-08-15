@@ -78,7 +78,7 @@ class DefaultApplicationConfig:
     
     def __init__(
         self,
-        app_name: str = "Neo Application",
+        app_name: str = "API Application",
         app_version: str = "1.0.0",
         environment: str = "development",
         is_production: bool = False
@@ -395,4 +395,4 @@ def register_standard_endpoints(
             app_config=app_config
         )
     
-    logger.info(f"Registered standard endpoints for {app_config.app_name if app_config else 'Neo Application'}")
+    logger.info(f"Registered standard endpoints for {app_config.app_name if app_config else 'API Application'}")

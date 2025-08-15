@@ -54,7 +54,7 @@ class DefaultApplicationInfo:
     
     def __init__(
         self,
-        title: str = "Neo API",
+        title: str = "API Service",
         version: str = "1.0.0",
         description: Optional[str] = None
     ):
@@ -99,7 +99,7 @@ def create_openapi_schema(
         version = app_info.version
         description = app_info.description
     else:
-        title = getattr(app, 'title', 'Neo API')
+        title = getattr(app, 'title', 'API Service')
         version = getattr(app, 'version', '1.0.0')
         description = getattr(app, 'description', None)
     

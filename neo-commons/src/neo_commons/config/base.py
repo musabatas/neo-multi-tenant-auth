@@ -7,7 +7,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, PostgresDsn, RedisDsn, HttpUrl, field_validator
 
 from .protocols import (
     BaseConfigProtocol,
@@ -142,6 +142,43 @@ class BaseNeoConfig(BaseSettings, EnvironmentConfig):
     # Monitoring configuration
     metrics_enabled: bool = Field(default=True, env="METRICS_ENABLED")
     
+    # Keycloak configuration
+    keycloak_url: HttpUrl = Field(
+        default="http://localhost:8080",
+        env="KEYCLOAK_URL"
+    )
+    keycloak_admin_realm: str = Field(default="neo-admin", env="KEYCLOAK_ADMIN_REALM")
+    keycloak_admin_client_id: str = Field(default="admin-api", env="KEYCLOAK_ADMIN_CLIENT_ID")
+    keycloak_admin_client_secret: SecretStr = Field(
+        default="admin-secret",
+        env="KEYCLOAK_ADMIN_CLIENT_SECRET"
+    )
+    keycloak_admin_username: str = Field(default="admin", env="KEYCLOAK_ADMIN_USERNAME")
+    keycloak_admin_password: SecretStr = Field(
+        default="admin",
+        env="KEYCLOAK_ADMIN_PASSWORD"
+    )
+    
+    # JWT configuration
+    jwt_algorithm: str = Field(default="RS256", env="JWT_ALGORITHM")
+    jwt_issuer: str = Field(default="http://localhost:8080/realms/neo-admin", env="JWT_ISSUER")
+    jwt_audience: str = Field(default="admin-api", env="JWT_AUDIENCE")
+    jwt_public_key_cache_ttl: int = Field(default=3600, env="JWT_PUBLIC_KEY_CACHE_TTL")
+    jwt_verify_audience: bool = Field(default=True, env="JWT_VERIFY_AUDIENCE")
+    jwt_audience_fallback: bool = Field(default=True, env="JWT_AUDIENCE_FALLBACK")
+    jwt_debug_claims: bool = Field(default=False, env="JWT_DEBUG_CLAIMS")
+    jwt_verify_issuer: bool = Field(default=True, env="JWT_VERIFY_ISSUER")
+    
+    # Business configuration
+    enable_prefix_routes: bool = Field(default=True, env="ENABLE_PREFIX_ROUTES")
+    tenant_schema_prefix: str = Field(default="tenant_", env="TENANT_SCHEMA_PREFIX")
+    tenant_provisioning_timeout: int = Field(default=60, env="TENANT_PROVISIONING_TIMEOUT")
+    task_queue_enabled: bool = Field(default=False, env="TASK_QUEUE_ENABLED")
+    task_queue_broker_url: Optional[str] = Field(default=None, env="TASK_QUEUE_BROKER_URL")
+    feature_multi_region: bool = Field(default=True, env="FEATURE_MULTI_REGION")
+    feature_billing: bool = Field(default=True, env="FEATURE_BILLING")
+    feature_analytics: bool = Field(default=True, env="FEATURE_ANALYTICS")
+    
     @property
     def database_url_sync(self) -> str:
         """Get synchronous database URL (for migrations)."""
@@ -233,20 +270,53 @@ class BaseNeoConfig(BaseSettings, EnvironmentConfig):
 class AdminConfig(BaseNeoConfig):
     """Configuration optimized for admin/platform services."""
     
-    # Override defaults for admin services
-    app_name: str = Field(default="Neo Admin API", env="APP_NAME")
+    # Generic defaults for admin services - customizable via environment
+    app_name: str = Field(default="AdminService", env="APP_NAME")
     port: int = Field(default=8001, env="PORT")
     api_prefix: Optional[str] = Field(default="/api/v1", env="API_PREFIX")
     
-    # Admin-specific cache TTL
-    cache_ttl_permissions: int = Field(default=600, env="CACHE_TTL_PERMISSIONS")  # 10 minutes
-    cache_ttl_tenant: int = Field(default=1800, env="CACHE_TTL_TENANT")  # 30 minutes
+    # Generic database URL (using DATABASE_URL env var)
+    database_url: PostgresDsn = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/admin_db",
+        env="DATABASE_URL"
+    )
     
-    # Admin-specific CORS
+    # Generic Redis URL (using REDIS_URL env var)
+    redis_url: Optional[RedisDsn] = Field(
+        default=None,
+        env="REDIS_URL"
+    )
+    
+    # Override cache configuration
+    redis_pool_size: int = Field(default=10, env="REDIS_POOL_SIZE")
+    
+    # Generic cache key prefixes
+    cache_prefix: str = Field(default="admin", env="CACHE_PREFIX")
+    
+    # Session configuration
+    session_timeout: int = Field(default=86400, env="SESSION_TIMEOUT")  # 24 hours
+    
+    # Security defaults
     cors_origins: List[str] = Field(
-        default=["http://localhost:3001"],  # Admin dashboard
+        default=["http://localhost:3000", "http://localhost:3001"],
         env="CORS_ORIGINS"
     )
+    
+    # Rate limiting
+    rate_limit_requests: int = Field(default=1000, env="RATE_LIMIT_REQUESTS")
+    rate_limit_window: int = Field(default=3600, env="RATE_LIMIT_WINDOW")  # 1 hour
+    
+    # Logging
+    log_level: str = Field(default="INFO", env="LOG_LEVEL")
+    
+    @field_validator('cors_origins', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from environment variable."""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(',')]
+        return v
+
 
 
 class TenantConfig(BaseNeoConfig):
@@ -310,6 +380,8 @@ def get_admin_config() -> AdminConfig:
     return AdminConfig()
 
 
+
+
 @lru_cache()
 def get_tenant_config() -> TenantConfig:
     """Get cached tenant configuration instance."""
@@ -327,7 +399,7 @@ def create_config_for_environment(env: str = "development") -> BaseNeoConfig:
     Create configuration for specific environment.
     
     Args:
-        env: Environment name (development, testing, production)
+        env: Environment name (development, testing, production, admin-api)
         
     Returns:
         Configuration instance optimized for the environment

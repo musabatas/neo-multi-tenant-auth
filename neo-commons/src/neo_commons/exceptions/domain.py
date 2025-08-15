@@ -4,10 +4,10 @@ Domain-specific exceptions for business logic errors.
 from typing import Optional
 from uuid import UUID
 
-from .base import NeoAdminException
+from .base import NeoCommonsException
 
 
-class TenantError(NeoAdminException):
+class TenantError(NeoCommonsException):
     """Base exception for tenant-related errors."""
     
     def __init__(
@@ -38,7 +38,7 @@ class TenantProvisioningError(TenantError):
             self.details["failed_step"] = step
 
 
-class QuotaExceededError(NeoAdminException):
+class QuotaExceededError(NeoCommonsException):
     """Raised when a quota is exceeded."""
     
     def __init__(
@@ -58,7 +58,7 @@ class QuotaExceededError(NeoAdminException):
             self.details["quota_limit"] = quota_limit
 
 
-class MigrationError(NeoAdminException):
+class MigrationError(NeoCommonsException):
     """Raised when migration fails."""
     
     def __init__(
@@ -72,7 +72,7 @@ class MigrationError(NeoAdminException):
             self.details["migration_id"] = migration_id
 
 
-class ConfigurationError(NeoAdminException):
+class ConfigurationError(NeoCommonsException):
     """Raised when configuration is invalid."""
     
     def __init__(
