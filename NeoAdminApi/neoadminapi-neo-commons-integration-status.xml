@@ -1,0 +1,673 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<neoadminapi-integration-tracking>
+  <metadata>
+    <project>NeoAdminApi Neo-Commons Integration</project>
+    <description>Systematic tracking of replacing NeoAdminApi internal modules with neo-commons shared library</description>
+    <created>2025-01-15</created>
+    <total-files>174</total-files>
+    <migration-strategy>Protocol-based dependency injection with Clean Architecture patterns</migration-strategy>
+    <performance-target>Sub-millisecond permission checks with configurable schemas</performance-target>
+  </metadata>
+
+  <integration-phases>
+    <phase id="1" name="Infrastructure Layer Migration" priority="critical">
+      <description>Replace common infrastructure with neo-commons equivalents</description>
+      <files-count>23</files-count>
+    </phase>
+    <phase id="2" name="Auth System Integration" priority="high">
+      <description>Integrate neo-commons auth system with existing auth features</description>
+      <files-count>18</files-count>
+    </phase>
+    <phase id="3" name="Feature Module Updates" priority="medium">
+      <description>Update feature modules to use neo-commons patterns</description>
+      <files-count>85</files-count>
+    </phase>
+    <phase id="4" name="Integration Layer Updates" priority="low">
+      <description>Update integrations and remaining components</description>
+      <files-count>48</files-count>
+    </phase>
+  </integration-phases>
+
+  <!-- PHASE 1: INFRASTRUCTURE LAYER MIGRATION (CRITICAL) -->
+  <phase-1-infrastructure>
+    
+    <!-- Core Infrastructure Files -->
+    <file path="src/common/config/settings.py" phase="1" priority="critical" 
+          status="pending" migration-type="replace" 
+          neo-commons-target="config.base.AdminConfig">
+      <current-function>Application configuration management</current-function>
+      <migration-notes>Replace with neo-commons AdminConfig with configurable schemas</migration-notes>
+      <dependencies>["src/main.py", "src/app.py"]</dependencies>
+    </file>
+
+    <file path="src/common/database/connection.py" phase="1" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="database.connection.DatabaseManager">
+      <current-function>Database connection management</current-function>
+      <migration-notes>Replace with neo-commons DatabaseManager with configurable schemas</migration-notes>
+      <dependencies>["all repositories", "src/main.py"]</dependencies>
+    </file>
+
+    <file path="src/common/cache/client.py" phase="1" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="cache.client.CacheService">
+      <current-function>Redis cache management</current-function>
+      <migration-notes>Replace with neo-commons CacheService with tenant isolation</migration-notes>
+      <dependencies>["all cache modules", "auth services"]</dependencies>
+    </file>
+
+    <file path="src/common/exceptions/__init__.py" phase="1" priority="high"
+          status="completed" migration-type="replace"
+          neo-commons-target="exceptions.*">
+      <current-function>Exception definitions</current-function>
+      <migration-notes>✅ COMPLETED: Replaced with neo-commons exception hierarchy with backward compatibility aliases</migration-notes>
+      <dependencies>["all modules"]</dependencies>
+    </file>
+
+    <file path="src/common/exceptions/base.py" phase="1" priority="high"
+          status="completed" migration-type="replace"
+          neo-commons-target="exceptions.base.NeoCommonsException">
+      <current-function>Base exception classes</current-function>
+      <migration-notes>✅ COMPLETED: Replaced with neo-commons base exceptions</migration-notes>
+      <dependencies>["domain.py", "service.py"]</dependencies>
+    </file>
+
+    <file path="src/common/exceptions/domain.py" phase="1" priority="high"
+          status="completed" migration-type="replace"
+          neo-commons-target="exceptions.domain.*">
+      <current-function>Domain exception classes</current-function>
+      <migration-notes>✅ COMPLETED: Replaced with neo-commons domain exceptions</migration-notes>
+      <dependencies>["all domain models"]</dependencies>
+    </file>
+
+    <file path="src/common/exceptions/service.py" phase="1" priority="high"
+          status="completed" migration-type="replace"
+          neo-commons-target="exceptions.service.*">
+      <current-function>Service exception classes</current-function>
+      <migration-notes>✅ COMPLETED: Replaced with neo-commons service exceptions</migration-notes>
+      <dependencies>["all service classes"]</dependencies>
+    </file>
+
+    <file path="src/common/models/base.py" phase="1" priority="medium"
+          status="completed" migration-type="replace"
+          neo-commons-target="models.base.*">
+      <current-function>Base model classes</current-function>
+      <migration-notes>✅ COMPLETED: Replaced with neo-commons base models, extended with NeoAdminApi-specific metadata collection</migration-notes>
+      <dependencies>["all domain models"]</dependencies>
+    </file>
+
+    <file path="src/common/models/pagination.py" phase="1" priority="medium"
+          status="completed" migration-type="replace"
+          neo-commons-target="models.pagination.*">
+      <current-function>Pagination models</current-function>
+      <migration-notes>✅ COMPLETED: Replaced with neo-commons pagination models</migration-notes>
+      <dependencies>["all routers"]</dependencies>
+    </file>
+
+    <file path="src/common/repositories/base.py" phase="1" priority="high"
+          status="completed" migration-type="replace"
+          neo-commons-target="repositories.base.Repository">
+      <current-function>Base repository pattern</current-function>
+      <migration-notes>✅ COMPLETED: Replaced with neo-commons BaseRepository, extended with automatic NeoAdminApi database injection</migration-notes>
+      <dependencies>["all repositories"]</dependencies>
+    </file>
+
+    <file path="src/common/services/base.py" phase="1" priority="high"
+          status="pending" migration-type="replace"
+          neo-commons-target="services.base.BaseService">
+      <current-function>Base service pattern</current-function>
+      <migration-notes>Replace with neo-commons service base with protocol patterns</migration-notes>
+      <dependencies>["all services"]</dependencies>
+    </file>
+
+    <file path="src/common/utils/datetime.py" phase="1" priority="medium"
+          status="pending" migration-type="replace"
+          neo-commons-target="utils.datetime.*">
+      <current-function>DateTime utilities</current-function>
+      <migration-notes>Replace with neo-commons datetime utilities</migration-notes>
+      <dependencies>["domain models", "services"]</dependencies>
+    </file>
+
+    <file path="src/common/utils/encryption.py" phase="1" priority="medium"
+          status="pending" migration-type="replace"
+          neo-commons-target="utils.encryption.*">
+      <current-function>Encryption utilities</current-function>
+      <migration-notes>Replace with neo-commons encryption utilities</migration-notes>
+      <dependencies>["auth services", "security features"]</dependencies>
+    </file>
+
+    <file path="src/common/utils/uuid.py" phase="1" priority="medium"
+          status="pending" migration-type="replace"
+          neo-commons-target="utils.uuid.*">
+      <current-function>UUID utilities</current-function>
+      <migration-notes>Replace with neo-commons UUIDv7 utilities</migration-notes>
+      <dependencies>["all domain models"]</dependencies>
+    </file>
+
+    <!-- Middleware Files -->
+    <file path="src/common/middleware/config.py" phase="1" priority="medium"
+          status="completed" migration-type="replace"
+          neo-commons-target="middleware.config.*">
+      <current-function>Middleware configuration</current-function>
+      <migration-notes>✅ COMPLETED: Extended neo-commons MiddlewareConfig with NeoAdminApi settings integration. UnifiedContextMiddleware replaces separate logging/timing/response-size middleware. Legacy compatibility maintained via mapping properties and method aliases.</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <file path="src/common/middleware/security.py" phase="1" priority="high"
+          status="completed" migration-type="replace"
+          neo-commons-target="middleware.security.*">
+      <current-function>Security middleware</current-function>
+      <migration-notes>✅ COMPLETED: Extended neo-commons security middleware (SecurityHeadersMiddleware, CORSSecurityMiddleware, RateLimitMiddleware) with NeoAdminApi settings integration. Custom NeoAdmin server header branding and environment auto-detection from settings.</migration-notes>
+      <dependencies>["src/app.py", "auth features"]</dependencies>
+    </file>
+
+    <file path="src/common/middleware/logging.py" phase="1" priority="low"
+          status="pending" migration-type="integrate"
+          neo-commons-target="N/A">
+      <current-function>Logging middleware</current-function>
+      <migration-notes>Keep NeoAdminApi-specific logging, integrate with neo-commons patterns</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <file path="src/common/middleware/request_context.py" phase="1" priority="low"
+          status="pending" migration-type="integrate"
+          neo-commons-target="N/A">
+      <current-function>Request context middleware</current-function>
+      <migration-notes>Keep NeoAdminApi-specific context, integrate with neo-commons patterns</migration-notes>
+      <dependencies>["src/app.py", "auth features"]</dependencies>
+    </file>
+
+    <file path="src/common/middleware/timing.py" phase="1" priority="low"
+          status="pending" migration-type="integrate"
+          neo-commons-target="N/A">
+      <current-function>Request timing middleware</current-function>
+      <migration-notes>Keep NeoAdminApi-specific timing, integrate with neo-commons patterns</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <!-- Application Entry Points -->
+    <file path="src/main.py" phase="1" priority="critical"
+          status="completed" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Application entry point</current-function>
+      <migration-notes>✅ COMPLETED: Enhanced with neo-commons structured logging, configuration validation using BaseConfigProtocol, improved error handling, and production optimizations for uvicorn configuration.</migration-notes>
+      <dependencies>["src/app.py", "all config"]</dependencies>
+    </file>
+
+    <file path="src/app.py" phase="1" priority="critical"
+          status="completed" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>FastAPI application setup</current-function>
+      <migration-notes>✅ COMPLETED: Enhanced with neo-commons patterns including configuration validation using BaseConfigProtocol, structured logging with timing for startup/shutdown, enhanced error handling with error context, and improved application lifecycle monitoring.</migration-notes>
+      <dependencies>["all routers", "all middleware"]</dependencies>
+    </file>
+
+    <!-- Common Router and API Files -->
+    <file path="src/common/routers/base.py" phase="1" priority="medium"
+          status="completed" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Base router patterns</current-function>
+      <migration-notes>✅ COMPLETED: Enhanced NeoAPIRouter with neo-commons structured logging patterns, route registration tracking, enhanced error handling with error context, and route statistics for monitoring and debugging.</migration-notes>
+      <dependencies>["all feature routers"]</dependencies>
+    </file>
+
+    <file path="src/common/endpoints.py" phase="1" priority="low"
+          status="pending" migration-type="keep"
+          neo-commons-target="N/A">
+      <current-function>API endpoint definitions</current-function>
+      <migration-notes>Keep NeoAdminApi-specific endpoints</migration-notes>
+      <dependencies>["all routers"]</dependencies>
+    </file>
+
+  </phase-1-infrastructure>
+
+  <!-- PHASE 2: AUTH SYSTEM INTEGRATION (HIGH PRIORITY) -->
+  <phase-2-auth>
+
+    <!-- Auth Repositories -->
+    <file path="src/features/auth/repositories/auth_repository.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.infrastructure.repositories.*">
+      <current-function>Authentication repository</current-function>
+      <migration-notes>Replace with neo-commons auth repositories with configurable schemas</migration-notes>
+      <dependencies>["auth services", "auth decorators"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/repositories/permission_repository.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.infrastructure.repositories.PermissionRepository">
+      <current-function>Permission repository</current-function>
+      <migration-notes>Replace with neo-commons PermissionRepository with configurable schemas</migration-notes>
+      <dependencies>["permission services", "auth decorators"]</dependencies>
+    </file>
+
+    <!-- Auth Services -->
+    <file path="src/features/auth/services/auth_service.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.application.services.*">
+      <current-function>Authentication service</current-function>
+      <migration-notes>Replace with neo-commons auth services with protocol patterns</migration-notes>
+      <dependencies>["auth routers", "auth decorators"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/services/permission_service.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.application.services.PermissionService">
+      <current-function>Permission service</current-function>
+      <migration-notes>Replace with neo-commons PermissionService with sub-millisecond caching</migration-notes>
+      <dependencies>["permission decorators", "all protected routes"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/services/permission_manager.py" phase="2" priority="high"
+          status="pending" migration-type="integrate"
+          neo-commons-target="auth.application.services.*">
+      <current-function>Permission management</current-function>
+      <migration-notes>Integrate with neo-commons permission patterns</migration-notes>
+      <dependencies>["permission scanner", "auth services"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/services/permission_scanner.py" phase="2" priority="medium"
+          status="pending" migration-type="keep"
+          neo-commons-target="N/A">
+      <current-function>Permission scanning and discovery</current-function>
+      <migration-notes>Keep NeoAdminApi-specific permission scanning</migration-notes>
+      <dependencies>["permission manager"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/services/guest_auth_service.py" phase="2" priority="low"
+          status="pending" migration-type="keep"
+          neo-commons-target="N/A">
+      <current-function>Guest authentication</current-function>
+      <migration-notes>Keep NeoAdminApi-specific guest auth</migration-notes>
+      <dependencies>["auth routers"]</dependencies>
+    </file>
+
+    <!-- Auth Decorators -->
+    <file path="src/features/auth/decorators/permissions.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.interfaces.api.dependencies.*">
+      <current-function>Permission decorators</current-function>
+      <migration-notes>Replace with neo-commons permission decorators with sub-millisecond caching</migration-notes>
+      <dependencies>["all protected routes"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/dependencies.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.interfaces.api.dependencies.*">
+      <current-function>Auth dependency injection</current-function>
+      <migration-notes>Replace with neo-commons auth dependencies with protocol patterns</migration-notes>
+      <dependencies>["all feature modules"]</dependencies>
+    </file>
+
+    <!-- Auth Routers -->
+    <file path="src/features/auth/routers/auth.py" phase="2" priority="high"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Authentication routes</current-function>
+      <migration-notes>Update to use neo-commons auth dependencies</migration-notes>
+      <dependencies>["src/app.py", "auth services"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/routers/permissions.py" phase="2" priority="high"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Permission management routes</current-function>
+      <migration-notes>Update to use neo-commons permission dependencies</migration-notes>
+      <dependencies>["src/app.py", "permission services"]</dependencies>
+    </file>
+
+    <!-- Auth Models -->
+    <file path="src/features/auth/models/permission_registry.py" phase="2" priority="medium"
+          status="pending" migration-type="integrate"
+          neo-commons-target="auth.domain.entities.*">
+      <current-function>Permission registry</current-function>
+      <migration-notes>Integrate with neo-commons permission entities</migration-notes>
+      <dependencies>["permission services"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/models/request.py" phase="2" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="auth.domain.entities.*">
+      <current-function>Auth request models</current-function>
+      <migration-notes>Update to use neo-commons auth entities</migration-notes>
+      <dependencies>["auth routers"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/models/response.py" phase="2" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="auth.domain.entities.*">
+      <current-function>Auth response models</current-function>
+      <migration-notes>Update to use neo-commons auth entities</migration-notes>
+      <dependencies>["auth routers"]</dependencies>
+    </file>
+
+    <!-- Role System Integration -->
+    <file path="src/features/roles/repositories/role_repository.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.infrastructure.repositories.RoleRepository">
+      <current-function>Role repository</current-function>
+      <migration-notes>Replace with neo-commons RoleRepository with configurable schemas</migration-notes>
+      <dependencies>["role services"]</dependencies>
+    </file>
+
+    <file path="src/features/roles/services/role_service.py" phase="2" priority="critical"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.application.services.RoleService">
+      <current-function>Role service</current-function>
+      <migration-notes>Replace with neo-commons RoleService with protocol patterns</migration-notes>
+      <dependencies>["role routers", "auth decorators"]</dependencies>
+    </file>
+
+    <file path="src/features/roles/routers/v1.py" phase="2" priority="high"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Role management routes</current-function>
+      <migration-notes>Update to use neo-commons role dependencies</migration-notes>
+      <dependencies>["src/app.py", "role services"]</dependencies>
+    </file>
+
+    <file path="src/features/roles/models/domain.py" phase="2" priority="medium"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.domain.entities.Role">
+      <current-function>Role domain models</current-function>
+      <migration-notes>Replace with neo-commons Role entities</migration-notes>
+      <dependencies>["role services", "role routers"]</dependencies>
+    </file>
+
+  </phase-2-auth>
+
+  <!-- PHASE 3: FEATURE MODULE UPDATES (MEDIUM PRIORITY) -->
+  <phase-3-features>
+
+    <!-- Users Feature -->
+    <file path="src/features/users/repositories/user_repository.py" phase="3" priority="high"
+          status="pending" migration-type="update"
+          neo-commons-target="repositories base patterns">
+      <current-function>User repository</current-function>
+      <migration-notes>Update to use neo-commons repository base patterns</migration-notes>
+      <dependencies>["user services"]</dependencies>
+    </file>
+
+    <file path="src/features/users/services/user_service.py" phase="3" priority="high"
+          status="pending" migration-type="update"
+          neo-commons-target="services base patterns">
+      <current-function>User service</current-function>
+      <migration-notes>Update to use neo-commons service base patterns</migration-notes>
+      <dependencies>["user routers"]</dependencies>
+    </file>
+
+    <file path="src/features/users/services/user_data_service.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="services base patterns">
+      <current-function>User data service</current-function>
+      <migration-notes>Update to use neo-commons service base patterns</migration-notes>
+      <dependencies>["user services"]</dependencies>
+    </file>
+
+    <file path="src/features/users/routers/v1.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>User management routes</current-function>
+      <migration-notes>Update to use neo-commons dependencies</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <file path="src/features/users/routers/me.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Current user routes</current-function>
+      <migration-notes>Update to use neo-commons dependencies</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <!-- Tenants Feature -->
+    <file path="src/features/tenants/repositories/tenant_repository.py" phase="3" priority="high"
+          status="pending" migration-type="update"
+          neo-commons-target="repositories base patterns">
+      <current-function>Tenant repository</current-function>
+      <migration-notes>Update to use neo-commons repository base patterns</migration-notes>
+      <dependencies>["tenant services"]</dependencies>
+    </file>
+
+    <file path="src/features/tenants/services/tenant_service.py" phase="3" priority="high"
+          status="pending" migration-type="update"
+          neo-commons-target="services base patterns">
+      <current-function>Tenant service</current-function>
+      <migration-notes>Update to use neo-commons service base patterns</migration-notes>
+      <dependencies>["tenant routers"]</dependencies>
+    </file>
+
+    <file path="src/features/tenants/routers/v1.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Tenant management routes</current-function>
+      <migration-notes>Update to use neo-commons dependencies</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <!-- Organizations Feature -->
+    <file path="src/features/organizations/repositories/organization_repository.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="repositories base patterns">
+      <current-function>Organization repository</current-function>
+      <migration-notes>Update to use neo-commons repository base patterns</migration-notes>
+      <dependencies>["organization services"]</dependencies>
+    </file>
+
+    <file path="src/features/organizations/services/organization_service.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="services base patterns">
+      <current-function>Organization service</current-function>
+      <migration-notes>Update to use neo-commons service base patterns</migration-notes>
+      <dependencies>["organization routers"]</dependencies>
+    </file>
+
+    <file path="src/features/organizations/routers/v1.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Organization management routes</current-function>
+      <migration-notes>Update to use neo-commons dependencies</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <!-- Regions Feature -->
+    <file path="src/features/regions/repositories/region.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="repositories base patterns">
+      <current-function>Region repository</current-function>
+      <migration-notes>Update to use neo-commons repository base patterns</migration-notes>
+      <dependencies>["region services"]</dependencies>
+    </file>
+
+    <file path="src/features/regions/repositories/database.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="repositories base patterns">
+      <current-function>Database repository</current-function>
+      <migration-notes>Update to use neo-commons repository base patterns</migration-notes>
+      <dependencies>["database services"]</dependencies>
+    </file>
+
+    <file path="src/features/regions/services/region.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="services base patterns">
+      <current-function>Region service</current-function>
+      <migration-notes>Update to use neo-commons service base patterns</migration-notes>
+      <dependencies>["region routers"]</dependencies>
+    </file>
+
+    <file path="src/features/regions/services/database_service.py" phase="3" priority="medium"
+          status="pending" migration-type="update"
+          neo-commons-target="services base patterns">
+      <current-function>Database service</current-function>
+      <migration-notes>Update to use neo-commons service base patterns</migration-notes>
+      <dependencies>["database routers"]</dependencies>
+    </file>
+
+    <file path="src/features/regions/routers/region.py" phase="3" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Region management routes</current-function>
+      <migration-notes>Update to use neo-commons dependencies</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <file path="src/features/regions/routers/database.py" phase="3" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Database management routes</current-function>
+      <migration-notes>Update to use neo-commons dependencies</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <!-- Reference Data Feature -->
+    <file path="src/features/reference_data/repositories/reference_data_repository.py" phase="3" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="repositories base patterns">
+      <current-function>Reference data repository</current-function>
+      <migration-notes>Update to use neo-commons repository base patterns</migration-notes>
+      <dependencies>["reference data services"]</dependencies>
+    </file>
+
+    <file path="src/features/reference_data/services/reference_data_service.py" phase="3" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="services base patterns">
+      <current-function>Reference data service</current-function>
+      <migration-notes>Update to use neo-commons service base patterns</migration-notes>
+      <dependencies>["reference data routers"]</dependencies>
+    </file>
+
+    <file path="src/features/reference_data/routers/v1.py" phase="3" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Reference data routes</current-function>
+      <migration-notes>Update to use neo-commons dependencies</migration-notes>
+      <dependencies>["src/app.py"]</dependencies>
+    </file>
+
+    <file path="src/features/reference_data/dependencies.py" phase="3" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="dependencies injection">
+      <current-function>Reference data dependencies</current-function>
+      <migration-notes>Update to use neo-commons dependency patterns</migration-notes>
+      <dependencies>["reference data routers"]</dependencies>
+    </file>
+
+    <file path="src/features/reference_data/cache/strategies.py" phase="3" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="cache patterns">
+      <current-function>Cache strategies</current-function>
+      <migration-notes>Update to use neo-commons cache patterns</migration-notes>
+      <dependencies>["reference data services"]</dependencies>
+    </file>
+
+  </phase-3-features>
+
+  <!-- PHASE 4: INTEGRATION LAYER UPDATES (LOW PRIORITY) -->
+  <phase-4-integrations>
+
+    <!-- Keycloak Integration -->
+    <file path="src/integrations/keycloak/client.py" phase="4" priority="medium"
+          status="pending" migration-type="integrate"
+          neo-commons-target="integrations.keycloak.*">
+      <current-function>Keycloak client</current-function>
+      <migration-notes>Integrate with neo-commons Keycloak patterns if available</migration-notes>
+      <dependencies>["auth services"]</dependencies>
+    </file>
+
+    <file path="src/integrations/keycloak/async_client.py" phase="4" priority="medium"
+          status="pending" migration-type="integrate"
+          neo-commons-target="integrations.keycloak.*">
+      <current-function>Async Keycloak client</current-function>
+      <migration-notes>Integrate with neo-commons Keycloak patterns if available</migration-notes>
+      <dependencies>["auth services"]</dependencies>
+    </file>
+
+    <file path="src/integrations/keycloak/token_manager.py" phase="4" priority="medium"
+          status="pending" migration-type="integrate"
+          neo-commons-target="integrations.keycloak.*">
+      <current-function>Token management</current-function>
+      <migration-notes>Integrate with neo-commons token patterns if available</migration-notes>
+      <dependencies>["auth services"]</dependencies>
+    </file>
+
+    <file path="src/integrations/keycloak/realm_manager.py" phase="4" priority="medium"
+          status="pending" migration-type="integrate"
+          neo-commons-target="integrations.keycloak.*">
+      <current-function>Realm management</current-function>
+      <migration-notes>Integrate with neo-commons realm patterns if available</migration-notes>
+      <dependencies>["tenant services"]</dependencies>
+    </file>
+
+    <!-- Feature-Specific Cache Files -->
+    <file path="src/features/users/cache/__init__.py" phase="4" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="cache patterns">
+      <current-function>User cache</current-function>
+      <migration-notes>Update to use neo-commons cache patterns</migration-notes>
+      <dependencies>["user services"]</dependencies>
+    </file>
+
+    <file path="src/features/tenants/cache/__init__.py" phase="4" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="cache patterns">
+      <current-function>Tenant cache</current-function>
+      <migration-notes>Update to use neo-commons cache patterns</migration-notes>
+      <dependencies>["tenant services"]</dependencies>
+    </file>
+
+    <file path="src/features/organizations/cache/__init__.py" phase="4" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="cache patterns">
+      <current-function>Organization cache</current-function>
+      <migration-notes>Update to use neo-commons cache patterns</migration-notes>
+      <dependencies>["organization services"]</dependencies>
+    </file>
+
+    <file path="src/features/regions/cache/__init__.py" phase="4" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="cache patterns">
+      <current-function>Region cache</current-function>
+      <migration-notes>Update to use neo-commons cache patterns</migration-notes>
+      <dependencies>["region services"]</dependencies>
+    </file>
+
+    <file path="src/features/auth/cache/__init__.py" phase="4" priority="medium"
+          status="pending" migration-type="replace"
+          neo-commons-target="auth.infrastructure.cache.*">
+      <current-function>Auth cache</current-function>
+      <migration-notes>Replace with neo-commons auth cache with sub-millisecond performance</migration-notes>
+      <dependencies>["auth services"]</dependencies>
+    </file>
+
+    <file path="src/features/billing/cache/__init__.py" phase="4" priority="low"
+          status="pending" migration-type="update"
+          neo-commons-target="cache patterns">
+      <current-function>Billing cache</current-function>
+      <migration-notes>Update to use neo-commons cache patterns</migration-notes>
+      <dependencies>["billing services"]</dependencies>
+    </file>
+
+  </phase-4-integrations>
+
+  <!-- Migration Statistics -->
+  <migration-summary>
+    <critical-files>15</critical-files>
+    <high-priority-files>28</high-priority-files>
+    <medium-priority-files>42</medium-priority-files>
+    <low-priority-files>89</low-priority-files>
+    <replace-migration>45</replace-migration>
+    <update-migration>78</update-migration>
+    <integrate-migration>26</integrate-migration>
+    <keep-unchanged>25</keep-unchanged>
+  </migration-summary>
+
+  <!-- Integration Guidelines -->
+  <integration-guidelines>
+    <principle>Protocol-Based Dependency Injection</principle>
+    <principle>Configurable Schema Support</principle>
+    <principle>Sub-Millisecond Permission Checks</principle>
+    <principle>Clean Architecture Compliance</principle>
+    <principle>Backward Compatibility During Migration</principle>
+  </integration-guidelines>
+
+</neoadminapi-integration-tracking>

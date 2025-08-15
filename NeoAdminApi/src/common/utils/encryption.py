@@ -1,162 +1,114 @@
 """
 Password encryption/decryption utilities.
-Based on NeoInfrastructure encryption approach using PBKDF2 + Fernet.
+
+MIGRATED TO NEO-COMMONS: Now using neo-commons encryption utilities with enhanced security features.
+Import compatibility maintained - all existing imports continue to work.
 """
 
 import os
-import base64
-from typing import Optional
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from typing import Optional, Union
+
+# NEO-COMMONS IMPORT: Use neo-commons encryption utilities
+from neo_commons.utils.encryption import (
+    # Main encryption class
+    PasswordEncryption as NeoCommonsPasswordEncryption,
+    
+    # Core functions
+    get_encryption as neo_commons_get_encryption,
+    set_encryption_key,
+    encrypt_password,
+    decrypt_password,
+    decrypt_password_safe,
+    is_encrypted,
+    
+    # Enhanced data encryption functions
+    encrypt_data,
+    decrypt_data_to_string,
+    
+    # Validation and utility functions
+    validate_encryption_key,
+    generate_salt,
+    is_production_key,
+)
 
 
-class PasswordEncryption:
-    """Handle encryption and decryption of database passwords."""
+class PasswordEncryption(NeoCommonsPasswordEncryption):
+    """
+    NeoAdminApi password encryption extending neo-commons PasswordEncryption.
+    
+    Maintains backward compatibility while leveraging enhanced neo-commons features.
+    Adds all the enhanced features from neo-commons including:
+    - Better error handling with specific exceptions
+    - Support for arbitrary data encryption (encrypt_data/decrypt_data)
+    - Enhanced security validation (validate_encryption_key, is_production_key)
+    - Improved environment variable support (APP_ENCRYPTION_KEY, NEO_ENCRYPTION_KEY)
+    """
     
     def __init__(self, encryption_key: Optional[str] = None):
         """
-        Initialize encryption with the provided key or from environment.
+        Initialize encryption with NeoAdminApi-specific configuration.
         
         Args:
             encryption_key: The encryption key to use. If not provided, 
-                          uses APP_ENCRYPTION_KEY from environment.
+                          tries APP_ENCRYPTION_KEY first for backward compatibility.
         """
-        self.key_string = encryption_key or os.environ.get('APP_ENCRYPTION_KEY', 'dev-encryption-key')
-        
-        # Derive a proper Fernet key from the string key
-        self.cipher = self._get_cipher()
-    
-    def _get_cipher(self) -> Fernet:
-        """
-        Create a Fernet cipher from the encryption key string.
-        Uses PBKDF2 to derive a proper key from the string.
-        """
-        # Use a fixed salt for consistency (same as NeoInfrastructure)
-        salt = b'NeoMultiTenantSalt'
-        
-        # Derive a 32-byte key from the password string
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
-        )
-        
-        # Convert string key to bytes and derive the encryption key
-        key_bytes = self.key_string.encode('utf-8')
-        derived_key = base64.urlsafe_b64encode(kdf.derive(key_bytes))
-        
-        return Fernet(derived_key)
-    
-    def encrypt_password(self, password: str) -> str:
-        """
-        Encrypt a password string.
-        
-        Args:
-            password: The plaintext password to encrypt.
+        # Maintain backward compatibility with NeoAdminApi's APP_ENCRYPTION_KEY preference
+        if encryption_key is None:
+            encryption_key = (
+                os.environ.get('APP_ENCRYPTION_KEY') or
+                os.environ.get('NEO_ENCRYPTION_KEY') or
+                os.environ.get('ENCRYPTION_KEY')
+            )
             
-        Returns:
-            The encrypted password as a base64-encoded string.
-        """
-        if not password:
-            return ""
+            # If still no key found, try loading from settings for backward compatibility
+            if not encryption_key:
+                try:
+                    from src.common.config.settings import settings
+                    encryption_key = settings.app_encryption_key
+                except Exception:
+                    # If settings loading fails, use default
+                    pass
         
-        encrypted_bytes = self.cipher.encrypt(password.encode('utf-8'))
-        return encrypted_bytes.decode('utf-8')
-    
-    def decrypt_password(self, encrypted_password: str) -> str:
-        """
-        Decrypt an encrypted password.
-        
-        Args:
-            encrypted_password: The encrypted password as a base64-encoded string.
-            
-        Returns:
-            The decrypted plaintext password.
-        """
-        if not encrypted_password:
-            return ""
-        
-        try:
-            decrypted_bytes = self.cipher.decrypt(encrypted_password.encode('utf-8'))
-            return decrypted_bytes.decode('utf-8')
-        except Exception:
-            # If decryption fails, return the original value (might be plaintext)
-            return encrypted_password
-    
-    def is_encrypted(self, value: str) -> bool:
-        """
-        Check if a value appears to be encrypted.
-        
-        Args:
-            value: The value to check.
-            
-        Returns:
-            True if the value appears to be encrypted, False otherwise.
-        """
-        if not value:
-            return False
-        
-        # Fernet tokens start with 'gAAAAA'
-        return value.startswith('gAAAAA')
+        # Initialize neo-commons encryption with the resolved key
+        super().__init__(encryption_key=encryption_key)
 
 
-# Singleton instance for use across the application
+# Singleton instance for backward compatibility
 _encryption_instance: Optional[PasswordEncryption] = None
 
 
 def get_encryption() -> PasswordEncryption:
     """
-    Get the singleton encryption instance.
+    Get the singleton encryption instance with NeoAdminApi configuration.
     
     Returns:
-        The PasswordEncryption instance.
+        PasswordEncryption: The NeoAdminApi-configured encryption instance.
     """
     global _encryption_instance
     if _encryption_instance is None:
-        # Get the key from settings if not in environment
-        if not os.environ.get('APP_ENCRYPTION_KEY'):
-            from src.common.config.settings import settings
-            os.environ['APP_ENCRYPTION_KEY'] = settings.app_encryption_key
         _encryption_instance = PasswordEncryption()
     return _encryption_instance
 
 
-def encrypt_password(password: str) -> str:
-    """
-    Convenience function to encrypt a password.
+# Re-export all neo-commons functions for backward compatibility
+__all__ = [
+    # Main class
+    "PasswordEncryption",
     
-    Args:
-        password: The plaintext password.
-        
-    Returns:
-        The encrypted password.
-    """
-    return get_encryption().encrypt_password(password)
-
-
-def decrypt_password(encrypted_password: str) -> str:
-    """
-    Convenience function to decrypt a password.
+    # Core functions
+    "get_encryption",
+    "set_encryption_key",
+    "encrypt_password",
+    "decrypt_password",
+    "decrypt_password_safe",
+    "is_encrypted",
     
-    Args:
-        encrypted_password: The encrypted password.
-        
-    Returns:
-        The plaintext password.
-    """
-    return get_encryption().decrypt_password(encrypted_password)
-
-
-def is_encrypted(value: str) -> bool:
-    """
-    Convenience function to check if a value is encrypted.
+    # Enhanced data encryption functions (NEW from neo-commons)
+    "encrypt_data",
+    "decrypt_data_to_string",
     
-    Args:
-        value: The value to check.
-        
-    Returns:
-        True if encrypted, False otherwise.
-    """
-    return get_encryption().is_encrypted(value)
+    # Validation and utility functions (NEW from neo-commons)
+    "validate_encryption_key",
+    "generate_salt",
+    "is_production_key",
+]

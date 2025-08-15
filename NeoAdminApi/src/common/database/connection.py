@@ -1,7 +1,9 @@
 """
 Database connection management using asyncpg.
+
+MIGRATED TO NEO-COMMONS: Now using neo-commons DatabaseManager with NeoAdminApi-specific extensions.
+Import compatibility maintained - all existing imports continue to work.
 """
-import asyncio
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 import asyncpg
@@ -10,67 +12,36 @@ from loguru import logger
 
 from src.common.config.settings import settings
 
+# NEO-COMMONS IMPORT: Use neo-commons DatabaseManager as base
+from neo_commons.database.connection import DatabaseManager as NeoCommonsDatabaseManager
 
-class DatabaseManager:
-    """Manages database connections and pools."""
+
+class DatabaseManager(NeoCommonsDatabaseManager):
+    """
+    NeoAdminApi database manager extending neo-commons DatabaseManager.
     
-    def __init__(self):
-        self.pool: Optional[Pool] = None
-        self.dsn = str(settings.admin_database_url).replace("+asyncpg", "")
+    Maintains backward compatibility while leveraging neo-commons infrastructure.
+    Adds NeoAdminApi-specific features like metadata tracking.
+    """
+    
+    def __init__(self, admin_schema: str = "admin"):
+        """Initialize with configurable admin schema."""
+        # Initialize neo-commons DatabaseManager with NeoAdminApi settings
+        dsn = str(settings.admin_database_url).replace("+asyncpg", "")
         
-    async def create_pool(self) -> Pool:
-        """Create and return a connection pool."""
-        if self.pool is None:
-            logger.info(f"Creating database pool with size {settings.db_pool_size}")
-            self.pool = await asyncpg.create_pool(
-                self.dsn,
-                min_size=10,
-                max_size=settings.db_pool_size,
-                max_inactive_connection_lifetime=settings.db_pool_recycle,
-                command_timeout=settings.db_pool_timeout,
-                server_settings={
-                    'application_name': settings.app_name,
-                    'jit': 'on'
-                }
-            )
-            logger.info("Database pool created successfully")
-        return self.pool
-    
-    async def close_pool(self):
-        """Close the connection pool."""
-        if self.pool:
-            await self.pool.close()
-            self.pool = None
-            logger.info("Database pool closed")
-    
-    @asynccontextmanager
-    async def acquire(self):
-        """Acquire a connection from the pool."""
-        if not self.pool:
-            await self.create_pool()
+        # Pass only valid pool configuration to neo-commons
+        super().__init__(
+            database_url=dsn,
+            min_size=settings.db_pool_size,
+            max_size=settings.db_pool_size + 10,
+            command_timeout=settings.db_pool_timeout
+        )
         
-        async with self.pool.acquire() as connection:
-            yield connection
-    
-    @asynccontextmanager
-    async def transaction(self):
-        """Create a transaction context."""
-        async with self.acquire() as connection:
-            async with connection.transaction():
-                yield connection
-    
-    async def execute(self, query: str, *args, timeout: float = None) -> str:
-        """Execute a query without returning results."""
-        async with self.acquire() as connection:
-            return await connection.execute(query, *args, timeout=timeout)
-    
-    async def executemany(self, query: str, args: List[tuple], timeout: float = None) -> str:
-        """Execute a query multiple times with different arguments."""
-        async with self.acquire() as connection:
-            return await connection.executemany(query, args, timeout=timeout)
-    
+        # Store admin schema for NeoAdminApi-specific operations
+        self.admin_schema = admin_schema
+        
     async def fetch(self, query: str, *args, timeout: float = None) -> List[Record]:
-        """Fetch multiple rows."""
+        """Fetch multiple rows with NeoAdminApi metadata tracking."""
         # Track database operation for metadata
         try:
             from src.common.utils.metadata import MetadataCollector
@@ -78,11 +49,10 @@ class DatabaseManager:
         except ImportError:
             pass
         
-        async with self.acquire() as connection:
-            return await connection.fetch(query, *args, timeout=timeout)
+        return await super().fetch(query, *args, timeout=timeout)
     
     async def fetchrow(self, query: str, *args, timeout: float = None) -> Optional[Record]:
-        """Fetch a single row."""
+        """Fetch a single row with NeoAdminApi metadata tracking."""
         # Track database operation for metadata
         try:
             from src.common.utils.metadata import MetadataCollector
@@ -90,11 +60,10 @@ class DatabaseManager:
         except ImportError:
             pass
         
-        async with self.acquire() as connection:
-            return await connection.fetchrow(query, *args, timeout=timeout)
+        return await super().fetchrow(query, *args, timeout=timeout)
     
     async def fetchval(self, query: str, *args, column: int = 0, timeout: float = None) -> Any:
-        """Fetch a single value."""
+        """Fetch a single value with NeoAdminApi metadata tracking."""
         # Track database operation for metadata
         try:
             from src.common.utils.metadata import MetadataCollector
@@ -102,24 +71,19 @@ class DatabaseManager:
         except ImportError:
             pass
         
-        async with self.acquire() as connection:
-            return await connection.fetchval(query, *args, column=column, timeout=timeout)
-    
-    async def health_check(self) -> bool:
-        """Check database health."""
-        try:
-            async with self.acquire() as connection:
-                result = await connection.fetchval("SELECT 1")
-                return result == 1
-        except Exception as e:
-            logger.error(f"Database health check failed: {e}")
-            return False
+        return await super().fetchval(query, *args, column=column, timeout=timeout)
 
 
 class DynamicDatabaseManager:
-    """Manages dynamic database connections for multi-region support."""
+    """
+    NeoAdminApi-specific multi-region database manager.
     
-    def __init__(self):
+    Manages dynamic database connections loaded from admin.database_connections table.
+    This is NeoAdminApi-specific and complements neo-commons DatabaseManager.
+    """
+    
+    def __init__(self, admin_schema: str = "admin"):
+        self.admin_schema = admin_schema
         self.pools: Dict[str, Pool] = {}
         self.connections_cache: Dict[str, Dict[str, Any]] = {}
         self.last_refresh: Optional[float] = None
@@ -128,7 +92,7 @@ class DynamicDatabaseManager:
         """Load database connections from admin.database_connections table."""
         db = get_database()
         
-        query = """
+        query = f"""
             SELECT 
                 dc.id as connection_id,
                 dc.connection_name,
@@ -145,8 +109,8 @@ class DynamicDatabaseManager:
                 1 as priority,
                 r.code as region_code,
                 r.name as region_name
-            FROM admin.database_connections dc
-            LEFT JOIN admin.regions r ON dc.region_id = r.id
+            FROM {self.admin_schema}.database_connections dc
+            LEFT JOIN {self.admin_schema}.regions r ON dc.region_id = r.id
             WHERE dc.is_active = true
             ORDER BY dc.connection_name
         """
@@ -251,7 +215,7 @@ class DynamicDatabaseManager:
         return results
 
 
-# Global instances
+# BACKWARD COMPATIBILITY: Global instances
 _database_manager: Optional[DatabaseManager] = None
 _dynamic_database_manager: Optional[DynamicDatabaseManager] = None
 
@@ -276,11 +240,11 @@ async def init_database():
     """Initialize database connections."""
     logger.info("Initializing database connections...")
     
-    # Initialize main admin database
+    # Initialize main admin database using neo-commons
     db = get_database()
     await db.create_pool()
     
-    # Initialize dynamic database connections
+    # Initialize NeoAdminApi-specific dynamic database connections
     dynamic_db = get_dynamic_database()
     await dynamic_db.load_database_connections()
     
