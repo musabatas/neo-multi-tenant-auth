@@ -3,7 +3,7 @@ Service layer for database connection management.
 """
 
 from typing import Optional, Dict, Any
-from src.common.utils.datetime import utc_now, format_iso8601
+from src.common.utils import utc_now, format_iso8601
 import asyncio
 import logging
 import time

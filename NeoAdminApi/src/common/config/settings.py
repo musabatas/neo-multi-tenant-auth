@@ -1,47 +1,39 @@
 """
 Application settings and configuration management.
 
-MIGRATED TO NEO-COMMONS: Now using neo-commons AdminConfig with NeoAdminApi-specific extensions.
-Import compatibility maintained - all existing imports continue to work.
+Service wrapper that extends neo-commons base settings with NeoAdminApi-specific
+configuration while maintaining backward compatibility.
 """
 from typing import Optional, List, Dict, Any
 from functools import lru_cache
-from pydantic import Field, SecretStr, HttpUrl
+from pydantic import Field, SecretStr, PostgresDsn, HttpUrl
 
-# NEO-COMMONS IMPORT: Use neo-commons AdminConfig as base
-from neo_commons.config.base import AdminConfig
+# Import from neo-commons
+from neo_commons.config.settings import BaseAppSettings, BaseKeycloakSettings, BaseJWTSettings
 
 
-class Settings(AdminConfig):
-    """
-    NeoAdminApi settings extending neo-commons AdminConfig.
+class Settings(BaseAppSettings):
+    """NeoAdminApi settings that extend neo-commons BaseAppSettings."""
     
-    Maintains backward compatibility while leveraging neo-commons infrastructure.
-    """
-    
-    # NeoAdminApi-specific configuration extensions
-    app_version: str = Field(default="1.0.0", env="APP_VERSION")
+    # Service-specific application settings
+    app_name: str = Field(default="NeoAdminApi", env="APP_NAME")
+    port: int = Field(default=8001, env="PORT")
+    api_prefix: Optional[str] = Field(default="/api/v1", env="API_PREFIX")
     enable_prefix_routes: bool = Field(default=True, env="ENABLE_PREFIX_ROUTES")
     
-    # Database - use neo-commons configurable pattern but with NeoAdminApi defaults
-    admin_database_url: str = Field(
+    # Service-specific database settings
+    admin_database_url: PostgresDsn = Field(
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/neofast_admin",
         env="ADMIN_DATABASE_URL"
     )
     
-    # NeoAdminApi-specific Database settings
-    db_pool_size: int = Field(default=20, env="DB_POOL_SIZE")
-    db_max_overflow: int = Field(default=10, env="DB_MAX_OVERFLOW")
-    db_pool_timeout: int = Field(default=30, env="DB_POOL_TIMEOUT")
-    db_pool_recycle: int = Field(default=3600, env="DB_POOL_RECYCLE")
-    db_echo: bool = Field(default=False, env="DB_ECHO")
+    # Service-specific CORS origins
+    cors_origins: List[str] = Field(
+        default=["http://localhost:3001", "http://localhost:3000"],
+        env="CORS_ORIGINS"
+    )
     
-    # NeoAdminApi-specific Cache settings
-    cache_ttl_default: int = Field(default=300, env="CACHE_TTL_DEFAULT")  # 5 minutes
-    cache_ttl_permissions: int = Field(default=600, env="CACHE_TTL_PERMISSIONS")  # 10 minutes
-    cache_ttl_tenant: int = Field(default=1800, env="CACHE_TTL_TENANT")  # 30 minutes
-    
-    # Keycloak Configuration
+    # Keycloak Configuration (NeoAdminApi-specific)
     keycloak_url: HttpUrl = Field(
         default="http://localhost:8080",
         env="KEYCLOAK_URL"
@@ -58,52 +50,73 @@ class Settings(AdminConfig):
         env="KEYCLOAK_ADMIN_PASSWORD"
     )
     
-    # JWT Configuration
+    # JWT Configuration (NeoAdminApi-specific)
     jwt_algorithm: str = Field(default="RS256", env="JWT_ALGORITHM")
     jwt_issuer: str = Field(default="http://localhost:8080/realms/neo-admin", env="JWT_ISSUER")
     jwt_audience: str = Field(default="admin-api", env="JWT_AUDIENCE")
     jwt_public_key_cache_ttl: int = Field(default=3600, env="JWT_PUBLIC_KEY_CACHE_TTL")
-    
-    # JWT Validation Options - Keycloak 2025 compliance
     jwt_verify_audience: bool = Field(default=True, env="JWT_VERIFY_AUDIENCE")
     jwt_audience_fallback: bool = Field(default=True, env="JWT_AUDIENCE_FALLBACK")
     jwt_debug_claims: bool = Field(default=False, env="JWT_DEBUG_CLAIMS")
     jwt_verify_issuer: bool = Field(default=True, env="JWT_VERIFY_ISSUER")
     
-    # NeoAdminApi-specific Security
-    app_encryption_key: str = Field(
-        default="default-dev-key-change-in-production",
-        env="APP_ENCRYPTION_KEY"
-    )
-    
-    # NeoAdminApi-specific Features
-    feature_multi_region: bool = Field(default=True, env="FEATURE_MULTI_REGION")
+    # NeoAdminApi-specific feature flags
     feature_billing: bool = Field(default=True, env="FEATURE_BILLING")
-    feature_analytics: bool = Field(default=True, env="FEATURE_ANALYTICS")
     
-    # Tenant Provisioning
+    # Tenant Management (NeoAdminApi-specific)
     tenant_schema_prefix: str = Field(default="tenant_", env="TENANT_SCHEMA_PREFIX")
     tenant_provisioning_timeout: int = Field(default=60, env="TENANT_PROVISIONING_TIMEOUT")
     
-    # Background Tasks
+    # Background Tasks (NeoAdminApi-specific)
     task_queue_enabled: bool = Field(default=False, env="TASK_QUEUE_ENABLED")
     task_queue_broker_url: Optional[str] = Field(default=None, env="TASK_QUEUE_BROKER_URL")
     
-    # NeoAdminApi-specific computed properties
+    def get_service_specific_config(self) -> Dict[str, Any]:
+        """Get NeoAdminApi-specific configuration."""
+        return {
+            "service_name": "NeoAdminApi",
+            "service_type": "admin_api",
+            "keycloak_config": self.get_keycloak_config(),
+            "jwt_config": self.get_jwt_config(),
+            "tenant_config": {
+                "schema_prefix": self.tenant_schema_prefix,
+                "provisioning_timeout": self.tenant_provisioning_timeout
+            },
+            "feature_flags": {
+                "billing": self.feature_billing,
+                "multi_region": self.feature_multi_region,
+                "analytics": self.feature_analytics
+            }
+        }
+    
+    def get_keycloak_config(self) -> BaseKeycloakSettings:
+        """Get Keycloak configuration as BaseKeycloakSettings."""
+        return BaseKeycloakSettings(
+            keycloak_url=str(self.keycloak_url),
+            admin_realm=self.keycloak_admin_realm,
+            admin_client_id=self.keycloak_admin_client_id,
+            admin_client_secret=str(self.keycloak_admin_client_secret.get_secret_value()),
+            admin_username=self.keycloak_admin_username,
+            admin_password=str(self.keycloak_admin_password.get_secret_value())
+        )
+    
+    def get_jwt_config(self) -> BaseJWTSettings:
+        """Get JWT configuration as BaseJWTSettings."""
+        return BaseJWTSettings(
+            algorithm=self.jwt_algorithm,
+            issuer=self.jwt_issuer,
+            audience=self.jwt_audience,
+            public_key_cache_ttl=self.jwt_public_key_cache_ttl,
+            verify_audience=self.jwt_verify_audience,
+            audience_fallback=self.jwt_audience_fallback,
+            debug_claims=self.jwt_debug_claims,
+            verify_issuer=self.jwt_verify_issuer
+        )
+    
     @property
     def database_url_sync(self) -> str:
         """Get synchronous database URL (for Alembic)."""
         return str(self.admin_database_url).replace("+asyncpg", "")
-    
-    @property
-    def get_cache_key_prefix(self) -> str:
-        """Get cache key prefix based on environment."""
-        return f"{self.app_name}:{self.environment}:"
-    
-    @property
-    def is_cache_enabled(self) -> bool:
-        """Check if Redis caching is configured."""
-        return self.redis_url is not None
 
 
 @lru_cache()
@@ -112,5 +125,5 @@ def get_settings() -> Settings:
     return Settings()
 
 
-# BACKWARD COMPATIBILITY: Export commonly used settings
+# Export commonly used settings for backward compatibility
 settings = get_settings()

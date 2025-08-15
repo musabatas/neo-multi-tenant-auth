@@ -8,7 +8,7 @@ from loguru import logger
 
 from src.common.cache.client import get_cache
 from src.common.exceptions.base import NotFoundError
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 from src.features.auth.repositories.auth_repository import AuthRepository
 from src.features.auth.repositories.permission_repository import PermissionRepository
 from ..repositories.user_repository import PlatformUserRepository

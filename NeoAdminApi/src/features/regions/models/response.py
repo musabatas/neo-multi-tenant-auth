@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
-from src.common.models.pagination import PaginationMetadata
-from src.common.utils.datetime import format_iso8601
+from src.common.models import PaginationMetadata
+from src.common.utils import format_iso8601
 from .domain import ConnectionType, HealthStatus, Region
 
 

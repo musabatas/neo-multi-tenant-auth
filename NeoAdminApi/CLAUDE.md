@@ -942,7 +942,7 @@ async def health_check():
 #### Performance Metrics
 ```python
 import time
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 
 async def with_timing(operation_name: str, func):
     start_time = time.time()

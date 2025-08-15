@@ -1,87 +1,68 @@
 """
-Base exception classes for NeoAdminApi.
+Base exception classes for the NeoAdminApi.
 
-MIGRATED TO NEO-COMMONS: Now using neo-commons exception hierarchy with NeoAdminApi-specific extensions.
-Import compatibility maintained - all existing imports continue to work.
+Service wrapper that imports from neo-commons and provides the service-specific
+base exception class name for backward compatibility.
 """
-from typing import Optional, Any, Dict, List
 
-# NEO-COMMONS IMPORT: Use neo-commons exceptions as base
+# Import all exceptions from neo-commons
 from neo_commons.exceptions.base import (
-    NeoCommonsException,
-    ValidationError as NeoCommonsValidationError,
-    NotFoundError as NeoCommonsNotFoundError,
-    ConflictError as NeoCommonsConflictError,
-    UnauthorizedError as NeoCommonsUnauthorizedError,
-    ForbiddenError as NeoCommonsForbiddenError,
-    BadRequestError as NeoCommonsBadRequestError,
-    RateLimitError as NeoCommonsRateLimitError,
-    ExternalServiceError as NeoCommonsExternalServiceError
+    NeoException,
+    ValidationError as BaseValidationError,
+    NotFoundError as BaseNotFoundError,
+    ConflictError as BaseConflictError,
+    UnauthorizedError as BaseUnauthorizedError,
+    ForbiddenError as BaseForbiddenError,
+    BadRequestError as BaseBadRequestError,
+    RateLimitError as BaseRateLimitError,
+    ExternalServiceError as BaseExternalServiceError,
 )
 
 
-class NeoAdminException(NeoCommonsException):
-    """
-    NeoAdminApi base exception extending neo-commons.
-    
-    Maintains backward compatibility while leveraging neo-commons infrastructure.
-    """
-    
-    def __init__(
-        self,
-        message: str,
-        code: Optional[str] = None,
-        status_code: int = 500,
-        details: Optional[Dict[str, Any]] = None
-    ):
-        """Initialize with NeoAdminApi-specific context."""
-        super().__init__(message, code, status_code, details)
-        
-        # Add NeoAdminApi-specific context to details
-        if "service" not in self.details:
-            self.details["service"] = "NeoAdminApi"
-        if "api_version" not in self.details:
-            self.details["api_version"] = "v1"
-
-
-# BACKWARD COMPATIBILITY: All exception classes maintain exact same interface
-class ValidationError(NeoCommonsValidationError):
-    """Raised when validation fails. Uses neo-commons implementation."""
+# Service-specific base exception class for backward compatibility
+class NeoAdminException(NeoException):
+    """Base exception for all NeoAdminApi exceptions."""
     pass
 
 
-class NotFoundError(NeoCommonsNotFoundError):
-    """Raised when a resource is not found. Uses neo-commons implementation."""
+# Re-export all specific exceptions inheriting from NeoAdminException for consistency
+class ValidationError(BaseValidationError, NeoAdminException):
+    """Raised when validation fails."""
     pass
 
 
-class ConflictError(NeoCommonsConflictError):
-    """Raised when there's a conflict with existing data. Uses neo-commons implementation."""
+class NotFoundError(BaseNotFoundError, NeoAdminException):
+    """Raised when a resource is not found."""
     pass
 
 
-class UnauthorizedError(NeoCommonsUnauthorizedError):
-    """Raised when authentication is required but not provided. Uses neo-commons implementation."""
+class ConflictError(BaseConflictError, NeoAdminException):
+    """Raised when there's a conflict with existing data."""
     pass
 
 
-class ForbiddenError(NeoCommonsForbiddenError):
-    """Raised when user doesn't have permission. Uses neo-commons implementation."""
+class UnauthorizedError(BaseUnauthorizedError, NeoAdminException):
+    """Raised when authentication is required but not provided."""
     pass
 
 
-class BadRequestError(NeoCommonsBadRequestError):
-    """Raised when request is malformed or invalid. Uses neo-commons implementation."""
+class ForbiddenError(BaseForbiddenError, NeoAdminException):
+    """Raised when user doesn't have permission."""
     pass
 
 
-class RateLimitError(NeoCommonsRateLimitError):
-    """Raised when rate limit is exceeded. Uses neo-commons implementation."""
+class BadRequestError(BaseBadRequestError, NeoAdminException):
+    """Raised when request is malformed or invalid."""
     pass
 
 
-class ExternalServiceError(NeoCommonsExternalServiceError):
-    """Raised when an external service call fails. Uses neo-commons implementation."""
+class RateLimitError(BaseRateLimitError, NeoAdminException):
+    """Raised when rate limit is exceeded."""
+    pass
+
+
+class ExternalServiceError(BaseExternalServiceError, NeoAdminException):
+    """Raised when an external service call fails."""
     pass
 
 

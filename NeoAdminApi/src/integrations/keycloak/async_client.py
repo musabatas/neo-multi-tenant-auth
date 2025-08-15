@@ -18,7 +18,7 @@ from src.common.exceptions.base import (
     NotFoundError,
     ConflictError
 )
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 
 
 class KeycloakAsyncClient:

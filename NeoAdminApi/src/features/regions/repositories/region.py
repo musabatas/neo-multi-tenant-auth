@@ -4,12 +4,12 @@ Repository for region management operations.
 
 import asyncpg
 from typing import Optional, List, Dict, Any
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 
 from src.common.database.connection import DatabaseManager
 from src.common.exceptions import NotFoundError, ConflictError, DatabaseError
 from src.common.database.utils import process_database_record
-from src.common.utils.uuid import generate_uuid_v7
+from src.common.utils import generate_uuid_v7
 from ..models.domain import Region
 from ..models.request import RegionFilter, RegionCreate, RegionUpdate
 

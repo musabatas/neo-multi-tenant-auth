@@ -1,30 +1,28 @@
 """
-Pagination models for API responses.
+Pagination utilities and patterns for the NeoMultiTenant platform.
+
+This module provides reusable pagination logic that can be used across all services
+to implement consistent pagination patterns.
 """
-
-from typing import Generic, TypeVar, List, Optional
-from pydantic import BaseModel, Field
-
-from .base import BaseSchema
+from typing import Generic, TypeVar, List, Optional, Any, Dict
+from .base import BaseSchema, PaginationParams, PaginationMetadata, PaginatedResponse
 
 T = TypeVar('T')
 
 
-class PaginationMetadata(BaseSchema):
-    """Metadata for paginated responses."""
-    page: int = Field(description="Current page number")
-    page_size: int = Field(description="Number of items per page")
-    total_pages: int = Field(description="Total number of pages")
-    total_items: int = Field(description="Total number of items")
-    has_next: bool = Field(description="Whether there is a next page")
-    has_previous: bool = Field(description="Whether there is a previous page")
+class PaginationHelper(Generic[T]):
+    """Helper class for implementing consistent pagination patterns."""
     
-    @classmethod
-    def create(cls, page: int, page_size: int, total_items: int) -> "PaginationMetadata":
+    @staticmethod
+    def create_metadata(
+        page: int,
+        page_size: int,
+        total_items: int
+    ) -> PaginationMetadata:
         """Create pagination metadata from basic parameters."""
         total_pages = (total_items + page_size - 1) // page_size if page_size > 0 else 0
         
-        return cls(
+        return PaginationMetadata(
             page=page,
             page_size=page_size,
             total_pages=total_pages,
@@ -32,68 +30,201 @@ class PaginationMetadata(BaseSchema):
             has_next=page < total_pages,
             has_previous=page > 1
         )
-
-
-class PaginatedResponse(BaseSchema, Generic[T]):
-    """Generic paginated response model."""
-    items: List[T] = Field(description="List of items for current page")
-    pagination: PaginationMetadata = Field(description="Pagination metadata")
     
-    @classmethod
-    def create(
-        cls,
+    @staticmethod
+    def create_response(
         items: List[T],
         page: int,
         page_size: int,
         total_items: int
-    ) -> "PaginatedResponse[T]":
-        """Create a paginated response with items and metadata."""
-        pagination = PaginationMetadata.create(page, page_size, total_items)
+    ) -> PaginatedResponse[T]:
+        """Create a complete paginated response."""
+        metadata = PaginationHelper.create_metadata(page, page_size, total_items)
+        return PaginatedResponse(items=items, pagination=metadata)
+    
+    @staticmethod
+    def validate_params(page: int, page_size: int, max_page_size: int = 100) -> None:
+        """Validate pagination parameters and raise appropriate errors."""
+        from ..exceptions.base import ValidationError
         
-        return cls(
-            items=items,
-            pagination=pagination
+        errors = []
+        
+        if page < 1:
+            errors.append({
+                "field": "page",
+                "value": page,
+                "requirement": "Must be >= 1"
+            })
+        
+        if page_size < 1:
+            errors.append({
+                "field": "page_size", 
+                "value": page_size,
+                "requirement": "Must be >= 1"
+            })
+        
+        if page_size > max_page_size:
+            errors.append({
+                "field": "page_size",
+                "value": page_size,
+                "requirement": f"Must be <= {max_page_size}"
+            })
+        
+        if errors:
+            raise ValidationError(
+                message="Invalid pagination parameters",
+                errors=errors
+            )
+    
+    @staticmethod
+    def calculate_offset(page: int, page_size: int) -> int:
+        """Calculate database offset from page parameters."""
+        return (page - 1) * page_size
+    
+    @staticmethod
+    def extract_params(
+        pagination_params: Optional[PaginationParams] = None,
+        default_page: int = 1,
+        default_page_size: int = 20
+    ) -> tuple[int, int, int]:
+        """Extract and validate pagination parameters, returning (page, page_size, offset)."""
+        if pagination_params:
+            page = pagination_params.page
+            page_size = pagination_params.page_size
+        else:
+            page = default_page
+            page_size = default_page_size
+        
+        PaginationHelper.validate_params(page, page_size)
+        offset = PaginationHelper.calculate_offset(page, page_size)
+        
+        return page, page_size, offset
+
+
+class FilterBuilder:
+    """Helper class for building database filter conditions consistently."""
+    
+    @staticmethod
+    def build_where_conditions(
+        filters: Dict[str, Any],
+        search_fields: Optional[List[str]] = None,
+        schema: str = "public"
+    ) -> tuple[str, List[Any]]:
+        """
+        Build WHERE clause and parameters for database queries.
+        
+        Args:
+            filters: Dictionary of filter conditions
+            search_fields: List of fields to search in for 'search' filter
+            schema: Database schema name
+            
+        Returns:
+            Tuple of (where_clause, parameters)
+        """
+        conditions = []
+        params = []
+        param_counter = 1
+        
+        for field, value in filters.items():
+            if value is None or (isinstance(value, str) and not value.strip()):
+                continue
+                
+            if field == "search" and search_fields:
+                # Build search condition across multiple fields
+                search_conditions = []
+                for search_field in search_fields:
+                    search_conditions.append(f"{search_field} ILIKE ${param_counter}")
+                    params.append(f"%{value}%")
+                    param_counter += 1
+                
+                if search_conditions:
+                    conditions.append(f"({' OR '.join(search_conditions)})")
+                    
+            elif field == "is_active" and isinstance(value, bool):
+                conditions.append(f"is_active = ${param_counter}")
+                params.append(value)
+                param_counter += 1
+                
+            elif field == "created_after" and value:
+                conditions.append(f"created_at >= ${param_counter}")
+                params.append(value)
+                param_counter += 1
+                
+            elif field == "created_before" and value:
+                conditions.append(f"created_at <= ${param_counter}")
+                params.append(value)
+                param_counter += 1
+                
+            else:
+                # Generic equality filter
+                conditions.append(f"{field} = ${param_counter}")
+                params.append(value)
+                param_counter += 1
+        
+        where_clause = " AND ".join(conditions) if conditions else "TRUE"
+        return where_clause, params
+    
+    @staticmethod
+    def build_order_clause(
+        sort_by: Optional[str] = None,
+        sort_order: str = "asc",
+        default_sort: str = "created_at"
+    ) -> str:
+        """Build ORDER BY clause for queries."""
+        sort_field = sort_by or default_sort
+        order_direction = "DESC" if sort_order.lower() == "desc" else "ASC"
+        return f"ORDER BY {sort_field} {order_direction}"
+
+
+class ListQueryBuilder:
+    """Helper for building standardized list queries with pagination and filtering."""
+    
+    @staticmethod
+    def build_list_query(
+        base_table: str,
+        select_fields: str = "*",
+        filters: Optional[Dict[str, Any]] = None,
+        search_fields: Optional[List[str]] = None,
+        pagination: Optional[PaginationParams] = None,
+        schema: str = "public"
+    ) -> tuple[str, str, List[Any]]:
+        """
+        Build complete list query with filtering, pagination and count query.
+        
+        Returns:
+            Tuple of (list_query, count_query, parameters)
+        """
+        filters = filters or {}
+        
+        # Build WHERE conditions
+        where_clause, params = FilterBuilder.build_where_conditions(
+            filters, search_fields, schema
         )
-
-
-class PaginationParams(BaseSchema):
-    """Common pagination parameters."""
-    page: int = Field(1, ge=1, description="Page number")
-    page_size: int = Field(20, ge=1, le=100, description="Items per page")
-    
-    @property
-    def offset(self) -> int:
-        """Calculate offset for database query."""
-        return (self.page - 1) * self.page_size
-    
-    @property
-    def limit(self) -> int:
-        """Get limit for database query."""
-        return self.page_size
-
-
-class CursorPaginationParams(BaseSchema):
-    """Cursor-based pagination parameters for large datasets."""
-    cursor: Optional[str] = Field(None, description="Cursor for next page")
-    limit: int = Field(20, ge=1, le=100, description="Maximum items per page")
-    
-    
-class CursorPaginatedResponse(BaseSchema, Generic[T]):
-    """Cursor-based paginated response for large datasets."""
-    items: List[T] = Field(description="List of items")
-    next_cursor: Optional[str] = Field(None, description="Cursor for next page")
-    has_more: bool = Field(description="Whether there are more items")
-    
-    @classmethod
-    def create(
-        cls,
-        items: List[T],
-        next_cursor: Optional[str] = None,
-        has_more: bool = False
-    ) -> "CursorPaginatedResponse[T]":
-        """Create a cursor-based paginated response."""
-        return cls(
-            items=items,
-            next_cursor=next_cursor,
-            has_more=has_more
-        )
+        
+        # Build ORDER clause
+        sort_by = getattr(pagination, 'sort_by', None) if pagination else None
+        sort_order = getattr(pagination, 'sort_order', 'asc') if pagination else 'asc'
+        order_clause = FilterBuilder.build_order_clause(sort_by, sort_order)
+        
+        # Build pagination
+        limit_offset = ""
+        if pagination:
+            page, page_size, offset = PaginationHelper.extract_params(pagination)
+            limit_offset = f"LIMIT {page_size} OFFSET {offset}"
+        
+        # Construct queries
+        list_query = f"""
+            SELECT {select_fields}
+            FROM {schema}.{base_table}
+            WHERE {where_clause}
+            {order_clause}
+            {limit_offset}
+        """.strip()
+        
+        count_query = f"""
+            SELECT COUNT(*)
+            FROM {schema}.{base_table}
+            WHERE {where_clause}
+        """.strip()
+        
+        return list_query, count_query, params

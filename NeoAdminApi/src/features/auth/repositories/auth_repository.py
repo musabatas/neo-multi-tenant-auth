@@ -9,29 +9,37 @@ from loguru import logger
 
 from src.common.database.connection import get_database
 from src.common.database.utils import process_database_record
-from src.common.utils.datetime import utc_now
-from src.common.utils.uuid import generate_uuid_v7
+from src.common.utils import utc_now
+from src.common.utils import generate_uuid_v7
 from src.common.exceptions.base import NotFoundError
 
 
 class AuthRepository:
     """
-    Database access for authentication data.
+    Database access for authentication data with dynamic schema configuration.
     
     Handles:
     - Platform user management
     - User authentication data
     - Session tracking
     - Tenant access grants
+    
+    FIXED: Eliminated hardcoded 'admin' schema references for dynamic configuration.
     """
     
-    def __init__(self):
-        """Initialize repository with database connection."""
+    def __init__(self, schema: str = "admin"):
+        """
+        Initialize repository with database connection and configurable schema.
+        
+        Args:
+            schema: Database schema to use (default: admin)
+        """
         self.db = get_database()
+        self.schema = schema
     
     def _user_select_query(self) -> str:
         """Get the standard user select query with column mappings."""
-        return """
+        return f"""
             SELECT 
                 u.id,
                 u.email,
@@ -60,7 +68,7 @@ class AuthRepository:
                 u.metadata,
                 u.created_at,
                 u.updated_at
-            FROM admin.platform_users u
+            FROM {self.schema}.platform_users u
         """
     
     async def get_user_by_email(
@@ -208,8 +216,8 @@ class AuthRepository:
         
         if existing_user:
             # Update existing user
-            query = """
-                UPDATE admin.platform_users
+            query = f"""
+                UPDATE {self.schema}.platform_users
                 SET 
                     email = $1,
                     username = $2,
@@ -243,8 +251,8 @@ class AuthRepository:
             
         else:
             # Create new user
-            query = """
-                INSERT INTO admin.platform_users (
+            query = f"""
+                INSERT INTO {self.schema}.platform_users (
                     id,
                     email,
                     username,
@@ -305,8 +313,8 @@ class AuthRepository:
         Returns:
             True if updated successfully
         """
-        query = """
-            UPDATE admin.platform_users
+        query = f"""
+            UPDATE {self.schema}.platform_users
             SET 
                 last_login_at = $1,
                 updated_at = $1
@@ -351,7 +359,7 @@ class AuthRepository:
         Returns:
             List of tenant access grants
         """
-        query = """
+        query = f"""
             SELECT 
                 tag.id,
                 tag.user_id,
@@ -367,8 +375,8 @@ class AuthRepository:
                 t.slug as tenant_slug,
                 t.external_auth_realm as tenant_realm,
                 (t.deleted_at IS NULL) as tenant_is_active
-            FROM admin.tenant_access_grants tag
-            JOIN admin.tenants t ON t.id = tag.tenant_id
+            FROM {self.schema}.tenant_access_grants tag
+            JOIN {self.schema}.tenants t ON t.id = tag.tenant_id
             WHERE tag.user_id = $1
         """
         
@@ -407,7 +415,7 @@ class AuthRepository:
         Returns:
             Access grant if exists and valid, None otherwise
         """
-        query = """
+        query = f"""
             SELECT 
                 tag.id,
                 tag.user_id,
@@ -423,8 +431,8 @@ class AuthRepository:
                 t.slug as tenant_slug,
                 t.external_auth_realm as tenant_realm,
                 (t.deleted_at IS NULL) as tenant_is_active
-            FROM admin.tenant_access_grants tag
-            JOIN admin.tenants t ON t.id = tag.tenant_id
+            FROM {self.schema}.tenant_access_grants tag
+            JOIN {self.schema}.tenants t ON t.id = tag.tenant_id
             WHERE tag.user_id = $1
                 AND tag.tenant_id = $2
                 AND tag.is_active = true
@@ -453,7 +461,7 @@ class AuthRepository:
         Returns:
             True if user is active
         """
-        query = "SELECT is_active FROM admin.platform_users WHERE id = $1"
+        query = f"SELECT is_active FROM {self.schema}.platform_users WHERE id = $1"
         result = await self.db.fetchval(query, user_id)
         return bool(result)
     
@@ -467,7 +475,7 @@ class AuthRepository:
         Returns:
             True if user is a superuser
         """
-        query = "SELECT is_superadmin FROM admin.platform_users WHERE id = $1"
+        query = f"SELECT is_superadmin FROM {self.schema}.platform_users WHERE id = $1"
         result = await self.db.fetchval(query, user_id)
         return bool(result)
     
@@ -488,8 +496,8 @@ class AuthRepository:
         Returns:
             True if user was updated
         """
-        query = """
-            UPDATE admin.platform_users
+        query = f"""
+            UPDATE {self.schema}.platform_users
             SET 
                 metadata = $1,
                 updated_at = $2

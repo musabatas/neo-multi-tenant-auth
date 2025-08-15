@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 
 from src.common.services.base import BaseService
 from src.common.exceptions import NotFoundError, ValidationError
-from src.common.models.pagination import PaginationParams, PaginationMetadata
+from src.common.models import PaginationParams, PaginationMetadata
 from ..models.domain import Region
 from ..models.request import RegionFilter, RegionCreate, RegionUpdate
 from ..models.response import (

@@ -10,8 +10,8 @@ from loguru import logger
 from src.common.database.connection import get_database
 from src.common.database.utils import process_database_record
 from src.common.exceptions.base import NotFoundError, ConflictError
-from src.common.utils.datetime import utc_now
-from src.common.utils.uuid import generate_uuid_v7
+from src.common.utils import utc_now
+from src.common.utils import generate_uuid_v7
 from ..models.domain import Tenant, TenantContact
 from ..models.request import TenantCreate, TenantUpdate, TenantFilter, TenantStatusUpdate
 

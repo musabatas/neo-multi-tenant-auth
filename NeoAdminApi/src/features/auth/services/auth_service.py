@@ -14,7 +14,7 @@ from src.common.exceptions.base import (
     NotFoundError,
     ForbiddenError
 )
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 from src.integrations.keycloak.async_client import get_keycloak_client
 from src.integrations.keycloak.token_manager import get_token_manager, ValidationStrategy
 from src.integrations.keycloak.realm_manager import get_realm_manager
@@ -137,22 +137,22 @@ class AuthService:
                 logger.warning(f"Authentication failed: Inactive user - {user['id']}")
                 raise ForbiddenError("Account is disabled")
             
-            # STEP 5: Platform-level authentication complete
-            
-            # Update last login
+            # STEP 5: Update last login
             await self.auth_repo.update_last_login(user['id'])
             
-            # Get user permissions (platform-level only)
+            # Get user permissions (all platform permissions)
             permissions = await self.permission_repo.get_user_permissions(
-                user['id']
+                user['id'],
+                None  # No tenant context - get platform permissions
             )
             logger.info(f"Permissions fetched for user {user['id']}: {len(permissions)} permissions")
             if permissions:
                 logger.info(f"First permission: {permissions[0]}")
             
-            # Get user roles (platform-level only)
+            # Get user roles (all platform roles)
             roles = await self.permission_repo.get_user_roles(
-                user['id']
+                user['id'],
+                None  # No tenant context - get platform roles
             )
             logger.info(f"Roles fetched for user {user['id']}: {len(roles)} roles")
             if roles:
@@ -171,6 +171,7 @@ class AuthService:
                 access_token=token_response['access_token'],
                 refresh_token=token_response['refresh_token'],
                 expires_in=token_response.get('expires_in', 3600),
+                tenant_id=None,  # No initial tenant context
                 remember_me=remember_me
             )
             

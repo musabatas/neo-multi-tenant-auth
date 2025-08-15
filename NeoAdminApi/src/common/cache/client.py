@@ -1,37 +1,59 @@
 """
 Redis cache client and utilities.
 
-MIGRATED TO NEO-COMMONS: Now using neo-commons CacheService with NeoAdminApi-specific extensions.
-Import compatibility maintained - all existing imports continue to work.
+Service wrapper that imports from neo-commons and provides NeoAdminApi-specific
+cache functionality while maintaining backward compatibility.
 """
-from typing import Optional, Any, Union, List, Dict
+
+from typing import Optional, Any
 from loguru import logger
 
+# Import from neo-commons
+from neo_commons.cache.client import CacheManager as NeoCacheManager, CacheConfig
+
+# Import service-specific settings
 from src.common.config.settings import settings
 
-# NEO-COMMONS IMPORT: Use neo-commons CacheService as base
-from neo_commons.cache.client import CacheManager as NeoCommonsCacheManager
 
-
-class CacheManager(NeoCommonsCacheManager):
-    """
-    NeoAdminApi cache manager extending neo-commons CacheService.
+class AdminCacheConfig:
+    """Service-specific cache configuration for NeoAdminApi."""
     
-    Maintains backward compatibility while leveraging neo-commons infrastructure.
-    Adds NeoAdminApi-specific features like metadata tracking and specialized TTLs.
+    @property
+    def is_cache_enabled(self) -> bool:
+        return settings.is_cache_enabled
+    
+    @property
+    def redis_url(self) -> Optional[str]:
+        return str(settings.redis_url) if settings.redis_url else None
+    
+    @property
+    def redis_pool_size(self) -> int:
+        return settings.redis_pool_size
+    
+    @property
+    def redis_decode_responses(self) -> bool:
+        return settings.redis_decode_responses
+    
+    @property
+    def cache_ttl_default(self) -> int:
+        return settings.cache_ttl_default
+    
+    def get_cache_key_prefix(self) -> str:
+        return settings.get_cache_key_prefix()
+
+
+class CacheManager(NeoCacheManager):
+    """
+    Service wrapper for NeoAdminApi that extends neo-commons CacheManager.
+    
+    Provides NeoAdminApi-specific cache functionality while maintaining
+    full compatibility with existing code.
     """
     
     def __init__(self):
-        """Initialize with NeoAdminApi-specific settings."""
-        # Initialize neo-commons CacheService with NeoAdminApi settings
-        redis_url = str(settings.redis_url) if settings.redis_url else None
-        super().__init__(
-            redis_url=redis_url,
-            pool_size=settings.cache_pool_size,
-            decode_responses=settings.cache_decode_responses,
-            key_prefix=settings.get_cache_key_prefix,
-            default_ttl=settings.cache_ttl_default
-        )
+        # Initialize with service-specific configuration
+        config = AdminCacheConfig()
+        super().__init__(config)
     
     async def get(
         self, 
@@ -39,9 +61,9 @@ class CacheManager(NeoCommonsCacheManager):
         namespace: Optional[str] = None,
         deserialize: bool = True
     ) -> Optional[Any]:
-        """Get value from cache with NeoAdminApi metadata tracking."""
-        # Use neo-commons get method
-        result = await super().get(key, namespace=namespace)
+        """Get value from cache with metadata tracking."""
+        # Get result from neo-commons
+        result = await super().get(key, namespace, deserialize)
         
         # Track cache operation for NeoAdminApi metadata
         try:
@@ -63,132 +85,23 @@ class CacheManager(NeoCommonsCacheManager):
         namespace: Optional[str] = None,
         serialize: bool = True
     ) -> bool:
-        """Set value in cache with NeoAdminApi metadata tracking."""
-        # Use NeoAdminApi-specific TTLs if not specified
-        if ttl is None:
-            ttl = settings.cache_ttl_default
-        
-        # Use neo-commons set method
-        result = await super().set(key, value, namespace=namespace, ttl=ttl)
+        """Set value in cache with metadata tracking."""
+        # Set using neo-commons
+        success = await super().set(key, value, ttl, namespace, serialize)
         
         # Track cache set operation for NeoAdminApi metadata
-        try:
-            from src.common.utils.metadata import track_cache_operation
-            track_cache_operation('set')
-        except ImportError:
-            pass  # Metadata system not available
+        if success:
+            try:
+                from src.common.utils.metadata import track_cache_operation
+                track_cache_operation('set')
+            except ImportError:
+                pass  # Metadata system not available
         
-        return result
+        return success
     
-    async def delete(self, key: str, namespace: Optional[str] = None) -> bool:
-        """Delete value from cache using neo-commons."""
-        return await super().delete(key, namespace=namespace)
-    
-    async def delete_pattern(self, pattern: str, namespace: Optional[str] = None) -> int:
-        """Delete all keys matching a pattern using neo-commons."""
-        return await super().delete_pattern(pattern, namespace=namespace)
-    
-    async def exists(self, key: str, namespace: Optional[str] = None) -> bool:
-        """Check if key exists in cache using neo-commons."""
-        return await super().exists(key, namespace=namespace)
-    
-    async def expire(
-        self, 
-        key: str, 
-        ttl: int, 
-        namespace: Optional[str] = None
-    ) -> bool:
-        """Set expiration time for a key using neo-commons."""
-        return await super().expire(key, ttl, namespace=namespace)
-    
-    async def increment(
-        self, 
-        key: str, 
-        amount: int = 1,
-        namespace: Optional[str] = None
-    ) -> Optional[int]:
-        """Increment a counter in cache using neo-commons."""
-        return await super().increment(key, amount, namespace=namespace)
-    
-    async def decrement(
-        self, 
-        key: str, 
-        amount: int = 1,
-        namespace: Optional[str] = None
-    ) -> Optional[int]:
-        """Decrement a counter in cache using neo-commons."""
-        return await super().decrement(key, amount, namespace=namespace)
-    
-    async def get_many(
-        self, 
-        keys: List[str], 
-        namespace: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Get multiple values from cache using neo-commons."""
-        return await super().get_many(keys, namespace=namespace)
-    
-    async def set_many(
-        self,
-        mapping: Dict[str, Any],
-        ttl: Optional[int] = None,
-        namespace: Optional[str] = None
-    ) -> bool:
-        """Set multiple values in cache using neo-commons."""
-        if ttl is None:
-            ttl = settings.cache_ttl_default
-        return await super().set_many(mapping, ttl=ttl, namespace=namespace)
-    
-    def get_cache_status(self) -> Dict[str, Any]:
-        """Get NeoAdminApi-specific cache status information."""
-        base_status = super().get_status()
-        
-        # Add NeoAdminApi-specific status information
-        return {
-            **base_status,
-            "neoadminapi_ttl_settings": {
-                "default": settings.cache_ttl_default,
-                "permissions": settings.cache_ttl_permissions,
-                "tenant": settings.cache_ttl_tenant
-            },
-            "performance_impact": not base_status.get("is_available", False),
-            "neoadminapi_warnings": [
-                "Redis not configured - set REDIS_URL environment variable",
-                "Using database for all operations (no caching)",
-                "Performance may be significantly impacted",
-                "Permission checks will be slower (no 10-minute cache)",
-                "Tenant lookups will be slower (no 10-minute cache)"
-            ] if not base_status.get("is_available", False) else []
-        }
-    
-    # Redis Set operations using neo-commons
-    async def sadd(
-        self, 
-        key: str, 
-        *values, 
-        namespace: Optional[str] = None
-    ) -> int:
-        """Add one or more members to a set using neo-commons."""
-        return await super().sadd(key, *values, namespace=namespace)
-    
-    async def smembers(
-        self, 
-        key: str, 
-        namespace: Optional[str] = None
-    ) -> set:
-        """Get all members of a set using neo-commons."""
-        return await super().smembers(key, namespace=namespace)
-    
-    async def srem(
-        self, 
-        key: str, 
-        *values, 
-        namespace: Optional[str] = None
-    ) -> int:
-        """Remove one or more members from a set using neo-commons."""
-        return await super().srem(key, *values, namespace=namespace)
 
 
-# BACKWARD COMPATIBILITY: Global cache manager instance
+# Global cache manager instance
 _cache_manager: Optional[CacheManager] = None
 
 
@@ -204,28 +117,26 @@ async def init_cache():
     """Initialize cache connection."""
     logger.info("Initializing cache...")
     cache = get_cache()
-    await cache.connect()
+    client = await cache.connect()
     
-    status = cache.get_cache_status()
-    if status.get("is_available", False):
+    if client:
         logger.info("Cache initialization complete - Redis is available")
     else:
         logger.warning(
             "Cache initialization skipped - Redis is not available. "
             "Application will run without caching. "
-            "This may impact performance significantly for: "
-            "Permission checks (normally cached for 10 minutes), "
-            "Tenant lookups (normally cached for 10 minutes), "
-            "Token validation (repeated Keycloak calls), "
-            "Rate limiting (if implemented)"
+            "This may impact performance significantly for:"
+            "\n  - Permission checks (normally cached for 10 minutes)"
+            "\n  - Tenant lookups (normally cached for 10 minutes)"
+            "\n  - Token validation (repeated Keycloak calls)"
+            "\n  - Rate limiting (if implemented)"
         )
 
 
 async def close_cache():
     """Close cache connection."""
     cache = get_cache()
-    status = cache.get_cache_status()
-    if status.get("is_available", False):
+    if cache.is_available:
         logger.info("Closing cache connection...")
         await cache.disconnect()
         logger.info("Cache connection closed")

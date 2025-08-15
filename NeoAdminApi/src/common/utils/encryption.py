@@ -1,114 +1,82 @@
 """
-Password encryption/decryption utilities.
+NeoAdminApi encryption utilities.
 
-MIGRATED TO NEO-COMMONS: Now using neo-commons encryption utilities with enhanced security features.
-Import compatibility maintained - all existing imports continue to work.
+This module provides a service-specific wrapper around neo-commons encryption
+utilities, handling NeoAdminApi-specific configuration and settings integration.
 """
 
 import os
-from typing import Optional, Union
-
-# NEO-COMMONS IMPORT: Use neo-commons encryption utilities
 from neo_commons.utils.encryption import (
-    # Main encryption class
-    PasswordEncryption as NeoCommonsPasswordEncryption,
-    
-    # Core functions
-    get_encryption as neo_commons_get_encryption,
-    set_encryption_key,
-    encrypt_password,
-    decrypt_password,
-    decrypt_password_safe,
-    is_encrypted,
-    
-    # Enhanced data encryption functions
-    encrypt_data,
-    decrypt_data_to_string,
-    
-    # Validation and utility functions
-    validate_encryption_key,
-    generate_salt,
-    is_production_key,
+    PasswordEncryption as BasePasswordEncryption,
+    get_encryption as base_get_encryption,
+    encrypt_password as base_encrypt_password,
+    decrypt_password as base_decrypt_password,
+    is_encrypted as base_is_encrypted,
+    reset_encryption_instance as base_reset_encryption_instance,
 )
 
+# Re-export the base class for direct usage
+PasswordEncryption = BasePasswordEncryption
 
-class PasswordEncryption(NeoCommonsPasswordEncryption):
+
+def get_encryption() -> BasePasswordEncryption:
     """
-    NeoAdminApi password encryption extending neo-commons PasswordEncryption.
-    
-    Maintains backward compatibility while leveraging enhanced neo-commons features.
-    Adds all the enhanced features from neo-commons including:
-    - Better error handling with specific exceptions
-    - Support for arbitrary data encryption (encrypt_data/decrypt_data)
-    - Enhanced security validation (validate_encryption_key, is_production_key)
-    - Improved environment variable support (APP_ENCRYPTION_KEY, NEO_ENCRYPTION_KEY)
-    """
-    
-    def __init__(self, encryption_key: Optional[str] = None):
-        """
-        Initialize encryption with NeoAdminApi-specific configuration.
-        
-        Args:
-            encryption_key: The encryption key to use. If not provided, 
-                          tries APP_ENCRYPTION_KEY first for backward compatibility.
-        """
-        # Maintain backward compatibility with NeoAdminApi's APP_ENCRYPTION_KEY preference
-        if encryption_key is None:
-            encryption_key = (
-                os.environ.get('APP_ENCRYPTION_KEY') or
-                os.environ.get('NEO_ENCRYPTION_KEY') or
-                os.environ.get('ENCRYPTION_KEY')
-            )
-            
-            # If still no key found, try loading from settings for backward compatibility
-            if not encryption_key:
-                try:
-                    from src.common.config.settings import settings
-                    encryption_key = settings.app_encryption_key
-                except Exception:
-                    # If settings loading fails, use default
-                    pass
-        
-        # Initialize neo-commons encryption with the resolved key
-        super().__init__(encryption_key=encryption_key)
-
-
-# Singleton instance for backward compatibility
-_encryption_instance: Optional[PasswordEncryption] = None
-
-
-def get_encryption() -> PasswordEncryption:
-    """
-    Get the singleton encryption instance with NeoAdminApi configuration.
+    Get the singleton encryption instance with NeoAdminApi settings integration.
     
     Returns:
-        PasswordEncryption: The NeoAdminApi-configured encryption instance.
+        The PasswordEncryption instance configured for NeoAdminApi
     """
-    global _encryption_instance
-    if _encryption_instance is None:
-        _encryption_instance = PasswordEncryption()
-    return _encryption_instance
+    # Ensure encryption key is available from settings if not in environment
+    if not os.environ.get('APP_ENCRYPTION_KEY'):
+        from src.common.config.settings import settings
+        os.environ['APP_ENCRYPTION_KEY'] = settings.app_encryption_key
+    
+    return base_get_encryption()
 
 
-# Re-export all neo-commons functions for backward compatibility
-__all__ = [
-    # Main class
-    "PasswordEncryption",
+def encrypt_password(password: str) -> str:
+    """
+    Convenience function to encrypt a password using NeoAdminApi configuration.
     
-    # Core functions
-    "get_encryption",
-    "set_encryption_key",
-    "encrypt_password",
-    "decrypt_password",
-    "decrypt_password_safe",
-    "is_encrypted",
+    Args:
+        password: The plaintext password
+        
+    Returns:
+        The encrypted password
+    """
+    return get_encryption().encrypt_password(password)
+
+
+def decrypt_password(encrypted_password: str) -> str:
+    """
+    Convenience function to decrypt a password using NeoAdminApi configuration.
     
-    # Enhanced data encryption functions (NEW from neo-commons)
-    "encrypt_data",
-    "decrypt_data_to_string",
+    Args:
+        encrypted_password: The encrypted password
+        
+    Returns:
+        The plaintext password
+    """
+    return get_encryption().decrypt_password(encrypted_password)
+
+
+def is_encrypted(value: str) -> bool:
+    """
+    Convenience function to check if a value is encrypted.
     
-    # Validation and utility functions (NEW from neo-commons)
-    "validate_encryption_key",
-    "generate_salt",
-    "is_production_key",
-]
+    Args:
+        value: The value to check
+        
+    Returns:
+        True if encrypted, False otherwise
+    """
+    return base_is_encrypted(value)
+
+
+def reset_encryption_instance() -> None:
+    """
+    Reset the singleton encryption instance.
+    
+    This function is primarily useful for testing scenarios.
+    """
+    return base_reset_encryption_instance()

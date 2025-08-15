@@ -7,7 +7,7 @@ from loguru import logger
 from datetime import datetime
 
 from src.common.database.connection import get_database
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 from .permission_scanner import EndpointPermissionScanner
 from ..models.permission_registry import PLATFORM_PERMISSIONS, TENANT_PERMISSIONS
 
@@ -23,9 +23,15 @@ class PermissionSyncManager:
     - Maintains audit trail
     """
     
-    def __init__(self):
-        """Initialize permission sync manager."""
+    def __init__(self, schema: str = "admin"):
+        """
+        Initialize permission sync manager with configurable schema.
+        
+        Args:
+            schema: Database schema to use (default: admin)
+        """
         self.db = get_database()
+        self.schema = schema
         self.scanner: Optional[EndpointPermissionScanner] = None
         self.sync_stats = {
             'added': 0,
@@ -146,7 +152,7 @@ class PermissionSyncManager:
         Returns:
             Dictionary of code -> permission record
         """
-        query = """
+        query = f"""
             SELECT 
                 id,
                 code,
@@ -161,7 +167,7 @@ class PermissionSyncManager:
                 created_at,
                 updated_at,
                 deleted_at
-            FROM admin.platform_permissions
+            FROM {self.schema}.platform_permissions
             WHERE deleted_at IS NULL
         """
         
@@ -307,8 +313,8 @@ class PermissionSyncManager:
         Args:
             permission_def: Permission definition
         """
-        query = """
-            INSERT INTO admin.platform_permissions (
+        query = f"""
+            INSERT INTO {self.schema}.platform_permissions (
                 code,
                 description,
                 resource,
@@ -357,8 +363,8 @@ class PermissionSyncManager:
             permission_def: New permission definition
             permission_id: Database ID of permission
         """
-        query = """
-            UPDATE admin.platform_permissions
+        query = f"""
+            UPDATE {self.schema}.platform_permissions
             SET 
                 description = $1,
                 resource = $2,

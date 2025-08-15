@@ -1,56 +1,90 @@
 """
-Database connection management using asyncpg for neo-commons applications.
+Database connection management using asyncpg.
+
+Generic database connection management that can be used across all platform services
+in the NeoMultiTenant ecosystem.
 """
 import asyncio
-import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Protocol, runtime_checkable
 from contextlib import asynccontextmanager
 import asyncpg
 from asyncpg import Pool, Connection, Record
-import logging
+from loguru import logger
 
-logger = logging.getLogger(__name__)
+
+@runtime_checkable
+class DatabaseConfig(Protocol):
+    """Protocol for database configuration."""
+    
+    @property
+    def database_url(self) -> str:
+        """Database connection URL."""
+        ...
+    
+    @property
+    def app_name(self) -> str:
+        """Application name for connection."""
+        ...
+    
+    @property
+    def db_pool_size(self) -> int:
+        """Maximum database pool size."""
+        ...
+    
+    @property
+    def db_pool_recycle(self) -> int:
+        """Database pool recycle time."""
+        ...
+    
+    @property
+    def db_pool_timeout(self) -> int:
+        """Database pool timeout."""
+        ...
+
+
+@runtime_checkable
+class SchemaConfig(Protocol):
+    """Protocol for schema configuration."""
+    
+    @property
+    def admin_schema(self) -> str:
+        """Administrative schema name."""
+        ...
+    
+    @property
+    def shared_schema(self) -> str:
+        """Shared/common schema name."""
+        ...
 
 
 class DatabaseManager:
     """Manages database connections and pools."""
     
-    def __init__(self, database_url: Optional[str] = None, **pool_config):
-        """Initialize DatabaseManager.
-        
-        Args:
-            database_url: Database URL (defaults to DATABASE_URL env var)
-            **pool_config: Additional pool configuration options
-        """
+    def __init__(self, config: Optional[DatabaseConfig] = None):
+        self.config = config
         self.pool: Optional[Pool] = None
-        self.dsn = database_url or os.getenv("DATABASE_URL", "")
-        if "+asyncpg" in self.dsn:
-            self.dsn = self.dsn.replace("+asyncpg", "")
-        
-        # Pool configuration with sensible defaults
-        self.pool_config = {
-            "min_size": 10,
-            "max_size": 20,
-            "max_inactive_connection_lifetime": 300,
-            "command_timeout": 60,
-            **pool_config
-        }
+        if config:
+            self.dsn = str(config.database_url).replace("+asyncpg", "")
+        else:
+            self.dsn = None
         
     async def create_pool(self) -> Pool:
         """Create and return a connection pool."""
+        if not self.config:
+            raise ValueError("DatabaseConfig is required to create pool")
+            
         if self.pool is None:
-            logger.info(f"Creating database pool with size {self.pool_config['max_size']}")
-            
-            app_name = os.getenv("APP_NAME", "neo-commons")
-            server_settings = {
-                'application_name': app_name,
-                'jit': 'on'
-            }
-            
+            logger.info(f"Creating database pool with size {self.config.db_pool_size}")
             self.pool = await asyncpg.create_pool(
                 self.dsn,
-                server_settings=server_settings,
-                **self.pool_config
+                min_size=10,
+                max_size=self.config.db_pool_size,
+                max_inactive_connection_lifetime=self.config.db_pool_recycle,
+                command_timeout=self.config.db_pool_timeout,
+                server_settings={
+                    'application_name': self.config.app_name,
+                    'jit': 'on'
+                }
             )
             logger.info("Database pool created successfully")
         return self.pool
@@ -117,21 +151,20 @@ class DatabaseManager:
 class DynamicDatabaseManager:
     """Manages dynamic database connections for multi-region support."""
     
-    def __init__(self, admin_db_manager: Optional[DatabaseManager] = None, schema_name: str = "admin"):
-        """Initialize DynamicDatabaseManager.
-        
-        Args:
-            admin_db_manager: DatabaseManager for admin database queries
-            schema_name: Schema name for connection metadata tables (default: "admin")
-        """
+    def __init__(self, admin_db: DatabaseManager, schema_config: Optional[SchemaConfig] = None):
+        self.admin_db = admin_db
+        self.schema_config = schema_config
         self.pools: Dict[str, Pool] = {}
         self.connections_cache: Dict[str, Dict[str, Any]] = {}
         self.last_refresh: Optional[float] = None
-        self.admin_db = admin_db_manager or get_database()
-        self.schema_name = schema_name
         
     async def load_database_connections(self) -> Dict[str, Dict[str, Any]]:
-        """Load database connections from the configured schema's database_connections table."""
+        """Load database connections from database_connections table."""
+        if not self.schema_config:
+            raise ValueError("SchemaConfig is required for loading database connections")
+            
+        admin_schema = self.schema_config.admin_schema
+        
         query = f"""
             SELECT 
                 dc.id as connection_id,
@@ -149,8 +182,8 @@ class DynamicDatabaseManager:
                 1 as priority,
                 r.code as region_code,
                 r.name as region_name
-            FROM {self.schema_name}.database_connections dc
-            LEFT JOIN {self.schema_name}.regions r ON dc.region_id = r.id
+            FROM {admin_schema}.database_connections dc
+            LEFT JOIN {admin_schema}.regions r ON dc.region_id = r.id
             WHERE dc.is_active = true
             ORDER BY dc.connection_name
         """
@@ -202,17 +235,19 @@ class DynamicDatabaseManager:
             conn_info = self.connections_cache[connection_id]
             logger.info(f"Creating pool for {conn_info['connection_name']} ({conn_info['region_code']})")
             
-            app_name = os.getenv("APP_NAME", "neo-commons")
-            server_settings = {
-                'application_name': f"{app_name}-{conn_info['region_code']}",
-                'jit': 'on'
-            }
+            # Get app name from admin database config if available
+            app_name = "neo-service"
+            if self.admin_db.config:
+                app_name = self.admin_db.config.app_name
             
             self.pools[connection_id] = await asyncpg.create_pool(
                 conn_info['dsn'],
                 min_size=5,
                 max_size=conn_info['max_connections'],
-                server_settings=server_settings
+                server_settings={
+                    'application_name': f"{app_name}-{conn_info['region_code']}",
+                    'jit': 'on'
+                }
             )
         
         return self.pools[connection_id]
@@ -233,30 +268,6 @@ class DynamicDatabaseManager:
                 return await self.get_pool(conn_id)
         
         raise ValueError(f"No {connection_type} database found for region {region_code}")
-    
-    @asynccontextmanager
-    async def acquire(self, connection_id: str):
-        """Acquire a connection from a specific pool."""
-        pool = await self.get_pool(connection_id)
-        async with pool.acquire() as connection:
-            yield connection
-    
-    @asynccontextmanager
-    async def transaction(self, connection_id: str):
-        """Create a transaction context for a specific connection."""
-        async with self.acquire(connection_id) as connection:
-            async with connection.transaction():
-                yield connection
-    
-    async def execute_on_pool(self, connection_id: str, query: str, *args, timeout: float = None) -> str:
-        """Execute a query on a specific pool."""
-        async with self.acquire(connection_id) as connection:
-            return await connection.execute(query, *args, timeout=timeout)
-    
-    async def fetch_from_pool(self, connection_id: str, query: str, *args, timeout: float = None) -> List[Record]:
-        """Fetch multiple rows from a specific pool."""
-        async with self.acquire(connection_id) as connection:
-            return await connection.fetch(query, *args, timeout=timeout)
     
     async def close_all_pools(self):
         """Close all connection pools."""
@@ -280,52 +291,3 @@ class DynamicDatabaseManager:
                 results[conn_info['connection_name']] = False
         
         return results
-
-
-# Global instances
-_database_manager: Optional[DatabaseManager] = None
-_dynamic_database_manager: Optional[DynamicDatabaseManager] = None
-
-
-def get_database(database_url: Optional[str] = None) -> DatabaseManager:
-    """Get the global database manager instance."""
-    global _database_manager
-    if _database_manager is None:
-        _database_manager = DatabaseManager(database_url)
-    return _database_manager
-
-
-def get_dynamic_database(admin_db_manager: Optional[DatabaseManager] = None, schema_name: str = "admin") -> DynamicDatabaseManager:
-    """Get the global dynamic database manager instance."""
-    global _dynamic_database_manager
-    if _dynamic_database_manager is None:
-        _dynamic_database_manager = DynamicDatabaseManager(admin_db_manager, schema_name)
-    return _dynamic_database_manager
-
-
-async def init_database(database_url: Optional[str] = None):
-    """Initialize database connections."""
-    logger.info("Initializing database connections...")
-    
-    # Initialize main admin database
-    db = get_database(database_url)
-    await db.create_pool()
-    
-    # Initialize dynamic database connections
-    dynamic_db = get_dynamic_database(db)
-    await dynamic_db.load_database_connections()
-    
-    logger.info("Database initialization complete")
-
-
-async def close_database():
-    """Close all database connections."""
-    logger.info("Closing database connections...")
-    
-    if _database_manager:
-        await _database_manager.close_pool()
-    
-    if _dynamic_database_manager:
-        await _dynamic_database_manager.close_all_pools()
-    
-    logger.info("All database connections closed")

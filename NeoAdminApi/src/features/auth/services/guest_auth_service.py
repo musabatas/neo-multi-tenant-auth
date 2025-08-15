@@ -11,7 +11,7 @@ import secrets
 from loguru import logger
 
 from src.common.cache.client import get_cache
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 from src.common.exceptions.base import ValidationError, RateLimitError
 
 

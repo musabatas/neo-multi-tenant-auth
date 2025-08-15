@@ -11,7 +11,7 @@ from src.common.repositories.base import BaseRepository
 from src.common.database.connection import get_database
 from src.common.database.utils import process_database_record
 from src.common.exceptions.base import NotFoundError, ConflictError
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 
 from ..models.domain import (
     PlatformUser, PlatformRole, PlatformPermission,

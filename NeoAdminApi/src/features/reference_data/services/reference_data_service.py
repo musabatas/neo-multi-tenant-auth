@@ -4,7 +4,7 @@ Service layer for reference data management.
 
 from typing import Optional, List
 from src.common.services.base import BaseService
-from src.common.models.pagination import PaginationParams
+from src.common.models import PaginationParams
 from ..models.domain import Currency, Country, Language
 from ..models.request import CurrencyFilter, CountryFilter, LanguageFilter
 from ..models.response import (

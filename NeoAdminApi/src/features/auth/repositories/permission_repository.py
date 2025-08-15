@@ -8,12 +8,12 @@ from loguru import logger
 
 from src.common.database.connection import get_database
 from src.common.database.utils import process_database_record
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 
 
 class PermissionRepository:
     """
-    Efficient permission queries for multi-level RBAC (Platform + Tenant).
+    Efficient permission queries for multi-level RBAC (Platform + Tenant) with dynamic schema configuration.
     
     Features:
     - Platform-level permissions (system/platform scope)
@@ -22,11 +22,19 @@ class PermissionRepository:
     - Role hierarchy resolution with level enforcement
     - Time-based access validation
     - Proper separation of platform vs tenant concerns
+    
+    FIXED: Eliminated hardcoded 'admin' schema references for dynamic configuration.
     """
     
-    def __init__(self):
-        """Initialize repository with database connection."""
+    def __init__(self, schema: str = "admin"):
+        """
+        Initialize repository with database connection and configurable schema.
+        
+        Args:
+            schema: Database schema to use (default: admin)
+        """
         self.db = get_database()
+        self.schema = schema
     
     async def get_platform_user_roles(
         self,
@@ -43,7 +51,7 @@ class PermissionRepository:
         Returns:
             List of platform role assignments with role details
         """
-        query = """
+        query = f"""
             SELECT 
                 ur.user_id,
                 ur.role_id,
@@ -62,8 +70,8 @@ class PermissionRepository:
                 r.is_system as role_is_system,
                 (r.deleted_at IS NULL) as role_is_active,
                 0 as permissions_count
-            FROM admin.platform_user_roles ur
-            JOIN admin.platform_roles r ON r.id = ur.role_id
+            FROM {self.schema}.platform_user_roles ur
+            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
             WHERE ur.user_id = $1
         """
         
@@ -106,7 +114,7 @@ class PermissionRepository:
         Returns:
             List of tenant role assignments with role details
         """
-        query = """
+        query = f"""
             SELECT 
                 ur.user_id,
                 ur.role_id,
@@ -125,8 +133,8 @@ class PermissionRepository:
                 r.is_system as role_is_system,
                 (r.deleted_at IS NULL) as role_is_active,
                 0 as permissions_count
-            FROM admin.tenant_user_roles ur
-            JOIN admin.platform_roles r ON r.id = ur.role_id
+            FROM {self.schema}.tenant_user_roles ur
+            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
             WHERE ur.user_id = $1 AND ur.tenant_id = $2
         """
         
@@ -242,7 +250,7 @@ class PermissionRepository:
         Returns:
             List of permissions from platform roles
         """
-        query = """
+        query = f"""
             SELECT DISTINCT
                 p.id,
                 p.code as name,
@@ -258,10 +266,10 @@ class PermissionRepository:
                 'platform_role' as source_type,
                 r.name as source_name,
                 r.priority as priority
-            FROM admin.platform_user_roles ur
-            JOIN admin.platform_roles r ON r.id = ur.role_id
-            JOIN admin.role_permissions rp ON rp.role_id = r.id
-            JOIN admin.platform_permissions p ON p.id = rp.permission_id
+            FROM {self.schema}.platform_user_roles ur
+            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
+            JOIN {self.schema}.role_permissions rp ON rp.role_id = r.id
+            JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
             WHERE ur.user_id = $1
                 AND ur.is_active = true
                 AND r.deleted_at IS NULL
@@ -296,7 +304,7 @@ class PermissionRepository:
         Returns:
             List of permissions from tenant roles
         """
-        query = """
+        query = f"""
             SELECT DISTINCT
                 p.id,
                 p.code as name,
@@ -312,10 +320,10 @@ class PermissionRepository:
                 'tenant_role' as source_type,
                 r.name as source_name,
                 r.priority as priority
-            FROM admin.tenant_user_roles ur
-            JOIN admin.platform_roles r ON r.id = ur.role_id
-            JOIN admin.role_permissions rp ON rp.role_id = r.id
-            JOIN admin.platform_permissions p ON p.id = rp.permission_id
+            FROM {self.schema}.tenant_user_roles ur
+            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
+            JOIN {self.schema}.role_permissions rp ON rp.role_id = r.id
+            JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
             WHERE ur.user_id = $1 AND ur.tenant_id = $2
                 AND ur.is_active = true
                 AND r.deleted_at IS NULL
@@ -348,7 +356,7 @@ class PermissionRepository:
         Returns:
             List of direct platform permissions
         """
-        query = """
+        query = f"""
             SELECT 
                 p.id,
                 p.code as name,
@@ -367,8 +375,8 @@ class PermissionRepository:
                 up.granted_by,
                 up.granted_at,
                 up.expires_at
-            FROM admin.platform_user_permissions up
-            JOIN admin.platform_permissions p ON p.id = up.permission_id
+            FROM {self.schema}.platform_user_permissions up
+            JOIN {self.schema}.platform_permissions p ON p.id = up.permission_id
             WHERE up.user_id = $1
                 AND up.is_active = true
                 AND up.is_granted = true
@@ -403,7 +411,7 @@ class PermissionRepository:
         Returns:
             List of direct tenant permissions
         """
-        query = """
+        query = f"""
             SELECT 
                 p.id,
                 p.code as name,
@@ -423,8 +431,8 @@ class PermissionRepository:
                 up.granted_at,
                 up.expires_at,
                 up.tenant_id
-            FROM admin.tenant_user_permissions up
-            JOIN admin.platform_permissions p ON p.id = up.permission_id
+            FROM {self.schema}.tenant_user_permissions up
+            JOIN {self.schema}.platform_permissions p ON p.id = up.permission_id
             WHERE up.user_id = $1 AND up.tenant_id = $2
                 AND up.is_active = true
                 AND up.is_granted = true
@@ -465,16 +473,16 @@ class PermissionRepository:
         resource = permission_name.split(':')[0] if ':' in permission_name else permission_name
         wildcard_permission = f"{resource}:*"
         
-        query = """
+        query = f"""
             SELECT EXISTS (
                 SELECT 1
                 FROM (
                     -- Permissions from roles
                     SELECT p.code as name
-                    FROM admin.platform_user_roles ur
-                    JOIN admin.platform_roles r ON r.id = ur.role_id
-                    JOIN admin.role_permissions rp ON rp.role_id = r.id
-                    JOIN admin.platform_permissions p ON p.id = rp.permission_id
+                    FROM {self.schema}.platform_user_roles ur
+                    JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
+                    JOIN {self.schema}.role_permissions rp ON rp.role_id = r.id
+                    JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
                     WHERE ur.user_id = $1
                         AND ur.is_active = true
                         AND r.deleted_at IS NULL
@@ -492,8 +500,8 @@ class PermissionRepository:
                     UNION
                     -- Direct permissions
                     SELECT p.code as name
-                    FROM admin.platform_user_permissions up
-                    JOIN admin.platform_permissions p ON p.id = up.permission_id
+                    FROM {self.schema}.platform_user_permissions up
+                    JOIN {self.schema}.platform_permissions p ON p.id = up.permission_id
                     WHERE up.user_id = $1
                         AND up.is_active = true
                                 AND (up.expires_at IS NULL OR up.expires_at > CURRENT_TIMESTAMP)
@@ -524,7 +532,7 @@ class PermissionRepository:
         Returns:
             List of permissions assigned to the role
         """
-        query = """
+        query = f"""
             SELECT 
                 p.id,
                 p.code as name,
@@ -535,8 +543,8 @@ class PermissionRepository:
                 true as is_active,
                 NULL as granted_by,
                 now() as granted_at
-            FROM admin.role_permissions rp
-            JOIN admin.platform_permissions p ON p.id = rp.permission_id
+            FROM {self.schema}.role_permissions rp
+            JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
             WHERE rp.role_id = $1
             ORDER BY p.resource, p.action
         """
@@ -565,7 +573,7 @@ class PermissionRepository:
         Returns:
             List of all permissions
         """
-        query = """
+        query = f"""
             SELECT 
                 id,
                 code,
@@ -578,7 +586,7 @@ class PermissionRepository:
                 requires_approval,
                 created_at,
                 updated_at
-            FROM admin.platform_permissions
+            FROM {self.schema}.platform_permissions
         """
         
         if active_only:
@@ -604,9 +612,9 @@ class PermissionRepository:
         Returns:
             List of resource names
         """
-        query = """
+        query = f"""
             SELECT DISTINCT resource
-            FROM admin.platform_permissions
+            FROM {self.schema}.platform_permissions
             WHERE deleted_at IS NULL
             ORDER BY resource
         """

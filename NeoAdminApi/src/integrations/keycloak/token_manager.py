@@ -11,7 +11,7 @@ from loguru import logger
 from src.common.cache.client import get_cache
 from src.common.config.settings import settings
 from src.common.exceptions.base import UnauthorizedError
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 from .async_client import get_keycloak_client
 
 

@@ -4,7 +4,7 @@ Repository for database connection operations.
 
 from typing import List, Optional, Dict, Any
 from datetime import timedelta
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 import logging
 
 from src.common.database.connection import get_database

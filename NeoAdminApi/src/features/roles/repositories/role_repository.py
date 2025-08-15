@@ -11,7 +11,7 @@ import asyncpg
 
 from src.common.repositories.base import BaseRepository
 from src.common.database.utils import process_database_record
-from src.common.models.pagination import PaginationParams
+from src.common.models import PaginationParams
 from src.common.exceptions.base import NotFoundError, ConflictError
 from src.features.roles.models.domain import (
     PlatformRole, PlatformPermission, RolePermission,

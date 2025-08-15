@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<neo_commons_migration_plan>
+    <metadata>
+        <version>1.1</version>
+        <created_date>2025-01-15</created_date>
+        <updated_date>2025-01-15</updated_date>
+        <project>NeoMultiTenant</project>
+        <target_service>NeoAdminApi</target_service>
+        <migration_type>systematic_phased_extraction</migration_type>
+        <complexity_level>HIGH</complexity_level>
+        <risk_level>CRITICAL</risk_level>
+        <estimated_duration>4-6_weeks</estimated_duration>
+        <migration_status>PLANNING</migration_status>
+    </metadata>
+    
+    <!-- MIGRATION STRATEGY -->
+    <strategy>
+        <principle>Protocol-first migration with backward compatibility</principle>
+        <approach>Bottom-up extraction starting with utilities, then infrastructure, then domain logic</approach>
+        <validation>Continuous integration with zero-downtime transitions</validation>
+        <rollback>Each phase must be independently reversible</rollback>
+    </strategy>
+    
+    <!-- COMPONENT ANALYSIS -->
+    <component_analysis>
+        <shared_components>
+            <!-- UTILITIES LAYER - Lowest Risk -->
+            <category name="utilities" risk="LOW" dependencies="0" status="IN_PROGRESS" progress="25%">
+                <component path="src/common/utils/datetime.py" complexity="LOW" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/utils/uuid.py" complexity="LOW" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/utils/encryption.py" complexity="MEDIUM" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/utils/metadata.py" complexity="MEDIUM" reusability="HIGH" status="COMPLETED" />
+            </category>
+            
+            <!-- BASE MODELS LAYER - Low Risk -->
+            <category name="base_models" risk="LOW" dependencies="1" status="COMPLETED" progress="100%">
+                <component path="src/common/models/base.py" complexity="MEDIUM" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/models/pagination.py" complexity="LOW" reusability="HIGH" status="COMPLETED" note="deleted_redundant_file_migrated_to_base" />
+                <component path="src/common/exceptions/base.py" complexity="MEDIUM" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/exceptions/domain.py" complexity="LOW" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/exceptions/service.py" complexity="LOW" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/exception_handlers.py" complexity="MEDIUM" reusability="HIGH" status="COMPLETED" />
+                <component path="src/common/endpoints.py" complexity="LOW" reusability="HIGH" status="SERVICE_SPECIFIC" note="imports_service_settings_should_stay" />
+                <component path="src/common/openapi_config.py" complexity="LOW" reusability="HIGH" status="SERVICE_SPECIFIC" note="service_specific_tag_groups_should_stay" />
+                <component path="src/common/services/base.py" complexity="MEDIUM" reusability="HIGH" status="COMPLETED" />
+            </category>
+            
+            <!-- INFRASTRUCTURE LAYER - Medium Risk -->
+            <category name="infrastructure" risk="MEDIUM" dependencies="2" status="PENDING" progress="0%">
+                <component path="src/common/database/connection.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/common/database/utils.py" complexity="MEDIUM" reusability="HIGH" status="PENDING" />
+                <component path="src/common/cache/client.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/common/config/settings.py" complexity="HIGH" reusability="MEDIUM" status="PENDING" />
+            </category>
+            
+            <!-- MIDDLEWARE LAYER - Medium Risk -->
+            <category name="middleware" risk="MEDIUM" dependencies="3" status="PENDING" progress="0%">
+                <component path="src/common/middleware/logging.py" complexity="MEDIUM" reusability="HIGH" status="PENDING" />
+                <component path="src/common/middleware/security.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/common/middleware/timing.py" complexity="LOW" reusability="HIGH" status="PENDING" />
+                <component path="src/common/middleware/request_context.py" complexity="MEDIUM" reusability="HIGH" status="PENDING" />
+                <component path="src/common/middleware/config.py" complexity="LOW" reusability="HIGH" status="PENDING" />
+            </category>
+            
+            <!-- AUTHENTICATION CORE - High Risk -->
+            <category name="auth_infrastructure" risk="HIGH" dependencies="4" status="PENDING" progress="0%">
+                <component path="src/integrations/keycloak/token_manager.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/integrations/keycloak/async_client.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/integrations/keycloak/realm_manager.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/integrations/keycloak/client.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/features/auth/decorators/permissions.py" complexity="MEDIUM" reusability="HIGH" status="PENDING" />
+                <component path="src/features/auth/models/permission_registry.py" complexity="MEDIUM" reusability="HIGH" status="PENDING" />
+            </category>
+            
+            <!-- REPOSITORY PATTERNS - High Risk -->
+            <category name="repository_patterns" risk="HIGH" dependencies="5" status="PENDING" progress="0%">
+                <component path="src/common/repositories/base.py" complexity="MEDIUM" reusability="HIGH" status="PENDING" />
+                <component path="src/features/auth/repositories/auth_repository.py" complexity="HIGH" reusability="MEDIUM" status="PENDING" critical_issue="100+ hardcoded schema references" />
+                <component path="src/features/auth/repositories/permission_repository.py" complexity="HIGH" reusability="MEDIUM" status="PENDING" critical_issue="100+ hardcoded schema references" />
+            </category>
+            
+            <!-- BUSINESS LOGIC - Critical Risk -->
+            <category name="business_logic" risk="CRITICAL" dependencies="6" status="PENDING" progress="0%">
+                <component path="src/features/auth/services/auth_service.py" complexity="CRITICAL" reusability="MEDIUM" status="PENDING" critical_issue="service-specific hardcoded values" />
+                <component path="src/features/auth/services/permission_service.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/features/auth/services/guest_auth_service.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/features/auth/services/permission_manager.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+                <component path="src/features/auth/services/permission_scanner.py" complexity="MEDIUM" reusability="HIGH" status="PENDING" />
+                <component path="src/features/auth/dependencies.py" complexity="HIGH" reusability="HIGH" status="PENDING" />
+            </category>
+            
+            <!-- AUTH MODELS - Medium Risk (Project-Specific Assessment Needed) -->
+            <category name="auth_models" risk="MEDIUM" dependencies="7" status="PENDING" progress="0%">
+                <component path="src/features/auth/models/request.py" complexity="MEDIUM" reusability="MEDIUM" status="PENDING" note="review_for_project_specific_logic" />
+                <component path="src/features/auth/models/response.py" complexity="MEDIUM" reusability="MEDIUM" status="PENDING" note="review_for_project_specific_logic" />
+            </category>
+        </shared_components>
+        
+        <service_specific_components>
+            <!-- These remain in NeoAdminApi -->
+            <category name="admin_specific" migration="NONE">
+                <component path="src/features/organizations/" reason="Admin-specific business logic" />
+                <component path="src/features/tenants/" reason="Admin-specific tenant management" />
+                <component path="src/features/users/" reason="Admin-specific user management" />
+                <component path="src/features/roles/" reason="Admin-specific role management" />
+                <component path="src/features/billing/" reason="Admin-specific billing logic" />
+                <component path="src/features/monitoring/" reason="Admin-specific monitoring" />
+                <component path="src/features/regions/" reason="Admin-specific region management" />
+                <component path="src/features/reference_data/" reason="Admin-specific reference data" />
+            </category>
+        </service_specific_components>
+    </component_analysis>
+    
+    <!-- MIGRATION PHASES -->
+    <migration_phases>
+        <!-- PHASE 1: Foundation Layer (Week 1) -->
+        <phase number="1" name="Foundation_Utilities" duration="5_days" risk="LOW" status="PENDING" progress="0%">
+            <description>Extract basic utilities and base models with zero dependencies</description>
+            <objectives>
+                <objective status="PENDING">Create neo-commons package structure</objective>
+                <objective status="PENDING">Extract utility functions</objective>
+                <objective status="PENDING">Extract base models and exceptions</objective>
+                <objective status="PENDING">Establish protocol-based interfaces</objective>
+            </objectives>
+            <components>
+                <component_group name="utilities" status="PENDING" progress="0%">
+                    <source>src/common/utils/datetime.py</source>
+                    <target>neo-commons/src/neo_commons/utils/datetime.py</target>
+                    <protocol>TimestampProtocol</protocol>
+                </component_group>
+                <component_group name="base_models" status="PENDING" progress="0%">
+                    <source>src/common/models/base.py</source>
+                    <target>neo-commons/src/neo_commons/models/base.py</target>
+                    <protocol>BaseModelProtocol</protocol>
+                </component_group>
+                <component_group name="exceptions" status="PENDING" progress="0%">
+                    <source>src/common/exceptions/</source>
+                    <target>neo-commons/src/neo_commons/exceptions/</target>
+                    <protocol>ExceptionProtocol</protocol>
+                </component_group>
+            </components>
+            <validations>
+                <validation type="unit_tests" status="PENDING">Test all utility functions work in isolation</validation>
+                <validation type="import_tests" status="PENDING">Verify neo-commons imports work from NeoAdminApi</validation>
+                <validation type="backward_compatibility" status="PENDING">Ensure existing code continues to work</validation>
+            </validations>
+            <rollback_plan>
+                <step>Restore original utility imports</step>
+                <step>Remove neo-commons dependency</step>
+                <step>Verify all tests pass</step>
+            </rollback_plan>
+        </phase>
+        
+        <!-- PHASE 2: Infrastructure Layer (Week 2) -->
+        <phase number="2" name="Infrastructure_Foundation" duration="7_days" risk="MEDIUM" status="PENDING" progress="0%">
+            <description>Extract database, cache, and configuration infrastructure</description>
+            <prerequisites>
+                <prerequisite status="PENDING">Phase 1 completed successfully</prerequisite>
+                <prerequisite status="PENDING">All Phase 1 tests passing</prerequisite>
+            </prerequisites>
+            <objectives>
+                <objective status="PENDING">Extract database connection management</objective>
+                <objective status="PENDING">Extract cache infrastructure</objective>
+                <objective status="PENDING">Create protocol-based configuration system</objective>
+                <objective status="PENDING">Implement dynamic schema configuration</objective>
+            </objectives>
+            <components>
+                <component_group name="database" status="PENDING" progress="0%">
+                    <source>src/common/database/</source>
+                    <target>neo-commons/src/neo_commons/database/</target>
+                    <protocol>DatabaseProtocol</protocol>
+                    <migration_notes>
+                        <note priority="CRITICAL">Remove hardcoded schema references</note>
+                        <note priority="HIGH">Implement dynamic schema injection</note>
+                        <note priority="MEDIUM">Add connection pooling protocols</note>
+                    </migration_notes>
+                </component_group>
+                <component_group name="cache" status="PENDING" progress="0%">
+                    <source>src/common/cache/</source>
+                    <target>neo-commons/src/neo_commons/cache/</target>
+                    <protocol>CacheProtocol</protocol>
+                    <migration_notes>
+                        <note priority="HIGH">Add tenant isolation patterns</note>
+                        <note priority="MEDIUM">Implement cache key namespacing</note>
+                    </migration_notes>
+                </component_group>
+            </components>
+            <critical_changes>
+                <change type="schema_configuration" status="PENDING" priority="CRITICAL">
+                    <description>Replace hardcoded 'admin' schema with injectable parameter</description>
+                    <impact>HIGH</impact>
+                    <files_affected>15+</files_affected>
+                </change>
+                <change type="connection_management" status="PENDING" priority="MEDIUM">
+                    <description>Dynamic database connection from admin.database_connections</description>
+                    <impact>MEDIUM</impact>
+                    <files_affected>8+</files_affected>
+                </change>
+            </critical_changes>
+            <validations>
+                <validation type="integration_tests" status="PENDING">Database operations work with injected schemas</validation>
+                <validation type="cache_tests" status="PENDING">Cache operations work with tenant isolation</validation>
+                <validation type="performance_tests" status="PENDING">No performance degradation</validation>
+            </validations>
+        </phase>
+        
+        <!-- PHASE 3: Middleware & Security (Week 3) -->
+        <phase number="3" name="Middleware_Security" duration="7_days" risk="MEDIUM" status="PENDING" progress="0%">
+            <description>Extract middleware layer and security infrastructure</description>
+            <prerequisites>
+                <prerequisite status="PENDING">Phase 2 completed successfully</prerequisite>
+                <prerequisite status="PENDING">Database/cache abstractions working</prerequisite>
+            </prerequisites>
+            <objectives>
+                <objective status="PENDING">Extract middleware components</objective>
+                <objective status="PENDING">Create security protocol interfaces</objective>
+                <objective status="PENDING">Implement request context patterns</objective>
+            </objectives>
+            <components>
+                <component_group name="middleware" status="PENDING" progress="0%">
+                    <source>src/common/middleware/</source>
+                    <target>neo-commons/src/neo_commons/middleware/</target>
+                    <protocol>MiddlewareProtocol</protocol>
+                </component_group>
+                <component_group name="routers" status="PENDING" progress="0%">
+                    <source>src/common/routers/base.py</source>
+                    <target>neo-commons/src/neo_commons/routers/base.py</target>
+                    <protocol>RouterProtocol</protocol>
+                </component_group>
+            </components>
+        </phase>
+        
+        <!-- PHASE 4: Authentication Infrastructure (Week 4) -->
+        <phase number="4" name="Auth_Infrastructure" duration="7_days" risk="HIGH" status="PENDING" progress="0%">
+            <description>Extract Keycloak integration and token management</description>
+            <prerequisites>
+                <prerequisite status="PENDING">Phase 3 completed successfully</prerequisite>
+                <prerequisite status="PENDING">All middleware tests passing</prerequisite>
+            </prerequisites>
+            <objectives>
+                <objective status="PENDING">Extract Keycloak integration</objective>
+                <objective status="PENDING">Create authentication protocols</objective>
+                <objective status="PENDING">Implement token management patterns</objective>
+            </objectives>
+            <components>
+                <component_group name="keycloak_integration" status="PENDING" progress="0%">
+                    <source>src/integrations/keycloak/</source>
+                    <target>neo-commons/src/neo_commons/integrations/keycloak/</target>
+                    <protocol>KeycloakProtocol</protocol>
+                    <migration_notes>
+                        <note priority="HIGH">Remove hardcoded realm references</note>
+                        <note priority="HIGH">Implement dynamic realm configuration</note>
+                        <note priority="MEDIUM">Add multi-tenant realm support</note>
+                    </migration_notes>
+                </component_group>
+                <component_group name="auth_decorators" status="PENDING" progress="0%">
+                    <source>src/features/auth/decorators/</source>
+                    <target>neo-commons/src/neo_commons/auth/decorators/</target>
+                    <protocol>AuthDecoratorProtocol</protocol>
+                </component_group>
+            </components>
+            <critical_changes>
+                <change type="realm_configuration" status="PENDING" priority="HIGH">
+                    <description>Dynamic realm selection based on tenant context</description>
+                    <impact>HIGH</impact>
+                    <files_affected>12+</files_affected>
+                </change>
+            </critical_changes>
+        </phase>
+        
+        <!-- PHASE 5: Repository Patterns (Week 5) -->
+        <phase number="5" name="Repository_Patterns" duration="7_days" risk="HIGH" status="PENDING" progress="0%">
+            <description>Extract repository patterns and data access abstractions</description>
+            <prerequisites>
+                <prerequisite status="PENDING">Phase 4 completed successfully</prerequisite>
+                <prerequisite status="PENDING">Authentication infrastructure working</prerequisite>
+            </prerequisites>
+            <objectives>
+                <objective status="PENDING">Extract repository base classes</objective>
+                <objective status="PENDING">Create data access protocols</objective>
+                <objective status="PENDING">Implement generic CRUD patterns</objective>
+            </objectives>
+            <components>
+                <component_group name="repository_base" status="PENDING" progress="0%">
+                    <source>src/common/repositories/base.py</source>
+                    <target>neo-commons/src/neo_commons/repositories/base.py</target>
+                    <protocol>RepositoryProtocol</protocol>
+                </component_group>
+                <component_group name="auth_repositories" status="PENDING" progress="0%">
+                    <source>src/features/auth/repositories/</source>
+                    <target>neo-commons/src/neo_commons/auth/repositories/</target>
+                    <protocol>AuthRepositoryProtocol</protocol>
+                    <migration_notes>
+                        <note priority="CRITICAL">CRITICAL: Fix 100+ hardcoded schema references</note>
+                        <note priority="HIGH">Implement schema injection throughout</note>
+                        <note priority="MEDIUM">Add tenant context parameters</note>
+                    </migration_notes>
+                </component_group>
+            </components>
+            <critical_changes>
+                <change type="schema_hardcoding_fix" status="PENDING" priority="CRITICAL">
+                    <description>Replace all hardcoded 'admin' schema references with parameters</description>
+                    <impact>CRITICAL</impact>
+                    <files_affected>20+</files_affected>
+                    <example>
+                        <before>FROM admin.platform_users</before>
+                        <after>FROM {schema}.platform_users</after>
+                    </example>
+                </change>
+            </critical_changes>
+        </phase>
+        
+        <!-- PHASE 6: Business Logic Services (Week 6) -->
+        <phase number="6" name="Business_Logic_Services" duration="7_days" risk="CRITICAL" status="PENDING" progress="0%">
+            <description>Extract core authentication and permission business logic</description>
+            <prerequisites>
+                <prerequisite status="PENDING">Phase 5 completed successfully</prerequisite>
+                <prerequisite status="PENDING">Repository patterns working with schema injection</prerequisite>
+            </prerequisites>
+            <objectives>
+                <objective status="PENDING">Extract authentication services</objective>
+                <objective status="PENDING">Extract permission management</objective>
+                <objective status="PENDING">Create service protocol interfaces</objective>
+                <objective status="PENDING">Implement dependency injection</objective>
+            </objectives>
+            <components>
+                <component_group name="auth_services" status="PENDING" progress="0%">
+                    <source>src/features/auth/services/</source>
+                    <target>neo-commons/src/neo_commons/auth/services/</target>
+                    <protocol>AuthServiceProtocol</protocol>
+                    <migration_notes>
+                        <note priority="HIGH">Remove service-specific hardcoded values</note>
+                        <note priority="CRITICAL">Implement complete protocol-based dependency injection</note>
+                        <note priority="MEDIUM">Add tenant context throughout</note>
+                    </migration_notes>
+                </component_group>
+                <component_group name="auth_dependencies" status="PENDING" progress="0%">
+                    <source>src/features/auth/dependencies.py</source>
+                    <target>neo-commons/src/neo_commons/auth/dependencies.py</target>
+                    <protocol>AuthDependencyProtocol</protocol>
+                </component_group>
+            </components>
+            <critical_changes>
+                <change type="service_abstraction" status="PENDING" priority="CRITICAL">
+                    <description>Convert concrete services to protocol-based interfaces</description>
+                    <impact>CRITICAL</impact>
+                    <files_affected>25+</files_affected>
+                </change>
+                <change type="hardcoded_values_removal" status="PENDING" priority="HIGH">
+                    <description>Remove all service-specific configuration hardcoding</description>
+                    <impact>HIGH</impact>
+                    <files_affected>15+</files_affected>
+                </change>
+            </critical_changes>
+        </phase>
+        
+        <!-- PHASE 7: Auth Models Assessment (Week 7) -->
+        <phase number="7" name="Auth_Models_Assessment" duration="3_days" risk="MEDIUM" status="PENDING" progress="0%">
+            <description>Assess and potentially extract authentication models</description>
+            <prerequisites>
+                <prerequisite status="PENDING">Phase 6 completed successfully</prerequisite>
+                <prerequisite status="PENDING">All business logic services working</prerequisite>
+            </prerequisites>
+            <objectives>
+                <objective status="PENDING">Review auth models for project-specific logic</objective>
+                <objective status="PENDING">Extract generic patterns from auth models</objective>
+                <objective status="PENDING">Maintain project-specific customizations</objective>
+            </objectives>
+            <components>
+                <component_group name="auth_models" status="PENDING" progress="0%">
+                    <source>src/features/auth/models/</source>
+                    <target>neo-commons/src/neo_commons/auth/models/</target>
+                    <protocol>AuthModelProtocol</protocol>
+                    <migration_notes>
+                        <note priority="HIGH">Separate generic patterns from project-specific logic</note>
+                        <note priority="MEDIUM">Maintain backward compatibility for NeoAdminApi</note>
+                    </migration_notes>
+                </component_group>
+            </components>
+        </phase>
+    </migration_phases>
+    
+    <!-- PROTOCOL DEFINITIONS -->
+    <protocol_interfaces>
+        <protocol name="DatabaseProtocol">
+            <interface>
+                <method>async def execute(query: str, *args, schema: str) -> str</method>
+                <method>async def fetch(query: str, *args, schema: str) -> List[Record]</method>
+                <method>async def fetchrow(query: str, *args, schema: str) -> Optional[Record]</method>
+            </interface>
+            <implementations>
+                <implementation name="AsyncPGDatabase" />
+                <implementation name="MockDatabase" for="testing" />
+            </implementations>
+        </protocol>
+        
+        <protocol name="CacheProtocol">
+            <interface>
+                <method>async def get(key: str, tenant_id: Optional[str] = None) -> Any</method>
+                <method>async def set(key: str, value: Any, tenant_id: Optional[str] = None, ttl: int = 3600) -> bool</method>
+                <method>async def delete(key: str, tenant_id: Optional[str] = None) -> bool</method>
+            </interface>
+            <implementations>
+                <implementation name="RedisCache" />
+                <implementation name="InMemoryCache" for="testing" />
+            </implementations>
+        </protocol>
+        
+        <protocol name="AuthServiceProtocol">
+            <interface>
+                <method>async def authenticate(username: str, password: str, tenant_id: Optional[str] = None) -> Dict[str, Any]</method>
+                <method>async def get_current_user(token: str, use_cache: bool = True) -> Dict[str, Any]</method>
+                <method>async def refresh_token(refresh_token: str) -> Dict[str, Any]</method>
+            </interface>
+            <implementations>
+                <implementation name="KeycloakAuthService" />
+                <implementation name="MockAuthService" for="testing" />
+            </implementations>
+        </protocol>
+        
+        <protocol name="PermissionServiceProtocol">
+            <interface>
+                <method>async def check_permission(user_id: str, permission: str, tenant_id: Optional[str] = None) -> bool</method>
+                <method>async def get_user_permissions(user_id: str, tenant_id: Optional[str] = None) -> List[Dict[str, Any]]</method>
+                <method>async def invalidate_user_cache(user_id: str, tenant_id: Optional[str] = None) -> None</method>
+            </interface>
+            <implementations>
+                <implementation name="DatabasePermissionService" />
+                <implementation name="MockPermissionService" for="testing" />
+            </implementations>
+        </protocol>
+    </protocol_interfaces>
+    
+    <!-- RISK ASSESSMENT -->
+    <risk_assessment>
+        <risk category="CRITICAL" level="9/10">
+            <description>Schema hardcoding throughout auth repositories</description>
+            <mitigation>Systematic search-and-replace with comprehensive testing</mitigation>
+            <impact>Application failure if not properly migrated</impact>
+        </risk>
+        
+        <risk category="HIGH" level="8/10">
+            <description>Breaking changes in authentication flow</description>
+            <mitigation>Maintain backward compatibility during transition</mitigation>
+            <impact>Users unable to authenticate</impact>
+        </risk>
+        
+        <risk category="HIGH" level="7/10">
+            <description>Service-specific configurations in base config</description>
+            <mitigation>Create protocol-based configuration injection</mitigation>
+            <impact>Configuration conflicts between services</impact>
+        </risk>
+        
+        <risk category="MEDIUM" level="6/10">
+            <description>Database connection pool management</description>
+            <mitigation>Gradual transition with dual connection support</mitigation>
+            <impact>Connection pool exhaustion or performance degradation</impact>
+        </risk>
+        
+        <risk category="MEDIUM" level="5/10">
+            <description>Cache invalidation patterns</description>
+            <mitigation>Maintain existing cache keys during transition</mitigation>
+            <impact>Stale cached data</impact>
+        </risk>
+    </risk_assessment>
+    
+    <!-- VALIDATION CHECKLIST -->
+    <validation_checklist>
+        <validation_group name="functional">
+            <check>All authentication flows work correctly</check>
+            <check>Permission checks maintain sub-millisecond performance</check>
+            <check>Database operations work with dynamic schemas</check>
+            <check>Cache operations maintain tenant isolation</check>
+            <check>Token validation works with dual strategy</check>
+        </validation_group>
+        
+        <validation_group name="performance">
+            <check>No performance degradation in permission checks</check>
+            <check>Database query performance unchanged</check>
+            <check>Cache hit rates maintain 90%+ levels</check>
+            <check>Authentication latency under 100ms</check>
+        </validation_group>
+        
+        <validation_group name="security">
+            <check>No privilege escalation vulnerabilities</check>
+            <check>Tenant isolation maintained</check>
+            <check>Token validation security preserved</check>
+            <check>Audit logging continues to work</check>
+        </validation_group>
+        
+        <validation_group name="compatibility">
+            <check>All existing API endpoints continue to work</check>
+            <check>No breaking changes in response formats</check>
+            <check>Backward compatibility with existing clients</check>
+            <check>Database migrations work correctly</check>
+        </validation_group>
+    </validation_checklist>
+    
+    <!-- SUCCESS CRITERIA -->
+    <success_criteria>
+        <criterion>Zero breaking changes for existing API consumers</criterion>
+        <criterion>Performance maintained or improved</criterion>
+        <criterion>100% test coverage for migrated components</criterion>
+        <criterion>All schema hardcoding eliminated</criterion>
+        <criterion>Protocol-based dependency injection working</criterion>
+        <criterion>Multi-service reusability demonstrated</criterion>
+    </success_criteria>
+    
+    <!-- POST-MIGRATION TASKS -->
+    <post_migration>
+        <task status="PENDING">Update NeoTenantApi to use neo-commons</task>
+        <task status="PENDING">Update other services in the platform</task>
+        <task status="PENDING">Create comprehensive documentation</task>
+        <task status="PENDING">Establish contribution guidelines</task>
+        <task status="PENDING">Set up automated testing for neo-commons</task>
+        <task status="PENDING">Create performance benchmarks</task>
+    </post_migration>
+    
+    <!-- MIGRATION STATUS DASHBOARD -->
+    <migration_dashboard>
+        <overall_status>IN_PROGRESS</overall_status>
+        <overall_progress>12%</overall_progress>
+        <updated_timestamp>2025-08-15T18:30:00Z</updated_timestamp>
+        
+        <category_summary>
+            <category name="utilities" status="COMPLETED" progress="100%" components="4" />
+            <category name="base_models" status="PENDING" progress="0%" components="9" />
+            <category name="infrastructure" status="PENDING" progress="0%" components="4" />
+            <category name="middleware" status="PENDING" progress="0%" components="5" />
+            <category name="auth_infrastructure" status="PENDING" progress="0%" components="6" />
+            <category name="repository_patterns" status="PENDING" progress="0%" components="3" />
+            <category name="business_logic" status="PENDING" progress="0%" components="6" />
+            <category name="auth_models" status="PENDING" progress="0%" components="2" />
+        </category_summary>
+        
+        <phase_summary>
+            <phase number="1" name="Foundation_Utilities" status="PENDING" progress="0%" risk="LOW" />
+            <phase number="2" name="Infrastructure_Foundation" status="PENDING" progress="0%" risk="MEDIUM" />
+            <phase number="3" name="Middleware_Security" status="PENDING" progress="0%" risk="MEDIUM" />
+            <phase number="4" name="Auth_Infrastructure" status="PENDING" progress="0%" risk="HIGH" />
+            <phase number="5" name="Repository_Patterns" status="PENDING" progress="0%" risk="HIGH" />
+            <phase number="6" name="Business_Logic_Services" status="PENDING" progress="0%" risk="CRITICAL" />
+            <phase number="7" name="Auth_Models_Assessment" status="PENDING" progress="0%" risk="MEDIUM" />
+        </phase_summary>
+        
+        <critical_issues>
+            <issue priority="CRITICAL" status="PENDING">100+ hardcoded schema references in repositories</issue>
+            <issue priority="HIGH" status="PENDING">Service-specific hardcoded values in base configuration</issue>
+            <issue priority="HIGH" status="PENDING">Keycloak realm hardcoding preventing multi-tenancy</issue>
+        </critical_issues>
+        
+        <status_definitions>
+            <status name="PENDING">Task not yet started</status>
+            <status name="IN_PROGRESS">Task currently being worked on</status>
+            <status name="TESTING">Task completed, undergoing validation</status>
+            <status name="BLOCKED">Task blocked by dependency or issue</status>
+            <status name="COMPLETED">Task successfully finished with validation</status>
+            <status name="FAILED">Task failed and requires attention</status>
+        </status_definitions>
+        
+        <progress_calculation>
+            <formula>progress = (completed_components / total_components) * 100</formula>
+            <total_components>39</total_components>
+            <completed_components>0</completed_components>
+            <in_progress_components>0</in_progress_components>
+            <blocked_components>0</blocked_components>
+        </progress_calculation>
+    </migration_dashboard>
+</neo_commons_migration_plan>

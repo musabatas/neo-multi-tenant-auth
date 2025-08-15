@@ -9,8 +9,8 @@ echo "Configuring Keycloak for development (disabling SSL requirements)..."
 echo "⏳ Waiting for Keycloak to fully initialize..."
 sleep 30  # Give Keycloak sufficient time to be fully ready
 
-# Get the project root directory (one level up from scripts/)
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Get the project root directory (two levels up from scripts/keycloak/)
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Disable SSL requirement using Keycloak admin CLI

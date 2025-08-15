@@ -1,21 +1,20 @@
 """
 Base models for API requests and responses.
+
+This module provides common Pydantic model patterns for the NeoMultiTenant platform,
+including base schemas, mixins, pagination, and API response wrappers.
 """
-import os
 from typing import Optional, Any, Dict, List, TypeVar, Generic
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
-
-def utc_now() -> datetime:
-    """Get current UTC datetime."""
-    return datetime.now(timezone.utc)
+from neo_commons.utils.datetime import utc_now
 
 
 class BaseSchema(BaseModel):
-    """Base schema with common configuration."""
+    """Base schema with common configuration for all platform models."""
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -31,7 +30,7 @@ class BaseSchema(BaseModel):
 
 
 class TimestampMixin(BaseSchema):
-    """Mixin for models with timestamps."""
+    """Mixin for models with creation and update timestamps."""
     created_at: datetime = Field(description="Creation timestamp")
     updated_at: datetime = Field(description="Last update timestamp")
 
@@ -52,13 +51,13 @@ class SoftDeleteMixin(BaseSchema):
 
 
 class AuditMixin(TimestampMixin):
-    """Mixin for models with audit fields."""
+    """Mixin for models with full audit trail."""
     created_by: Optional[UUID] = Field(None, description="User who created the record")
     updated_by: Optional[UUID] = Field(None, description="User who last updated the record")
 
 
 class StatusEnum(str, Enum):
-    """Common status values."""
+    """Common status values used across the platform."""
     ACTIVE = "active"
     INACTIVE = "inactive"
     PENDING = "pending"
@@ -67,7 +66,7 @@ class StatusEnum(str, Enum):
 
 
 class SortOrder(str, Enum):
-    """Sort order for queries."""
+    """Sort order options for queries."""
     ASC = "asc"
     DESC = "desc"
 
@@ -76,7 +75,7 @@ T = TypeVar('T')
 
 
 class PaginationParams(BaseSchema):
-    """Pagination parameters for list endpoints."""
+    """Standard pagination parameters for list endpoints."""
     page: int = Field(1, ge=1, description="Page number")
     page_size: int = Field(20, ge=1, le=100, description="Items per page")
     sort_by: Optional[str] = Field(None, description="Field to sort by")
@@ -93,15 +92,20 @@ class PaginationParams(BaseSchema):
         return self.page_size
 
 
-class PaginatedResponse(BaseSchema, Generic[T]):
-    """Paginated response wrapper."""
-    items: List[T] = Field(description="List of items")
-    total: int = Field(description="Total number of items")
+class PaginationMetadata(BaseSchema):
+    """Metadata for paginated responses."""
     page: int = Field(description="Current page number")
-    page_size: int = Field(description="Items per page")
+    page_size: int = Field(description="Number of items per page")
     total_pages: int = Field(description="Total number of pages")
-    has_next: bool = Field(description="Has next page")
-    has_previous: bool = Field(description="Has previous page")
+    total_items: int = Field(description="Total number of items")
+    has_next: bool = Field(description="Whether there is a next page")
+    has_previous: bool = Field(description="Whether there is a previous page")
+
+
+class PaginatedResponse(BaseSchema, Generic[T]):
+    """Generic paginated response wrapper."""
+    items: List[T] = Field(description="List of items for current page")
+    pagination: PaginationMetadata = Field(description="Pagination metadata")
     
     @classmethod
     def create(
@@ -111,22 +115,23 @@ class PaginatedResponse(BaseSchema, Generic[T]):
         page: int,
         page_size: int
     ) -> "PaginatedResponse[T]":
-        """Create a paginated response."""
+        """Create a paginated response with metadata."""
         total_pages = (total + page_size - 1) // page_size if page_size > 0 else 0
         
-        return cls(
-            items=items,
-            total=total,
+        pagination = PaginationMetadata(
             page=page,
             page_size=page_size,
             total_pages=total_pages,
+            total_items=total,
             has_next=page < total_pages,
             has_previous=page > 1
         )
+        
+        return cls(items=items, pagination=pagination)
 
 
 class APIResponse(BaseSchema, Generic[T]):
-    """Standard API response wrapper."""
+    """Standard API response wrapper for all platform services."""
     success: bool = Field(description="Operation success flag")
     data: Optional[T] = Field(None, description="Response data")
     message: Optional[str] = Field(None, description="Response message")
@@ -138,23 +143,14 @@ class APIResponse(BaseSchema, Generic[T]):
         cls,
         data: Optional[T] = None,
         message: Optional[str] = None,
-        meta: Optional[Dict[str, Any]] = None,
-        include_auto_meta: bool = True
+        meta: Optional[Dict[str, Any]] = None
     ) -> "APIResponse[T]":
         """Create a success response."""
-        final_meta = meta or {}
-        
-        # Add automatic metadata collection if enabled
-        if include_auto_meta:
-            auto_meta = cls._collect_request_metadata()
-            if auto_meta:
-                final_meta.update(auto_meta)
-        
         return cls(
             success=True,
             data=data,
             message=message,
-            meta=final_meta if final_meta else None
+            meta=meta
         )
     
     @classmethod
@@ -171,34 +167,17 @@ class APIResponse(BaseSchema, Generic[T]):
             message=message,
             errors=errors
         )
-    
-    @classmethod
-    def _collect_request_metadata(cls) -> Dict[str, Any]:
-        """Collect metadata using request context or fallback to basic info."""
-        try:
-            # Try to get metadata from request context middleware
-            from neo_commons.middleware.request_context import RequestContext
-            return RequestContext.get_metadata()
-        except ImportError:
-            # Fallback to basic environment metadata
-            return {
-                "timestamp": utc_now().isoformat(),
-                "environment": os.getenv("ENVIRONMENT", "development")
-            }
-        except Exception:
-            # Never fail the response due to metadata collection issues
-            return {}
 
 
 class HealthStatus(str, Enum):
-    """Health check status."""
+    """Health check status levels."""
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     UNHEALTHY = "unhealthy"
 
 
 class ServiceHealth(BaseSchema):
-    """Service health information."""
+    """Individual service health information."""
     name: str = Field(description="Service name")
     status: HealthStatus = Field(description="Service status")
     latency_ms: Optional[float] = Field(None, description="Response latency in milliseconds")
@@ -207,10 +186,10 @@ class ServiceHealth(BaseSchema):
 
 
 class HealthCheckResponse(BaseSchema):
-    """Health check response."""
+    """Comprehensive health check response."""
     status: HealthStatus = Field(description="Overall health status")
-    version: str = Field(description="Application version", default="1.0.0")
-    environment: str = Field(description="Environment name", default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
+    version: str = Field(description="Application version")
+    environment: str = Field(description="Environment name")
     timestamp: datetime = Field(default_factory=utc_now, description="Check timestamp")
     services: Dict[str, ServiceHealth] = Field(description="Individual service health")
     

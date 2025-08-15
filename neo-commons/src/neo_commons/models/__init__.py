@@ -1,12 +1,8 @@
 """
-Neo Commons Models Package
+Common model patterns for the NeoMultiTenant platform.
 
-This package contains reusable Pydantic models for FastAPI applications
-using the neo-commons library.
-
-Components:
-- Base: Common schemas, mixins, and base models
-- Pagination: Pagination helpers and responses
+This module provides base Pydantic models, mixins, and response patterns
+used across all services in the platform.
 """
 
 from .base import (
@@ -17,67 +13,53 @@ from .base import (
     AuditMixin,
     StatusEnum,
     SortOrder,
-    PaginationParams as BasePaginationParams,
-    PaginatedResponse as BasePaginatedResponse,
+    PaginationParams,
+    PaginationMetadata,
+    PaginatedResponse,
     APIResponse,
     HealthStatus,
     ServiceHealth,
-    HealthCheckResponse
+    HealthCheckResponse,
 )
 
 from .pagination import (
-    PaginationMetadata,
-    PaginatedResponse,
-    PaginationParams,
-    CursorPaginationParams,
-    CursorPaginatedResponse
+    PaginationHelper,
+    FilterBuilder,
+    ListQueryBuilder,
 )
 
-# Aliases for common patterns
-BaseModel = BaseSchema
-
-# Create properly ordered mixin classes
-class TimestampedModel(TimestampMixin, BaseSchema):
-    """BaseSchema with timestamp mixin."""
-    pass
-
-class TenantModel(UUIDMixin, TimestampMixin, BaseSchema):
-    """BaseSchema with UUID and timestamp mixins."""
-    pass
+from .protocols import (
+    BaseModelProtocol,
+    APIResponseProtocol,
+    PaginationProtocol,
+    PaginatedResponseProtocol,
+    FilterableModelProtocol
+)
 
 __all__ = [
-    # Base schemas and mixins
     "BaseSchema",
-    "TimestampMixin", 
-    "UUIDMixin",
+    "TimestampMixin",
+    "UUIDMixin", 
     "SoftDeleteMixin",
     "AuditMixin",
-    
-    # Enums
     "StatusEnum",
     "SortOrder",
-    "HealthStatus",
-    
-    # Base pagination (simplified)
-    "BasePaginationParams",
-    "BasePaginatedResponse",
-    
-    # API responses
+    "PaginationParams",
+    "PaginationMetadata",
+    "PaginatedResponse",
     "APIResponse",
-    
-    # Health check models
+    "HealthStatus",
     "ServiceHealth",
     "HealthCheckResponse",
+    # Pagination utilities
+    "PaginationHelper",
+    "FilterBuilder", 
+    "ListQueryBuilder",
     
-    # Enhanced pagination models
-    "PaginationMetadata",
-    "PaginatedResponse", 
-    "PaginationParams",
-    "CursorPaginationParams",
-    "CursorPaginatedResponse",
-    
-    # Aliases
-    "BaseModel",
-    "TimestampedModel",
-    "TenantModel"
+    # Protocol interfaces
+    "BaseModelProtocol",
+    "APIResponseProtocol",
+    "PaginationProtocol",
+    "PaginatedResponseProtocol",
+    "FilterableModelProtocol"
 ]

@@ -1,5 +1,8 @@
 """
 DateTime utilities for consistent timezone handling.
+
+This module provides utility functions for working with datetime objects
+in a timezone-aware manner, ensuring consistent UTC handling across the platform.
 """
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Union
@@ -184,45 +187,6 @@ def parse_utc(date_string: str, format_string: str = "%Y-%m-%d %H:%M:%S") -> dat
     return dt.replace(tzinfo=timezone.utc)
 
 
-def parse_iso8601(date_string: str) -> datetime:
-    """
-    Parse an ISO 8601 date string to UTC datetime.
-    
-    Args:
-        date_string: ISO 8601 formatted date string
-    
-    Returns:
-        datetime: UTC datetime with timezone info
-    """
-    # Handle different ISO 8601 formats
-    try:
-        # Try parsing with fromisoformat (Python 3.7+)
-        dt = datetime.fromisoformat(date_string.replace('Z', '+00:00'))
-        # Ensure it's in UTC
-        return dt.astimezone(timezone.utc)
-    except ValueError:
-        # Fallback for older formats
-        formats_to_try = [
-            "%Y-%m-%dT%H:%M:%S.%fZ",
-            "%Y-%m-%dT%H:%M:%SZ", 
-            "%Y-%m-%dT%H:%M:%S.%f%z",
-            "%Y-%m-%dT%H:%M:%S%z",
-            "%Y-%m-%d %H:%M:%S.%f",
-            "%Y-%m-%d %H:%M:%S"
-        ]
-        
-        for fmt in formats_to_try:
-            try:
-                dt = datetime.strptime(date_string, fmt)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                return dt.astimezone(timezone.utc)
-            except ValueError:
-                continue
-        
-        raise ValueError(f"Unable to parse ISO 8601 date string: {date_string}")
-
-
 def add_timezone(dt: datetime, tz: Optional[str] = None) -> datetime:
     """
     Add timezone info to a naive datetime.
@@ -280,85 +244,6 @@ def format_iso8601(dt: Optional[datetime]) -> Optional[str]:
     
     # Return ISO format - Python's isoformat() automatically uses +00:00 for UTC
     return dt.isoformat()
-
-
-def age_in_seconds(dt: datetime) -> float:
-    """
-    Calculate the age of a datetime in seconds from now.
-    
-    Args:
-        dt: Datetime to calculate age for
-        
-    Returns:
-        float: Age in seconds (positive if in the past, negative if in the future)
-    """
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    
-    delta = utc_now() - dt
-    return delta.total_seconds()
-
-
-def is_recent(dt: datetime, threshold_seconds: int = 300) -> bool:
-    """
-    Check if a datetime is recent (within threshold).
-    
-    Args:
-        dt: Datetime to check
-        threshold_seconds: Threshold in seconds (default: 5 minutes)
-        
-    Returns:
-        bool: True if within threshold, False otherwise
-    """
-    return abs(age_in_seconds(dt)) <= threshold_seconds
-
-
-def start_of_day(dt: Optional[datetime] = None, tz: Optional[str] = None) -> datetime:
-    """
-    Get the start of day (midnight) for a given datetime.
-    
-    Args:
-        dt: Datetime (defaults to now)
-        tz: Timezone (defaults to UTC)
-        
-    Returns:
-        datetime: Start of day
-    """
-    if dt is None:
-        dt = utc_now()
-    
-    if tz:
-        zone = ZoneInfo(tz)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=zone)
-        else:
-            dt = dt.astimezone(zone)
-    
-    return dt.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
-def end_of_day(dt: Optional[datetime] = None, tz: Optional[str] = None) -> datetime:
-    """
-    Get the end of day (23:59:59.999999) for a given datetime.
-    
-    Args:
-        dt: Datetime (defaults to now)
-        tz: Timezone (defaults to UTC)
-        
-    Returns:
-        datetime: End of day
-    """
-    if dt is None:
-        dt = utc_now()
-    
-    if tz:
-        zone = ZoneInfo(tz)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=zone)
-        else:
-            dt = dt.astimezone(zone)
-    
-    return dt.replace(hour=23, minute=59, second=59, microsecond=999999)
 
 
 # Convenience constants

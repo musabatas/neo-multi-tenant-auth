@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials
 
 from src.common.models.base import APIResponse
-from src.common.models.pagination import PaginationParams, PaginatedResponse
+from src.common.models import PaginationParams, PaginatedResponse
 from src.common.exceptions.base import NotFoundError, ConflictError, ValidationError
 from src.features.auth.dependencies import security, CheckPermission
 from src.features.auth.decorators.permissions import require_permission

@@ -16,7 +16,7 @@ from src.common.exceptions.base import (
 from src.common.models.base import PaginationParams
 from src.common.services.base import BaseService
 from src.common.cache.client import get_cache
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 from src.integrations.keycloak.token_manager import get_token_manager
 
 from ..models.domain import (
