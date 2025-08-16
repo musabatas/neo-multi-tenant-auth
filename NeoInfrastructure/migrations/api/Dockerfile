@@ -12,7 +12,7 @@ COPY --from=flyway-base /flyway /flyway
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     curl \
-    openjdk-17-jre-headless \
+    openjdk-21-jre-headless \
     && rm -rf /var/lib/apt/lists/*
 
 # Make Flyway accessible

@@ -1,21 +1,10 @@
-"""Cache utilities for NeoMultiTenant services."""
+"""
+Cache layer utilities for the NeoMultiTenant platform.
 
-from .client import (
-    CacheManager,
-    get_cache,
-    init_cache,
-    close_cache,
-)
-from .redis_operations import (
-    RedisOperations,
-    RedisConnectionManager,
-)
+This module provides generic cache utilities and patterns
+that can be used across all platform services.
+"""
 
-__all__ = [
-    "CacheManager",
-    "get_cache", 
-    "init_cache",
-    "close_cache",
-    "RedisOperations",
-    "RedisConnectionManager",
-]
+from .client import CacheManager, CacheConfig
+
+__all__ = ["CacheManager", "CacheConfig"]

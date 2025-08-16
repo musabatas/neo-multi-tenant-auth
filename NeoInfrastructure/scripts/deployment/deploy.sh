@@ -145,14 +145,26 @@ KEYCLOAK_ADMIN_PASSWORD=admin
 EOF
 fi
 
-# Start infrastructure (force recreate if needed to pick up config changes)
+# Start infrastructure
 echo -e "${CYAN}🐳 Starting Docker containers...${NC}"
-# Check if keycloak container exists and remove it to ensure new health check is applied
+
+# Check if we need to recreate Keycloak (only if health check needs fixing)
+keycloak_needs_recreation=false
 if docker ps -a | grep -q neo-keycloak; then
-    echo -e "${YELLOW}⚠️  Removing existing Keycloak container to apply new configuration...${NC}"
+    # Check if Keycloak has the old broken health check
+    current_health_test=$(docker inspect neo-keycloak --format '{{range .Config.Healthcheck.Test}}{{.}} {{end}}' 2>/dev/null || echo "")
+    if echo "$current_health_test" | grep -q "/health/ready"; then
+        echo -e "${YELLOW}⚠️  Keycloak has outdated health check, recreating container...${NC}"
+        keycloak_needs_recreation=true
+    fi
+fi
+
+if [ "$keycloak_needs_recreation" = true ]; then
     docker-compose --env-file .env -f docker/docker-compose.infrastructure.yml stop keycloak
     docker-compose --env-file .env -f docker/docker-compose.infrastructure.yml rm -f keycloak
+    echo -e "${GREEN}✅ Keycloak container will be recreated with new health check${NC}"
 fi
+
 docker-compose --env-file .env -f docker/docker-compose.infrastructure.yml up -d
 
 # Wait for containers to be healthy

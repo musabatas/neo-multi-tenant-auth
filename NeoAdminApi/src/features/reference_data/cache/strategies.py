@@ -5,7 +5,7 @@ Reference data is relatively static, so we can cache aggressively.
 
 from typing import Optional, List, Any, Dict
 from src.common.cache.client import CacheClient
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 
 
 class ReferenceDataCache:

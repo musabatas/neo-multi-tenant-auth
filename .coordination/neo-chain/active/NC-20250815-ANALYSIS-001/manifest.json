@@ -1,0 +1,30 @@
+{
+  "operation_id": "NC-20250815-ANALYSIS-001",
+  "version": "1.0",
+  "schema": "neo-chain-manifest-v1",
+  "current_agent": "neo-investigator",
+  "current_phase": 1,
+  "total_phases": 2,
+  "branch": "neo-chain/NC-20250815-ANALYSIS-001",
+  "status": "active",
+  "metadata": {
+    "created": "2025-08-15T22:46:13Z",
+    "updated": "2025-08-15T22:46:13Z",
+    "estimated_completion": "2025-08-15T23:30:00Z"
+  },
+  "files": {
+    "tracked": [],
+    "locked": [],
+    "modified": [],
+    "created": []
+  },
+  "progress": {
+    "tasks_total": 20,
+    "tasks_completed": 20,
+    "completion": 100,
+    "findings": 25,
+    "estimated_effort": "45m",
+    "actual_effort": "40m"
+  },
+  "risks": []
+}

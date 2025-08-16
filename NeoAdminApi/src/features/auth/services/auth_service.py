@@ -1,5 +1,5 @@
 """
-Authentication service for platform administrators.
+Simplified Authentication service using neo-commons infrastructure.
 Handles login, logout, token management, and user operations.
 """
 from typing import Optional, Dict, Any, List, Tuple
@@ -14,21 +14,45 @@ from src.common.exceptions.base import (
     NotFoundError,
     ForbiddenError
 )
-from src.common.utils.datetime import utc_now
-from src.integrations.keycloak.async_client import get_keycloak_client
-from src.integrations.keycloak.token_manager import get_token_manager, ValidationStrategy
-from src.integrations.keycloak.realm_manager import get_realm_manager
+from src.common.utils import utc_now
+
+# Use neo-commons auth infrastructure
+from neo_commons.auth import (
+    create_auth_service,
+    ValidationStrategy,
+    AuthServiceWrapper
+)
+from neo_commons.auth.protocols import AuthConfigProtocol
+
 from ..repositories.auth_repository import AuthRepository
 from ..repositories.permission_repository import PermissionRepository
 
 
+class NeoAdminAuthConfig:
+    """Auth config that uses NeoAdminApi settings instead of environment variables."""
+    
+    def __init__(self):
+        """Initialize with NeoAdminApi settings."""
+        self.default_realm = settings.keycloak_admin_realm
+        self.keycloak_url = str(settings.keycloak_url)
+        self.admin_client_id = settings.keycloak_admin_client_id
+        self.admin_client_secret = settings.keycloak_admin_client_secret.get_secret_value()
+        self.admin_username = settings.keycloak_admin_username
+        self.admin_password = settings.keycloak_admin_password.get_secret_value()
+        self.jwt_algorithm = settings.jwt_algorithm
+        self.jwt_verify_audience = settings.jwt_verify_audience
+        self.jwt_verify_issuer = settings.jwt_verify_issuer
+        self.jwt_issuer = settings.jwt_issuer
+        self.jwt_audience = settings.jwt_audience
+
+
 class AuthService:
     """
-    Core authentication service for platform administrators.
+    Simplified authentication service using neo-commons infrastructure.
     
     Responsibilities:
-    - User authentication flow
-    - Token management
+    - User authentication flow via neo-commons
+    - Token management delegation
     - Session handling
     - User profile management
     """
@@ -38,7 +62,17 @@ class AuthService:
         self.auth_repo = AuthRepository()
         self.permission_repo = PermissionRepository()
         self.cache = get_cache()
-        self.token_manager = get_token_manager()
+        
+        # Use neo-commons auth service with NeoAdminApi settings
+        try:
+            # Create custom auth config using NeoAdminApi settings
+            auth_config = NeoAdminAuthConfig()
+            self.neo_auth_service = create_auth_service(auth_config=auth_config)
+            # Reduce startup logging verbosity
+        except Exception as e:
+            logger.error(f"Failed to create neo-commons auth service: {e}")
+            # For now, continue without neo-commons service
+            self.neo_auth_service = None
         
         # Session cache patterns
         self.SESSION_KEY = "auth:session:{session_id}"
@@ -52,7 +86,7 @@ class AuthService:
         remember_me: bool = False
     ) -> Dict[str, Any]:
         """
-        Authenticate a platform user.
+        Authenticate a platform user via neo-commons with user sync.
         
         Args:
             username: Username or email
@@ -66,641 +100,233 @@ class AuthService:
             UnauthorizedError: Invalid credentials
             ForbiddenError: User is not active or lacks access
         """
-        # Determine realm for authentication
-        realm = settings.keycloak_admin_realm  # Default to admin realm
-        
         try:
-            # STEP 1: Authenticate with Keycloak first
-            keycloak = await get_keycloak_client()
-            token_response = await keycloak.authenticate(
+            # Define user sync callback for database synchronization
+            async def user_sync_callback(user_data: Dict[str, Any]) -> Dict[str, Any]:
+                """Sync user data to local database."""
+                return await self.auth_repo.create_or_update_user(
+                    email=user_data.get('email'),
+                    username=user_data.get('username'),
+                    external_auth_provider="keycloak",
+                    external_user_id=user_data.get('external_user_id'),
+                    first_name=user_data.get('first_name'),
+                    last_name=user_data.get('last_name'),
+                    metadata=user_data.get('metadata', {})
+                )
+            
+            # Use neo-commons for authentication with user sync
+            auth_result = await self.neo_auth_service.authenticate(
                 username=username,
                 password=password,
-                realm=realm
+                realm=settings.keycloak_admin_realm,
+                user_sync_callback=user_sync_callback
             )
             
-            # STEP 2: Validate token to get user info from Keycloak
-            token_claims = await self.token_manager.validate_token(
-                token_response['access_token'],
-                realm=realm,
-                strategy=ValidationStrategy.LOCAL
-            )
+            # Extract user info from neo-commons result
+            user_info = auth_result.get('user', {})
             
-            # Extract user info from token
-            keycloak_user_id = token_claims.get('sub')
-            email = token_claims.get('email', username if '@' in username else f"{username}@example.com")
-            preferred_username = token_claims.get('preferred_username', username)
-            first_name = token_claims.get('given_name')
-            last_name = token_claims.get('family_name')
-            full_name = token_claims.get('name')
-            
-            # Extract additional Keycloak data
-            keycloak_roles = []
-            realm_access = token_claims.get('realm_access', {})
-            if 'roles' in realm_access:
-                keycloak_roles.extend(realm_access['roles'])
-            
-            resource_access = token_claims.get('resource_access', {})
-            client_roles = {}
-            for client, access in resource_access.items():
-                if 'roles' in access:
-                    client_roles[client] = access['roles']
-            
-            # Prepare enhanced metadata with all Keycloak data
-            enhanced_metadata = {
-                "realm": realm,
-                "email_verified": token_claims.get('email_verified', False),
-                "keycloak_session_id": token_claims.get('sid'),
-                "keycloak_auth_time": token_claims.get('iat'),
-                "keycloak_expires": token_claims.get('exp'),
-                "keycloak_scopes": token_claims.get('scope', '').split(),
-                "keycloak_realm_roles": keycloak_roles,
-                "keycloak_client_roles": client_roles,
-                "keycloak_azp": token_claims.get('azp'),  # Authorized party
-                "keycloak_acr": token_claims.get('acr'),  # Authentication Context Class Reference
-                "keycloak_full_name": full_name
-            }
-            logger.info(f"Storing enhanced metadata: {enhanced_metadata}")
-            
-            # STEP 3: Create or update user in our database
-            user = await self.auth_repo.create_or_update_user(
-                email=email,
-                username=preferred_username,
-                external_auth_provider="keycloak",
-                external_user_id=keycloak_user_id,
-                first_name=first_name,
-                last_name=last_name,
-                metadata=enhanced_metadata
-            )
-            
-            # STEP 4: Check if user is active
-            if not user.get("is_active", False):
-                logger.warning(f"Authentication failed: Inactive user - {user['id']}")
+            # Check if user is active
+            if not user_info.get("is_active", False):
+                logger.warning(f"Authentication failed: Inactive user - {user_info.get('id')}")
                 raise ForbiddenError("Account is disabled")
             
-            # STEP 5: Platform-level authentication complete
-            
             # Update last login
-            await self.auth_repo.update_last_login(user['id'])
-            
-            # Get user permissions (platform-level only)
-            permissions = await self.permission_repo.get_user_permissions(
-                user['id']
-            )
-            logger.info(f"Permissions fetched for user {user['id']}: {len(permissions)} permissions")
-            if permissions:
-                logger.info(f"First permission: {permissions[0]}")
-            
-            # Get user roles (platform-level only)
-            roles = await self.permission_repo.get_user_roles(
-                user['id']
-            )
-            logger.info(f"Roles fetched for user {user['id']}: {len(roles)} roles")
-            if roles:
-                logger.info(f"First role: {roles[0]}")
-            
-            # Get accessible tenants
-            tenant_access = await self.auth_repo.get_user_tenant_access(user['id'])
-            
-            # Debug: Log user metadata for troubleshooting
-            logger.info(f"User metadata: {user.get('metadata', 'NO_METADATA')}")
-            logger.info(f"User keys: {list(user.keys())}")
+            await self.auth_repo.update_last_login(user_info['id'])
             
             # Create session
-            session_id = await self._create_session(
-                user_id=user['id'],
-                access_token=token_response['access_token'],
-                refresh_token=token_response['refresh_token'],
-                expires_in=token_response.get('expires_in', 3600),
-                remember_me=remember_me
-            )
-            
-            # Extract metadata for Keycloak section
-            metadata = user.get('metadata', {})
-            logger.info(f"Building Keycloak section from metadata: {metadata}")
-            
-            keycloak_section = {
-                "session_id": metadata.get('keycloak_session_id'),
-                "realm": metadata.get('realm'),
-                "email_verified": metadata.get('email_verified', False),
-                "scopes": metadata.get('keycloak_scopes', []),
-                "realm_roles": metadata.get('keycloak_realm_roles', []),
-                "client_roles": metadata.get('keycloak_client_roles', {}),
-                "authorized_party": metadata.get('keycloak_azp'),
-                "auth_context_class": metadata.get('keycloak_acr'),
-                "full_name": metadata.get('keycloak_full_name')
-            }
-            logger.info(f"Keycloak section: {keycloak_section}")
-            
-            # Build response
-            response = {
-                "access_token": token_response['access_token'],
-                "refresh_token": token_response['refresh_token'],
-                "token_type": "Bearer",
-                "expires_in": token_response.get('expires_in', 3600),
-                "session_id": session_id,
-                "user": {
-                    "id": user['id'],
-                    "email": user['email'],
-                    "username": user['username'],
-                    "first_name": user.get('first_name'),
-                    "last_name": user.get('last_name'),
-                    "display_name": user.get('display_name'),
-                    "is_active": user.get('is_active', True),
-                    "is_superadmin": user.get('is_superadmin', False),
-                    "avatar_url": user.get('avatar_url'),
-                    "timezone": user.get('timezone'),
-                    "language": user.get('language'),
-                    "roles": [
-                        {
-                            "id": role['role_id'],
-                            "name": role['role_name'],
-                            "display_name": role.get('role_display_name'),
-                            "level": role.get('role_level'),
-                            "priority": role.get('role_priority'),
-                            "role_config": role.get('role_config', {})
-                        }
-                        for role in roles
-                    ],
-                    "permissions": [
-                        {
-                            "code": perm.get('name', f"{perm['resource']}:{perm['action']}"),
-                            "resource": perm['resource'],
-                            "action": perm['action'],
-                            "scope_level": perm.get('scope_level'),
-                            "is_dangerous": perm.get('is_dangerous', False),
-                            "requires_mfa": perm.get('requires_mfa', False),
-                            "requires_approval": perm.get('requires_approval', False),
-                            "config": perm.get('permissions_config', {}),
-                            "source": perm.get('source_type'),
-                            "priority": perm.get('priority', 0)
-                        }
-                        for perm in permissions
-                    ],
-                    "tenants": [
-                        {
-                            "id": access['tenant_id'],
-                            "name": access.get('tenant_name'),
-                            "slug": access.get('tenant_slug'),
-                            "access_level": access.get('access_level'),
-                            "expires_at": access.get('expires_at')
-                        }
-                        for access in tenant_access
-                    ],
-                    "keycloak": keycloak_section
-                }
+            session_id = auth_result.get('session_id') or f"session_{user_info['id']}_{int(utc_now().timestamp())}"
+            session_data = {
+                'user_id': user_info['id'],
+                'session_id': session_id,
+                'access_token': auth_result.get('access_token'),
+                'refresh_token': auth_result.get('refresh_token'),
+                'expires_in': auth_result.get('expires_in', 3600),
+                'user_info': user_info
             }
             
-            logger.info(f"User {user['id']} authenticated successfully")
-            return response
-            
-        except UnauthorizedError:
-            # Update failed login count only if we have a user
-            try:
-                if 'user' in locals() and user and user.get('id'):
-                    await self.auth_repo.update_failed_login(user['id'])
-            except Exception as e:
-                logger.warning(f"Failed to update failed login count: {e}")
-            raise UnauthorizedError("Invalid username or password")
-        except Exception as e:
-            logger.error(f"Authentication error: {e}")
-            raise UnauthorizedError("Authentication failed")
-    
-    async def refresh_token(
-        self,
-        refresh_token: str
-    ) -> Dict[str, Any]:
-        """
-        Refresh an access token.
-        
-        Args:
-            refresh_token: Refresh token
-            
-        Returns:
-            New token response
-            
-        Raises:
-            UnauthorizedError: Invalid or expired refresh token
-        """
-        try:
-            # Refresh with Keycloak
-            keycloak = await get_keycloak_client()
-            token_response = await keycloak.refresh_token(
-                refresh_token=refresh_token,
-                realm=settings.keycloak_admin_realm
+            # Cache session
+            await self.cache.set(
+                self.SESSION_KEY.format(session_id=session_id),
+                session_data,
+                ttl=self.SESSION_TTL if not remember_me else self.SESSION_TTL * 7
             )
-            
-            # Validate new token to get user info
-            token_claims = await self.token_manager.validate_token(
-                token_response['access_token'],
-                realm=settings.keycloak_admin_realm,
-                strategy=ValidationStrategy.LOCAL
-            )
-            
-            # Get user from database
-            user_id = token_claims.get('sub')
-            if user_id:
-                # Update session with new tokens
-                await self._update_session_tokens(
-                    user_id=user_id,
-                    access_token=token_response['access_token'],
-                    refresh_token=token_response['refresh_token']
-                )
-                
-                # Update user's Keycloak metadata with new token claims
-                await self._update_user_keycloak_metadata(user_id, token_claims)
-                
-                # Clear cached user data since token claims might have changed
-                cache_key = f"auth:user:{user_id}:info"
-                await self.cache.delete(cache_key)
-                logger.info(f"Cleared cached user data and updated metadata for user {user_id}")
-            
-            logger.info(f"Token refreshed for user {user_id}")
             
             return {
-                "access_token": token_response['access_token'],
-                "refresh_token": token_response['refresh_token'],
-                "token_type": "Bearer",
-                "expires_in": token_response.get('expires_in', 3600)
+                'success': True,
+                'session_id': session_id,
+                'user': user_info,
+                'tokens': {
+                    'access_token': auth_result.get('access_token'),
+                    'refresh_token': auth_result.get('refresh_token'),
+                    'token_type': auth_result.get('token_type', 'Bearer')
+                },
+                'expires_in': auth_result.get('expires_in', 3600)
             }
             
         except Exception as e:
-            logger.error(f"Token refresh failed: {e}")
-            raise UnauthorizedError("Invalid or expired refresh token")
+            logger.error(f"Authentication failed for {username}: {e}")
+            if "unauthorized" in str(e).lower() or "invalid" in str(e).lower():
+                raise UnauthorizedError("Invalid username or password")
+            raise
     
-    async def logout(
+    async def validate_token(
         self,
         access_token: str,
-        refresh_token: Optional[str] = None,
-        everywhere: bool = False
-    ) -> bool:
+        realm: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Logout a user session.
+        Validate access token via neo-commons.
         
         Args:
-            access_token: Current access token
-            refresh_token: Optional refresh token for complete logout
-            everywhere: Logout from all devices/sessions
+            access_token: JWT access token
+            realm: Optional realm override
             
         Returns:
-            True if logout successful
+            Token claims and user info
         """
         try:
-            # Validate token to get user info
-            token_claims = await self.token_manager.validate_token(
+            return await self.neo_auth_service.validate_token(
                 access_token,
-                realm=settings.keycloak_admin_realm,
-                strategy=ValidationStrategy.LOCAL
+                realm=realm or settings.keycloak_admin_realm
+            )
+        except Exception as e:
+            logger.error(f"Token validation failed: {e}")
+            raise UnauthorizedError("Invalid or expired token")
+    
+    async def logout(self, session_id: str) -> bool:
+        """
+        Logout user and invalidate session.
+        
+        Args:
+            session_id: Session identifier
+            
+        Returns:
+            True if successful
+        """
+        try:
+            # Get session data
+            session_data = await self.cache.get(
+                self.SESSION_KEY.format(session_id=session_id)
             )
             
-            user_id = token_claims.get('sub')
-            
-            # Revoke tokens
-            await self.token_manager.revoke_token(access_token)
-            
-            # Logout from Keycloak if refresh token provided
-            if refresh_token:
-                keycloak = await get_keycloak_client()
-                await keycloak.logout(
-                    refresh_token=refresh_token,
-                    realm=settings.keycloak_admin_realm
+            if session_data:
+                # Remove from cache
+                await self.cache.delete(
+                    self.SESSION_KEY.format(session_id=session_id)
                 )
+                
+                # Optional: Call neo-commons logout if needed
+                # await self.neo_auth_service.logout(session_data.get('access_token'))
+                
+                logger.info(f"Session {session_id} logged out successfully")
+                return True
             
-            # Clear sessions
-            if user_id:
-                if everywhere:
-                    # Clear all user sessions
-                    await self._clear_all_user_sessions(user_id)
-                    logger.info(f"User {user_id} logged out from all devices")
-                else:
-                    # Clear current session
-                    await self._clear_user_session(user_id, access_token)
-                    logger.info(f"User {user_id} logged out")
-            
-            return True
+            return False
             
         except Exception as e:
-            logger.error(f"Logout error: {e}")
-            # Logout errors are not critical
+            logger.error(f"Logout failed for session {session_id}: {e}")
             return False
+    
+    async def get_user_permissions(
+        self,
+        user_id: str,
+        tenant_id: Optional[str] = None
+    ) -> List[str]:
+        """
+        Get user permissions from repository.
+        
+        Args:
+            user_id: User identifier
+            tenant_id: Optional tenant context
+            
+        Returns:
+            List of permission codes
+        """
+        try:
+            return await self.permission_repo.get_user_permissions(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                scope='platform'
+            )
+        except Exception as e:
+            logger.error(f"Failed to get permissions for user {user_id}: {e}")
+            return []
     
     async def get_current_user(
         self,
         access_token: str,
         use_cache: bool = True
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """
-        Get current user information from token.
+        Get current user from access token with database lookup for complete user info.
         
         Args:
-            access_token: Access token
-            use_cache: Whether to use cached user info
+            access_token: JWT access token
+            use_cache: Whether to use cached user data
             
         Returns:
-            User information with roles and permissions
-            
-        Raises:
-            UnauthorizedError: Invalid token
-            NotFoundError: User not found
-        """
-        # Validate token
-        token_claims = await self.token_manager.validate_token(
-            access_token,
-            realm=settings.keycloak_admin_realm,
-            critical=False  # Use dual validation
-        )
-        
-        # Get user ID from token
-        external_id = token_claims.get('sub')
-        if not external_id:
-            raise UnauthorizedError("Invalid token claims")
-        
-        # Get user from database by external ID
-        user = await self.auth_repo.get_user_by_external_id(
-            provider="keycloak",
-            external_id=external_id
-        )
-        
-        if not user:
-            # Try to get by email from token
-            email = token_claims.get('email')
-            if email:
-                user = await self.auth_repo.get_user_by_email(email)
-        
-        if not user:
-            raise NotFoundError("User", external_id)
-        
-        # Check if user is active
-        if not user.get("is_active", False):
-            raise ForbiddenError("Account is disabled")
-        
-        # Use centralized UserDataService for complete user data
-        from src.features.users.services.user_data_service import UserDataService
-        user_data_service = UserDataService()
-        
-        # Get complete user data using the centralized service
-        user_info = await user_data_service.get_complete_user_data(
-            user_id=user['id'],
-            include_permissions=True,
-            include_roles=True,
-            include_tenants=True,
-            include_onboarding=True,
-            use_cache=use_cache
-        )
-        
-        # Add Keycloak metadata
-        metadata = user.get('metadata', {})
-        user_info['keycloak'] = {
-            "session_id": metadata.get('keycloak_session_id'),
-            "realm": metadata.get('realm'),
-            "email_verified": metadata.get('email_verified', False),
-            "scopes": metadata.get('keycloak_scopes', []),
-            "realm_roles": metadata.get('keycloak_realm_roles', []),
-            "client_roles": metadata.get('keycloak_client_roles', {}),
-            "authorized_party": metadata.get('keycloak_azp'),
-            "auth_context_class": metadata.get('keycloak_acr'),
-            "full_name": metadata.get('keycloak_full_name')
-        }
-        
-        return user_info
-    
-    async def get_current_user_profile(
-        self,
-        access_token: str,
-        use_cache: bool = True
-    ) -> "UserProfile":
-        """
-        Get current user as UserProfile model with flattened Keycloak fields.
-        
-        This method centralizes the logic shared between /auth/me and /user/me endpoints.
-        
-        Args:
-            access_token: Access token
-            use_cache: Whether to use cached user info
-            
-        Returns:
-            UserProfile model with flattened Keycloak fields
-            
-        Raises:
-            UnauthorizedError: Invalid token
-            NotFoundError: User not found
-        """
-        # Import here to avoid circular imports
-        from ..models.response import UserProfile
-        
-        # Get raw user info
-        user_info = await self.get_current_user(
-            access_token=access_token,
-            use_cache=use_cache
-        )
-        
-        # Extract Keycloak data for flattened fields
-        keycloak_data = user_info.get("keycloak", {})
-        
-        # Map to UserProfile model with flattened structure
-        user_profile = UserProfile(
-            id=user_info["id"],
-            email=user_info["email"],
-            username=user_info["username"],
-            first_name=user_info.get("first_name"),
-            last_name=user_info.get("last_name"),
-            display_name=user_info.get("display_name"),
-            full_name=user_info.get("full_name"),
-            avatar_url=user_info.get("avatar_url"),
-            phone=user_info.get("phone"),
-            job_title=user_info.get("job_title"),
-            company=user_info.get("company"),
-            departments=user_info.get("departments", []),
-            timezone=user_info.get("timezone", "UTC"),
-            locale=user_info.get("locale", "en-US"),
-            language=user_info.get("language", "en"),
-            notification_preferences=user_info.get("notification_preferences", {}),
-            ui_preferences=user_info.get("ui_preferences", {}),
-            is_onboarding_completed=user_info.get("is_onboarding_completed", False),
-            profile_completion_percentage=user_info.get("profile_completion_percentage", 0),
-            is_active=user_info.get("is_active", True),
-            is_superadmin=user_info.get("is_superadmin", False),
-            roles=user_info.get("roles", []),
-            permissions=user_info.get("permissions", []),
-            tenants=user_info.get("tenants", []),
-            last_login_at=user_info.get("last_login_at"),
-            created_at=user_info.get("created_at"),
-            updated_at=user_info.get("updated_at"),
-            external_auth_provider=user_info.get("external_auth_provider"),
-            external_user_id=user_info.get("external_user_id"),
-            # Flattened Keycloak fields
-            session_id=keycloak_data.get("session_id"),
-            realm=keycloak_data.get("realm"),
-            email_verified=keycloak_data.get("email_verified", False),
-            authorized_party=keycloak_data.get("authorized_party")
-        )
-        
-        return user_profile
-    
-    async def invalidate_user_cache(self, user_id: str) -> None:
-        """
-        Invalidate user cache entries.
-        
-        Args:
-            user_id: User ID to invalidate cache for
-        """
-        # Get user to find external ID
-        user = await self.auth_repo.get_user_by_id(user_id)
-        if user:
-            external_id = user.get('external_user_id')
-            if external_id:
-                cache_key = f"auth:user:{external_id}:info"
-                await self.cache.delete(cache_key)
-    
-    async def _create_session(
-        self,
-        user_id: str,
-        access_token: str,
-        refresh_token: str,
-        expires_in: int,
-        tenant_id: Optional[str] = None,
-        remember_me: bool = False
-    ) -> str:
-        """
-        Create a new user session.
-        
-        Args:
-            user_id: User ID
-            access_token: Access token
-            refresh_token: Refresh token
-            expires_in: Token expiry in seconds
-            tenant_id: Optional tenant context
-            remember_me: Extend session duration
-            
-        Returns:
-            Session ID
-        """
-        import uuid
-        session_id = str(uuid.uuid4())
-        
-        # Calculate session TTL
-        ttl = self.SESSION_TTL
-        if remember_me:
-            ttl = ttl * 7  # 7 days for remember me
-        
-        # Create session data
-        session_data = {
-            "session_id": session_id,
-            "user_id": user_id,
-            "tenant_id": tenant_id,
-            "created_at": utc_now().isoformat(),
-            "expires_at": (utc_now() + timedelta(seconds=expires_in)).isoformat(),
-            "remember_me": remember_me
-        }
-        
-        # Store session
-        session_key = self.SESSION_KEY.format(session_id=session_id)
-        await self.cache.set(session_key, session_data, ttl=ttl)
-        
-        # Add to user's session list
-        user_sessions_key = self.USER_SESSION_KEY.format(user_id=user_id)
-        await self.cache.sadd(user_sessions_key, session_id)
-        await self.cache.expire(user_sessions_key, ttl)
-        
-        return session_id
-    
-    async def _update_session_tokens(
-        self,
-        user_id: str,
-        access_token: str,
-        refresh_token: str
-    ):
-        """Update session with new tokens after refresh."""
-        # Get user's sessions
-        user_sessions_key = self.USER_SESSION_KEY.format(user_id=user_id)
-        session_ids = await self.cache.smembers(user_sessions_key)
-        
-        # Update active sessions
-        for session_id in session_ids:
-            session_key = self.SESSION_KEY.format(session_id=session_id)
-            session_data = await self.cache.get(session_key)
-            
-            if session_data:
-                session_data['updated_at'] = utc_now().isoformat()
-                ttl = await self.cache.ttl(session_key)
-                await self.cache.set(session_key, session_data, ttl=ttl)
-    
-    async def _clear_user_session(self, user_id: str, access_token: str):
-        """Clear a specific user session."""
-        # Implementation depends on how we track sessions
-        pass
-    
-    async def _clear_all_user_sessions(self, user_id: str):
-        """Clear all sessions for a user."""
-        # Get all user sessions
-        user_sessions_key = self.USER_SESSION_KEY.format(user_id=user_id)
-        session_ids = await self.cache.smembers(user_sessions_key)
-        
-        # Delete each session
-        for session_id in session_ids:
-            session_key = self.SESSION_KEY.format(session_id=session_id)
-            await self.cache.delete(session_key)
-        
-        # Delete user sessions set
-        await self.cache.delete(user_sessions_key)
-        
-        # Clear cached user info
-        cache_key = f"auth:user:{user_id}:info"
-        await self.cache.delete(cache_key)
-        
-        # Clear cached tokens
-        await self.token_manager.clear_user_tokens(user_id)
-    
-    async def _update_user_keycloak_metadata(self, external_user_id: str, token_claims: Dict[str, Any]):
-        """
-        Update user's Keycloak metadata with fresh token claims.
-        
-        Args:
-            external_user_id: Keycloak user ID (sub claim)
-            token_claims: Fresh token claims from Keycloak
+            Complete user information including database fields
         """
         try:
-            # Extract updated Keycloak data from token claims
-            realm_access = token_claims.get('realm_access', {})
-            keycloak_roles = []
-            if 'roles' in realm_access:
-                keycloak_roles.extend(realm_access['roles'])
-            
-            # Extract client roles
-            resource_access = token_claims.get('resource_access', {})
-            client_roles = {}
-            for client, access in resource_access.items():
-                if 'roles' in access:
-                    client_roles[client] = access['roles']
-            
-            # Build full name
-            first_name = token_claims.get('given_name', '')
-            last_name = token_claims.get('family_name', '')
-            full_name = f"{first_name} {last_name}".strip() or token_claims.get('name', '')
-            
-            # Prepare updated metadata
-            updated_metadata = {
-                "realm": settings.keycloak_admin_realm,
-                "email_verified": token_claims.get('email_verified', False),
-                "keycloak_session_id": token_claims.get('sid'),
-                "keycloak_auth_time": token_claims.get('iat'),
-                "keycloak_expires": token_claims.get('exp'),
-                "keycloak_scopes": token_claims.get('scope', '').split(),
-                "keycloak_realm_roles": keycloak_roles,
-                "keycloak_client_roles": client_roles,
-                "keycloak_azp": token_claims.get('azp'),
-                "keycloak_acr": token_claims.get('acr'),
-                "keycloak_full_name": full_name
-            }
-            
-            # Update user metadata in database
-            await self.auth_repo.update_user_metadata_by_external_id(
-                provider="keycloak",
-                external_id=external_user_id,
-                metadata=updated_metadata
+            # First validate the token using neo-commons
+            token_data = await self.neo_auth_service.get_current_user(
+                token=access_token,
+                use_cache=use_cache
             )
             
-            logger.info(f"Updated Keycloak metadata for user {external_user_id}")
+            if not token_data:
+                return None
+            
+            # Get the external user ID from token
+            external_user_id = token_data.get("id")
+            if not external_user_id:
+                return None
+            
+            # Load complete user data from database using external_user_id
+            user_data = await self.auth_repo.get_user_by_external_id(
+                provider="keycloak",
+                external_id=external_user_id
+            )
+            
+            if not user_data:
+                # If user not found in DB, return token data as fallback
+                logger.warning(f"User {external_user_id} not found in database, using token data")
+                return token_data
+            
+            # Merge token data with database data, prioritizing database fields
+            merged_user = {
+                **token_data,  # Base token data
+                **user_data,   # Override with database data
+                "realm": token_data.get("realm"),  # Keep realm from token
+                "email_verified": token_data.get("email_verified", False),  # Keep from token
+            }
+            
+            return merged_user
             
         except Exception as e:
-            logger.warning(f"Failed to update Keycloak metadata for user {external_user_id}: {e}")
-            # Don't raise - this is not critical for token refresh
+            logger.error(f"Get current user failed: {e}")
+            return None
+
+    async def refresh_token(
+        self,
+        refresh_token: str,
+        realm: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Refresh access token via neo-commons.
+        
+        Args:
+            refresh_token: Refresh token
+            realm: Optional realm override
+            
+        Returns:
+            New token data
+        """
+        try:
+            return await self.neo_auth_service.refresh_token(
+                refresh_token,
+                realm=realm or settings.keycloak_admin_realm
+            )
+        except Exception as e:
+            logger.error(f"Token refresh failed: {e}")
+            raise UnauthorizedError("Invalid or expired refresh token")

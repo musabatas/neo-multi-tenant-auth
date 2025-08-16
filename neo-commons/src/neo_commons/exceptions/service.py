@@ -1,12 +1,15 @@
 """
 Service and infrastructure-related exceptions.
+
+This module provides exceptions for service-level operations like
+database access, caching, and service availability.
 """
 from typing import Optional
 
-from .base import NeoCommonsException
+from .base import NeoException
 
 
-class DatabaseError(NeoCommonsException):
+class DatabaseError(NeoException):
     """Raised when database operation fails."""
     
     def __init__(
@@ -20,7 +23,7 @@ class DatabaseError(NeoCommonsException):
             self.details["operation"] = operation
 
 
-class CacheError(NeoCommonsException):
+class CacheError(NeoException):
     """Raised when cache operation fails."""
     
     def __init__(
@@ -37,21 +40,7 @@ class CacheError(NeoCommonsException):
             self.details["key"] = key
 
 
-class ExternalServiceError(NeoCommonsException):
-    """Raised when external service call fails."""
-    
-    def __init__(
-        self,
-        message: str = "External service error",
-        service: Optional[str] = None,
-        **kwargs
-    ):
-        super().__init__(message, status_code=502, **kwargs)
-        if service:
-            self.details["service"] = service
-
-
-class ServiceUnavailableError(NeoCommonsException):
+class ServiceUnavailableError(NeoException):
     """Raised when a service is temporarily unavailable."""
     
     def __init__(

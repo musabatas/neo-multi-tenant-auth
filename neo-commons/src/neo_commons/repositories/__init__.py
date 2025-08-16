@@ -1,15 +1,27 @@
 """
-Neo Commons Repositories Package
+Repository patterns for data access layer.
 
-This package contains reusable repository patterns for data access
-using the neo-commons library.
-
-Components:
-- Base: Abstract base repository with common database operations
+This module provides base repository classes and patterns that can be used
+across all platform services with dynamic schema configuration.
 """
 
 from .base import BaseRepository
+from .protocols import (
+    RepositoryProtocol,
+    SchemaProvider,
+    ConnectionProvider,
+    CacheableRepositoryProtocol,
+    AuditableRepositoryProtocol,
+    TenantAwareRepositoryProtocol
+)
 
 __all__ = [
-    "BaseRepository"
+    "BaseRepository",
+    # Protocol interfaces
+    "RepositoryProtocol", 
+    "SchemaProvider",
+    "ConnectionProvider",
+    "CacheableRepositoryProtocol",
+    "AuditableRepositoryProtocol",
+    "TenantAwareRepositoryProtocol"
 ]

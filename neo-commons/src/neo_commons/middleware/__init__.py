@@ -1,69 +1,88 @@
 """
-Neo Commons Middleware Package
+Middleware utilities for the NeoMultiTenant platform.
 
-This package contains reusable middleware components for FastAPI applications
-using the neo-commons library.
-
-Components:
-- UnifiedContext: All-in-one context, logging, timing, and metadata
-- Security: Headers, CORS, rate limiting
-- Config: Middleware configuration management
+This module provides generic middleware components and patterns
+that can be used across all platform services.
 """
 
-# Unified middleware for all context, logging, timing, and metadata needs
-from .unified_context import (
-    UnifiedContextMiddleware,
-    UnifiedRequestContext,
+from .logging import (
+    StructuredLoggingMiddleware,
+    LoggingConfig,
+    MetadataCollector,
     get_request_context,
-    get_correlation_id, 
+    get_correlation_id,
     get_request_id,
-    track_performance
+    request_id_var,
+    user_id_var,
+    tenant_id_var,
+    correlation_id_var
 )
 
 from .security import (
     SecurityHeadersMiddleware,
-    CORSSecurityMiddleware, 
-    RateLimitMiddleware
+    CORSSecurityMiddleware,
+    RateLimitMiddleware,
+    SecurityConfig
+)
+
+from .timing import (
+    TimingMiddleware,
+    ResponseSizeMiddleware,
+    TimingConfig,
+    get_performance_summary
+)
+
+from .request_context import (
+    RequestContextMiddleware,
+    RequestContext,
+    RequestContextConfig,
+    track_performance,
+    get_request_id as get_context_request_id,
+    get_processing_time,
+    get_request_metadata
 )
 
 from .config import (
     MiddlewareConfig,
     MiddlewareManager,
-    get_middleware_config,
+    MiddlewareSettingsProvider,
     create_development_config,
     create_production_config,
     create_testing_config,
-    default_middleware_manager
+    create_middleware_manager
 )
 
-# Convenience aliases for backward compatibility
-RequestContext = UnifiedRequestContext
-RequestContextMiddleware = UnifiedContextMiddleware
-
 __all__ = [
-    # Unified middleware for context, logging, timing, and metadata
-    "UnifiedContextMiddleware",
-    "UnifiedRequestContext", 
+    "StructuredLoggingMiddleware",
+    "LoggingConfig",
+    "MetadataCollector",
     "get_request_context",
-    "get_correlation_id", 
+    "get_correlation_id",
     "get_request_id",
-    "track_performance",
-    
-    # Security middleware
+    "request_id_var",
+    "user_id_var", 
+    "tenant_id_var",
+    "correlation_id_var",
     "SecurityHeadersMiddleware",
-    "CORSSecurityMiddleware", 
+    "CORSSecurityMiddleware",
     "RateLimitMiddleware",
-    
-    # Configuration
+    "SecurityConfig",
+    "TimingMiddleware",
+    "ResponseSizeMiddleware",
+    "TimingConfig",
+    "get_performance_summary",
+    "RequestContextMiddleware",
+    "RequestContext",
+    "RequestContextConfig",
+    "track_performance",
+    "get_context_request_id",
+    "get_processing_time",
+    "get_request_metadata",
     "MiddlewareConfig",
     "MiddlewareManager",
-    "get_middleware_config",
+    "MiddlewareSettingsProvider",
     "create_development_config",
-    "create_production_config", 
+    "create_production_config",
     "create_testing_config",
-    "default_middleware_manager",
-    
-    # Backward compatibility aliases
-    "RequestContext",
-    "RequestContextMiddleware",
+    "create_middleware_manager"
 ]

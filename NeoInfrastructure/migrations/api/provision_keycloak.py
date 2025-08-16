@@ -58,15 +58,15 @@ async def provision_all_missing() -> None:
                 await conn.execute(
                     """
                     UPDATE admin.tenants
-                    SET external_auth_realm = $2,
+                    SET external_auth_realm = $2::text,
                         external_auth_metadata = COALESCE(external_auth_metadata, '{}'::jsonb)
                             || jsonb_build_object(
-                                'realm', $2,
-                                'client_id', $3,
-                                'client_secret', $4
+                                'realm', $2::text,
+                                'client_id', $3::text,
+                                'client_secret', $4::text
                                ),
                         updated_at = NOW()
-                    WHERE id = $1
+                    WHERE id = $1::uuid
                     """,
                     tenant_id,
                     ensured_realm,
@@ -99,15 +99,15 @@ async def provision_tenant(tenant_id: str) -> None:
             await conn.execute(
                 """
                 UPDATE admin.tenants
-                SET external_auth_realm = $2,
+                SET external_auth_realm = $2::text,
                     external_auth_metadata = COALESCE(external_auth_metadata, '{}'::jsonb)
                         || jsonb_build_object(
-                            'realm', $2,
-                            'client_id', $3,
-                            'client_secret', $4
+                            'realm', $2::text,
+                            'client_id', $3::text,
+                            'client_secret', $4::text
                            ),
                     updated_at = NOW()
-                WHERE id = $1
+                WHERE id = $1::uuid
                 """,
                 tenant_id,
                 ensured_realm,

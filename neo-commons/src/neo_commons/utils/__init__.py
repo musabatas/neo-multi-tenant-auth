@@ -1,100 +1,105 @@
 """
-Neo Commons Utils Package
+Utilities Package - Common utility functions and helpers.
 
-This package contains common utility functions and helpers
-for neo-commons applications.
-
-Components:
-- Datetime: Timezone-aware datetime utilities and formatting
-- Encryption: Password and data encryption with PBKDF2 + Fernet
-- Metadata: Request metadata collection and performance tracking
-- UUID: UUIDv7 generation and manipulation utilities
+This package contains utility functions that are used across the platform
+for consistent data processing, datetime handling, validation, and more.
 """
 
-# Import commonly used functions for convenience
-from .datetime import (
+from neo_commons.utils.datetime import (
     utc_now,
     utc_now_naive,
-    format_iso8601,
-    parse_iso8601,
     to_utc,
     from_utc,
+    timestamp_to_utc,
+    utc_to_timestamp,
     is_expired,
+    time_until_expiry,
     format_utc,
+    parse_utc,
+    add_timezone,
+    remove_timezone,
+    format_iso8601,
     UTC,
-    EPOCH
+    EPOCH,
 )
 
-from .encryption import (
-    PasswordEncryption,
-    encrypt_password,
-    decrypt_password,
-    decrypt_password_safe,
-    is_encrypted,
-    encrypt_data,
-    decrypt_data_to_string,
-    validate_encryption_key
-)
-
-# Note: metadata functionality moved to middleware.unified_context
-# Use UnifiedRequestContext for metadata collection
-
-from .uuid import (
+from neo_commons.utils.uuid import (
     generate_uuid_v7,
-    generate_uuid_v7_object,
     extract_timestamp_from_uuid_v7,
-    extract_datetime_from_uuid_v7,
     is_uuid_v7,
     is_valid_uuid,
-    normalize_uuid,
-    compare_uuid_v7_timestamps,
-    sort_uuids_by_timestamp,
-    uuid_v7_age_in_seconds,
-    is_uuid_v7_recent
+    generate_uuid,
+    uuid_v7,
 )
 
-# Aliases for backward compatibility and convenience
-generate_uuid7 = generate_uuid_v7
-extract_timestamp_from_uuid7 = extract_timestamp_from_uuid_v7
+from neo_commons.utils.encryption import (
+    PasswordEncryption,
+    get_encryption,
+    encrypt_password,
+    decrypt_password,
+    is_encrypted,
+    reset_encryption_instance,
+)
+
+from neo_commons.utils.metadata import (
+    MetadataCollector,
+    track_db_operation,
+    track_cache_operation,
+    get_basic_metadata,
+    get_performance_summary,
+)
+
+from .protocols import (
+    TimestampProtocol,
+    UUIDProtocol,
+    EncryptionProtocol,
+    MetadataProtocol
+)
 
 __all__ = [
-    # Datetime utilities
+    # DateTime utilities
     "utc_now",
     "utc_now_naive", 
-    "format_iso8601",
-    "parse_iso8601",
     "to_utc",
     "from_utc",
+    "timestamp_to_utc",
+    "utc_to_timestamp",
     "is_expired",
+    "time_until_expiry",
     "format_utc",
+    "parse_utc",
+    "add_timezone",
+    "remove_timezone",
+    "format_iso8601",
     "UTC",
     "EPOCH",
     
-    # Encryption utilities
-    "PasswordEncryption",
-    "encrypt_password",
-    "decrypt_password",
-    "decrypt_password_safe",
-    "is_encrypted",
-    "encrypt_data", 
-    "decrypt_data_to_string",
-    "validate_encryption_key",
-    
-    # Note: Metadata utilities moved to middleware.unified_context
-    
     # UUID utilities
     "generate_uuid_v7",
-    "generate_uuid_v7_object",
     "extract_timestamp_from_uuid_v7",
-    "extract_datetime_from_uuid_v7",
     "is_uuid_v7",
     "is_valid_uuid",
-    "normalize_uuid",
-    "compare_uuid_v7_timestamps", 
-    "sort_uuids_by_timestamp",
-    "uuid_v7_age_in_seconds",
-    "is_uuid_v7_recent",
-    # Aliases
-    "generate_uuid7",
-    "extract_timestamp_from_uuid7"
+    "generate_uuid",
+    "uuid_v7",
+    
+    # Encryption utilities
+    "PasswordEncryption",
+    "get_encryption",
+    "encrypt_password",
+    "decrypt_password",
+    "is_encrypted",
+    "reset_encryption_instance",
+    
+    # Metadata utilities
+    "MetadataCollector",
+    "track_db_operation",
+    "track_cache_operation",
+    "get_basic_metadata",
+    "get_performance_summary",
+    
+    # Protocol interfaces
+    "TimestampProtocol",
+    "UUIDProtocol",
+    "EncryptionProtocol",
+    "MetadataProtocol"
 ]

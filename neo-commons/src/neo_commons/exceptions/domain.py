@@ -1,13 +1,16 @@
 """
 Domain-specific exceptions for business logic errors.
+
+This module provides reusable domain exceptions that can be used across
+all services in the NeoMultiTenant platform.
 """
 from typing import Optional
 from uuid import UUID
 
-from .base import NeoCommonsException
+from .base import NeoException
 
 
-class TenantError(NeoCommonsException):
+class TenantError(NeoException):
     """Base exception for tenant-related errors."""
     
     def __init__(
@@ -38,7 +41,7 @@ class TenantProvisioningError(TenantError):
             self.details["failed_step"] = step
 
 
-class QuotaExceededError(NeoCommonsException):
+class QuotaExceededError(NeoException):
     """Raised when a quota is exceeded."""
     
     def __init__(
@@ -58,7 +61,7 @@ class QuotaExceededError(NeoCommonsException):
             self.details["quota_limit"] = quota_limit
 
 
-class MigrationError(NeoCommonsException):
+class MigrationError(NeoException):
     """Raised when migration fails."""
     
     def __init__(
@@ -72,7 +75,7 @@ class MigrationError(NeoCommonsException):
             self.details["migration_id"] = migration_id
 
 
-class ConfigurationError(NeoCommonsException):
+class ConfigurationError(NeoException):
     """Raised when configuration is invalid."""
     
     def __init__(

@@ -1,8 +1,5 @@
 """
 FastAPI application factory and configuration.
-
-ENHANCED WITH NEO-COMMONS: Now using neo-commons middleware and dependency injection patterns.
-Improved application lifecycle, better error handling, and structured configuration validation.
 """
 from contextlib import asynccontextmanager
 from typing import Dict
@@ -10,11 +7,12 @@ from fastapi import FastAPI
 from scalar_fastapi import get_scalar_api_reference
 from loguru import logger
 
-# NEO-COMMONS INTEGRATION: Enhanced application configuration and monitoring
-from neo_commons.utils.datetime import utc_now
-from neo_commons.config import BaseConfigProtocol
-
 from src.common.config.settings import settings
+
+# Ensure Redis URL is available as environment variable for neo-commons before any imports
+import os
+if settings.redis_url and not os.getenv('REDIS_URL'):
+    os.environ['REDIS_URL'] = str(settings.redis_url)
 from src.common.database.connection import init_database, close_database
 from src.common.cache.client import init_cache, close_cache
 from src.common.middleware import setup_middleware
@@ -25,219 +23,73 @@ from src.common.exception_handlers import register_exception_handlers
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Application lifespan manager with enhanced error handling and monitoring.
+    """Application lifespan manager."""
+    # Startup
+    logger.info(f"Starting {settings.app_name} v{settings.app_version}")
+    logger.info(f"Environment: {settings.environment}")
     
-    ENHANCED WITH NEO-COMMONS: Now includes startup/shutdown timing, structured logging,
-    and better error context using neo-commons datetime utilities.
-    """
-    # Enhanced startup logging with timing
-    startup_start = utc_now()
-    
-    logger.info(
-        f"Starting {settings.app_name} v{settings.app_version}",
-        extra={
-            "app_name": settings.app_name,
-            "app_version": settings.app_version,
-            "environment": settings.environment,
-            "startup_time": startup_start.isoformat(),
-            "host": settings.host,
-            "port": settings.port
-        }
-    )
     
     try:
-        # Initialize database connections with error context
-        logger.info("Initializing database connections...")
+        # Initialize database connections
         await init_database()
-        logger.info("Database initialization completed")
         
         # Initialize cache (optional - will warn if unavailable)
-        logger.info("Initializing cache connections...")
         try:
             await init_cache()
-            logger.info("Cache initialization completed")
         except Exception as e:
-            logger.warning(
-                "Cache initialization failed, continuing without cache",
-                extra={"error": str(e), "error_type": type(e).__name__}
-            )
+            logger.warning(f"Cache initialization failed, continuing without cache: {e}")
         
-        # Sync permissions on startup with enhanced logging
-        try:
-            from src.features.auth.services.permission_manager import PermissionSyncManager
-            logger.info("Starting permission synchronization...")
-            sync_manager = PermissionSyncManager()
-            sync_result = await sync_manager.sync_permissions(
-                app=app,
-                dry_run=False,  # Actually apply changes
-                force_update=False  # Only update if changed
-            )
-            
-            if sync_result['success']:
-                logger.info(
-                    "Permission sync completed successfully",
-                    extra={"sync_stats": sync_result['stats']}
-                )
-            else:
-                logger.warning(
-                    "Permission sync completed with issues",
-                    extra={"error": sync_result.get('error')}
-                )
-        except Exception as e:
-            logger.error(
-                "Permission sync failed",
-                extra={"error": str(e), "error_type": type(e).__name__}
-            )
-            # Don't fail startup for permission sync issues
+        # Sync permissions on startup
+        from src.features.auth.services.permission_manager import PermissionSyncManager
+        from src.common.database.connection import get_database
+        logger.info("Syncing permissions from code to database...")
         
-        # Calculate and log startup duration
-        startup_end = utc_now()
-        startup_duration = (startup_end - startup_start).total_seconds()
-        
-        logger.info(
-            "Application startup complete",
-            extra={
-                "startup_duration_seconds": startup_duration,
-                "startup_completed_at": startup_end.isoformat()
-            }
+        # Create permission sync manager with required dependencies
+        db_manager = get_database()
+        sync_manager = PermissionSyncManager(connection_provider=db_manager)
+        sync_result = await sync_manager.sync_permissions(
+            app=app,
+            dry_run=False,  # Actually apply changes
+            force_update=False  # Only update if changed
         )
+        
+        if sync_result['success']:
+            logger.info(f"Permission sync completed: {sync_result['stats']}")
+        else:
+            logger.warning(f"Permission sync had issues: {sync_result.get('error')}")
+        
+        # Initialize other services as needed
+        logger.info("Application startup complete")
         
     except Exception as e:
-        logger.error(
-            "Failed to start application",
-            extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "startup_failed_at": utc_now().isoformat()
-            }
-        )
+        logger.error(f"Failed to start application: {e}")
         raise
     
     yield
     
-    # Enhanced shutdown logging with timing
-    shutdown_start = utc_now()
-    logger.info(
-        "Starting application shutdown",
-        extra={"shutdown_started_at": shutdown_start.isoformat()}
-    )
+    # Shutdown
+    logger.info("Shutting down application...")
     
     try:
         # Close database connections
-        logger.info("Closing database connections...")
         await close_database()
-        logger.info("Database connections closed")
         
         # Close cache connections (if available)
-        logger.info("Closing cache connections...")
         try:
             await close_cache()
-            logger.info("Cache connections closed")
         except Exception as e:
-            logger.warning(
-                "Cache shutdown failed (non-critical)",
-                extra={"error": str(e), "error_type": type(e).__name__}
-            )
+            logger.warning(f"Cache shutdown failed (non-critical): {e}")
         
-        # Calculate and log shutdown duration
-        shutdown_end = utc_now()
-        shutdown_duration = (shutdown_end - shutdown_start).total_seconds()
-        
-        logger.info(
-            "Application shutdown complete",
-            extra={
-                "shutdown_duration_seconds": shutdown_duration,
-                "shutdown_completed_at": shutdown_end.isoformat()
-            }
-        )
+        logger.info("Application shutdown complete")
         
     except Exception as e:
-        logger.error(
-            "Error during application shutdown",
-            extra={
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "shutdown_failed_at": utc_now().isoformat()
-            }
-        )
-
-
-def _validate_app_config(config: BaseConfigProtocol) -> bool:
-    """
-    Validate FastAPI application configuration before startup.
-    
-    Args:
-        config: Configuration object implementing BaseConfigProtocol
-        
-    Returns:
-        bool: True if configuration is valid, False otherwise
-    """
-    try:
-        # Check required application settings
-        if not config.app_name:
-            logger.error("APP_NAME is required for FastAPI application")
-            return False
-            
-        if not config.app_version:
-            logger.error("APP_VERSION is required for FastAPI application")
-            return False
-            
-        if not config.database_url:
-            logger.error("DATABASE_URL is required for FastAPI application")
-            return False
-            
-        # Validate port range
-        if not (1 <= config.port <= 65535):
-            logger.error(f"Invalid port number: {config.port}")
-            return False
-            
-        # Validate environment
-        valid_environments = ("development", "staging", "production", "testing")
-        if config.environment not in valid_environments:
-            logger.warning(f"Unknown environment: {config.environment}")
-            
-        # Check Redis configuration (optional but warn if missing)
-        redis_url = getattr(config, 'redis_url', None)
-        if not redis_url:
-            logger.warning("REDIS_URL not configured - cache features will be limited")
-            
-        # Log configuration validation success
-        logger.info(
-            "Application configuration validation passed",
-            extra={
-                "app_name": config.app_name,
-                "app_version": config.app_version,
-                "environment": config.environment,
-                "port": config.port,
-                "database_configured": bool(config.database_url),
-                "redis_configured": bool(redis_url)
-            }
-        )
-        
-        return True
-        
-    except Exception as e:
-        logger.error(
-            "Application configuration validation error",
-            extra={"error": str(e), "error_type": type(e).__name__}
-        )
-        return False
+        logger.error(f"Error during shutdown: {e}")
 
 
 def create_app() -> FastAPI:
-    """
-    Create and configure FastAPI application with enhanced monitoring and validation.
+    """Create and configure FastAPI application."""
     
-    ENHANCED WITH NEO-COMMONS: Now includes configuration validation, startup timing,
-    and improved error handling using neo-commons patterns.
-    """
-    
-    # Enhanced configuration validation using neo-commons protocols
-    if not _validate_app_config(settings):
-        raise RuntimeError("Application configuration validation failed")
-    
-    # Create FastAPI instance with enhanced configuration
+    # Create FastAPI instance
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
@@ -251,33 +103,20 @@ def create_app() -> FastAPI:
     # Configure nested tag groups for better API documentation organization
     if not settings.is_production:
         configure_openapi(app)
-        logger.info("OpenAPI documentation configured with nested tag groups")
     
-    # Setup organized middleware stack with enhanced logging
-    logger.info("Setting up middleware stack...")
+    # Setup organized middleware stack
     middleware_manager = setup_middleware(app)
-    logger.info(
-        "Middleware stack configured",
-        extra={
-            "environment": settings.environment,
-            "middleware_count": len(middleware_manager._middlewares) if hasattr(middleware_manager, '_middlewares') else 0
-        }
-    )
+    logger.info(f"Configured middleware stack for {settings.environment} environment")
     
     # Log middleware status in development
     if settings.is_development:
-        try:
-            middleware_status = middleware_manager.get_middleware_status()
-            logger.info("Active middleware configuration", extra=middleware_status)
-        except AttributeError:
-            logger.info("Middleware status logging not available")
+        middleware_status = middleware_manager.get_middleware_status()
+        logger.info("Active middleware:", **middleware_status)
     
-    # Register exception handlers with logging
-    logger.info("Registering exception handlers...")
+    # Register exception handlers
     register_exception_handlers(app)
     
-    # Register routers with logging
-    logger.info("Registering API routers...")
+    # Register routers
     register_routers(app)
     
     # Add Scalar documentation at /docs
@@ -289,24 +128,10 @@ def create_app() -> FastAPI:
                 title=app.title,
                 scalar_favicon_url="https://fastapi.tiangolo.com/img/favicon.png"
             )
-        logger.info("Scalar API documentation configured at /docs")
     
-    # Register health and debug endpoints with logging
-    logger.info("Registering health and debug endpoints...")
+    # Register health and debug endpoints
     register_health_endpoints(app)
     register_debug_endpoints(app)
-    
-    # Log successful app creation
-    logger.info(
-        "FastAPI application created successfully",
-        extra={
-            "app_name": settings.app_name,
-            "app_version": settings.app_version,
-            "environment": settings.environment,
-            "docs_enabled": not settings.is_production,
-            "created_at": utc_now().isoformat()
-        }
-    )
     
     return app
 

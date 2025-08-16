@@ -1,37 +1,18 @@
-"""Database utilities for neo-commons applications."""
+"""
+Database layer utilities for the NeoMultiTenant platform.
 
-from .connection import (
-    DatabaseManager,
-    DynamicDatabaseManager,
-    get_database,
-    get_dynamic_database,
-    init_database,
-    close_database,
-)
-from .utils import (
-    process_database_record,
-    build_filter_conditions,
-    build_order_by,
-    build_pagination_query,
-    build_count_query,
-    escape_like_pattern,
-    build_upsert_query,
-)
+This module provides generic database utilities and patterns
+that can be used across all platform services.
+"""
+
+from .utils import process_database_record, build_filter_conditions
+from .connection import DatabaseManager, DynamicDatabaseManager, DatabaseConfig, SchemaConfig
 
 __all__ = [
-    # Connection management
+    "process_database_record", 
+    "build_filter_conditions",
     "DatabaseManager",
     "DynamicDatabaseManager", 
-    "get_database",
-    "get_dynamic_database",
-    "init_database",
-    "close_database",
-    # Utilities
-    "process_database_record",
-    "build_filter_conditions",
-    "build_order_by",
-    "build_pagination_query",
-    "build_count_query",
-    "escape_like_pattern",
-    "build_upsert_query",
+    "DatabaseConfig",
+    "SchemaConfig"
 ]

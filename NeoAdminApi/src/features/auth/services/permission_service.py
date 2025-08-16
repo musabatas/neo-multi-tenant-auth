@@ -9,7 +9,8 @@ from loguru import logger
 from src.common.cache.client import get_cache
 from src.common.config.settings import settings
 from src.common.exceptions.base import UnauthorizedError, ForbiddenError
-from src.integrations.keycloak.token_manager import get_token_manager
+# Use neo-commons for token management
+from neo_commons.auth import create_auth_service
 from ..repositories.permission_repository import PermissionRepository
 from ..repositories.auth_repository import AuthRepository
 
@@ -38,7 +39,8 @@ class PermissionService:
         self.permission_repo = PermissionRepository()
         self.auth_repo = AuthRepository()
         self.cache = get_cache()
-        self.token_manager = get_token_manager()
+        # Use neo-commons auth service for token operations
+        self.auth_service = create_auth_service()
         
         # Cache configuration
         self.PERMISSION_CACHE_TTL = 600  # 10 minutes
@@ -326,11 +328,10 @@ class PermissionService:
             UnauthorizedError: Invalid token
             ForbiddenError: Lacks permission
         """
-        # Validate token
-        token_claims = await self.token_manager.validate_token(
+        # Validate token using neo-commons auth service
+        token_claims = await self.auth_service.validate_token(
             access_token,
-            realm=settings.keycloak_admin_realm,
-            critical=False  # Use dual validation
+            realm=settings.keycloak_admin_realm
         )
         
         # Get user ID from token

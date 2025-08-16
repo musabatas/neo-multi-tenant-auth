@@ -1,15 +1,30 @@
 """
-Neo Commons Services Package
+Service layer patterns for the NeoMultiTenant platform.
 
-This package contains reusable service patterns for business logic
-using the neo-commons library.
-
-Components:
-- Base: Abstract base service with common business logic patterns
+This module provides generic service classes and patterns
+that can be used across all platform services.
 """
 
 from .base import BaseService
 
+from .protocols import (
+    BaseServiceProtocol,
+    CRUDServiceProtocol,
+    FilterableServiceProtocol,
+    CacheableServiceProtocol,
+    AuditableServiceProtocol,
+    TenantAwareServiceProtocol,
+    BatchServiceProtocol
+)
+
 __all__ = [
-    "BaseService"
+    "BaseService",
+    # Protocol interfaces
+    "BaseServiceProtocol",
+    "CRUDServiceProtocol",
+    "FilterableServiceProtocol",
+    "CacheableServiceProtocol",
+    "AuditableServiceProtocol",
+    "TenantAwareServiceProtocol",
+    "BatchServiceProtocol"
 ]

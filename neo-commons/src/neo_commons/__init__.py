@@ -1,124 +1,94 @@
 """
-NeoCommons - Shared utilities for NeoMultiTenant microservices
+Neo-Commons: Enterprise-grade shared infrastructure library for NeoMultiTenant platform.
 
-This package provides common utilities, authentication, database connections,
-caching, and other shared components used across NeoMultiTenant API services.
+This package provides reusable infrastructure components implementing Clean Architecture
+principles, protocol-based dependency injection, and enterprise-grade patterns.
+
+Key Features:
+- Protocol-based design with @runtime_checkable interfaces
+- Sub-millisecond permission checks with intelligent caching
+- Multi-tenant architecture with dynamic schema configuration
+- Clean Architecture with proper layer separation
+- Enterprise security with Keycloak integration
+- 100% type coverage with Pydantic models
 """
 
-# Import version from single source of truth
-from .__version__ import __version__
-__author__ = "NeoFast Team"
-__email__ = "team@neofast.com"
+__version__ = "0.1.0"
+__author__ = "NeoMultiTenant Team"
+__email__ = "dev@neomultitenant.com"
+
+# Protocol interfaces for maximum flexibility and dependency injection
+from . import protocols
+
+# Repository patterns for data access layer
+from .repositories.base import BaseRepository
+
+# Models module exports
+from .models.base import (
+    BaseSchema,
+    TimestampMixin,
+    UUIDMixin,
+    SoftDeleteMixin,
+    AuditMixin,
+    StatusEnum,
+    SortOrder,
+    PaginationParams,
+    PaginationMetadata,
+    PaginatedResponse,
+    APIResponse,
+    HealthStatus,
+    ServiceHealth,
+    HealthCheckResponse,
+)
+
+# Exceptions module exports
+from .exceptions.base import (
+    NeoException,
+    ValidationError,
+    NotFoundError,
+    ConflictError,
+    UnauthorizedError,
+    ForbiddenError,
+    BadRequestError,
+    RateLimitError,
+    ExternalServiceError,
+)
 
 __all__ = [
     "__version__",
+    "__author__",
+    "__email__",
+    
+    # Protocol interfaces module
+    "protocols",
+    
+    # Repository patterns
+    "BaseRepository",
+    
+    # Base models
+    "BaseSchema",
+    "TimestampMixin",
+    "UUIDMixin", 
+    "SoftDeleteMixin",
+    "AuditMixin",
+    "StatusEnum",
+    "SortOrder",
+    "PaginationParams",
+    "PaginationMetadata",
+    "PaginatedResponse",
+    "APIResponse",
+    "HealthStatus",
+    "ServiceHealth",
+    "HealthCheckResponse",
+    
+    # Exceptions
+    "NeoException",
+    "ValidationError",
+    "NotFoundError",
+    "ConflictError",
+    "UnauthorizedError",
+    "ForbiddenError",
+    "BadRequestError",
+    "RateLimitError",
+    "ExternalServiceError",
 ]
-
-# Conditional imports to avoid dependency issues during installation
-def _import_optional_modules():
-    """Import modules that have external dependencies only when accessed."""
-    try:
-        # Core imports for convenience
-        from .exceptions.base import NeoCommonsException
-        from .models.base import BaseModel
-        from .utils.datetime import utc_now, format_iso8601
-
-        # Authorization system
-        from .auth import (
-            Permission,
-            Role,
-            UserContext,
-            TenantContext,
-            PermissionService,
-            PermissionRepository,
-            get_current_user,
-            require_permission,
-            permission_required,
-            PermissionError
-        )
-
-        # Configuration management
-        from .config import (
-            BaseConfigProtocol,
-            BaseNeoConfig,
-            AdminConfig,
-            TenantConfig,
-            TestingConfig,
-            get_config,
-            get_admin_config,
-            get_tenant_config,
-            get_testing_config,
-            create_config_for_environment,
-            validate_config_or_exit
-        )
-
-        # Update __all__ with successful imports
-        global __all__
-        __all__ = [
-            "__version__",
-            "NeoCommonsException", 
-            "BaseModel",
-            "utc_now",
-            "format_iso8601",
-            # Authorization
-            "Permission",
-            "Role",
-            "UserContext",
-            "TenantContext", 
-            "PermissionService",
-            "PermissionRepository",
-            "get_current_user",
-            "require_permission",
-            "permission_required",
-            "PermissionError",
-            # Configuration
-            "BaseConfigProtocol",
-            "BaseNeoConfig",
-            "AdminConfig", 
-            "TenantConfig",
-            "TestingConfig",
-            "get_config",
-            "get_admin_config",
-            "get_tenant_config",
-            "get_testing_config",
-            "create_config_for_environment",
-            "validate_config_or_exit"
-        ]
-
-        # Add to globals for easy access
-        globals().update({
-            'NeoCommonsException': NeoCommonsException,
-            'BaseModel': BaseModel,
-            'utc_now': utc_now,
-            'format_iso8601': format_iso8601,
-            'Permission': Permission,
-            'Role': Role,
-            'UserContext': UserContext,
-            'TenantContext': TenantContext,
-            'PermissionService': PermissionService,
-            'PermissionRepository': PermissionRepository,
-            'get_current_user': get_current_user,
-            'require_permission': require_permission,
-            'permission_required': permission_required,
-            'PermissionError': PermissionError,
-            'BaseConfigProtocol': BaseConfigProtocol,
-            'BaseNeoConfig': BaseNeoConfig,
-            'AdminConfig': AdminConfig,
-            'TenantConfig': TenantConfig,
-            'TestingConfig': TestingConfig,
-            'get_config': get_config,
-            'get_admin_config': get_admin_config,
-            'get_tenant_config': get_tenant_config,
-            'get_testing_config': get_testing_config,
-            'create_config_for_environment': create_config_for_environment,
-            'validate_config_or_exit': validate_config_or_exit,
-        })
-
-    except ImportError:
-        # During installation, dependencies might not be available yet
-        pass
-
-# Only import optional modules if we're not in setup mode
-import sys
-if 'setuptools' not in sys.modules:
-    _import_optional_modules()

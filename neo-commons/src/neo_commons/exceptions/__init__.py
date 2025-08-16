@@ -1,11 +1,12 @@
 """
-Common exceptions module for NeoMultiTenant services.
-Re-exports all exceptions for backward compatibility.
+Exception handling for the NeoMultiTenant platform.
+
+This module provides a consistent exception hierarchy for all services
+in the platform, enabling standardized error handling and response formats.
 """
 
-# Base and HTTP exceptions
 from .base import (
-    NeoCommonsException,
+    NeoException,
     ValidationError,
     NotFoundError,
     ConflictError,
@@ -16,7 +17,6 @@ from .base import (
     ExternalServiceError,
 )
 
-# Domain-specific exceptions
 from .domain import (
     TenantError,
     TenantProvisioningError,
@@ -25,20 +25,24 @@ from .domain import (
     ConfigurationError,
 )
 
-# Service and infrastructure exceptions
 from .service import (
     DatabaseError,
     CacheError,
     ServiceUnavailableError,
 )
 
-# Aliases for common patterns
-AuthenticationError = UnauthorizedError
-AuthorizationError = ForbiddenError
+from .protocols import (
+    ExceptionProtocol,
+    DomainExceptionProtocol,
+    ServiceExceptionProtocol,
+    ExceptionHandlerProtocol,
+    ValidationExceptionProtocol,
+    ErrorReporterProtocol
+)
 
 __all__ = [
-    # Base
-    "NeoCommonsException",
+    # Base exceptions
+    "NeoException",
     "ValidationError",
     "NotFoundError",
     "ConflictError",
@@ -47,17 +51,22 @@ __all__ = [
     "BadRequestError",
     "RateLimitError",
     "ExternalServiceError",
-    # Domain
+    # Domain exceptions
     "TenantError",
     "TenantProvisioningError",
     "QuotaExceededError",
     "MigrationError",
     "ConfigurationError",
-    # Service
+    # Service exceptions
     "DatabaseError",
     "CacheError",
     "ServiceUnavailableError",
-    # Aliases
-    "AuthenticationError",
-    "AuthorizationError",
+    
+    # Protocol interfaces
+    "ExceptionProtocol",
+    "DomainExceptionProtocol",
+    "ServiceExceptionProtocol",
+    "ExceptionHandlerProtocol",
+    "ValidationExceptionProtocol",
+    "ErrorReporterProtocol"
 ]

@@ -58,6 +58,20 @@ from .timing import (
     get_performance_summary
 )
 
+from .request_context import (
+    RequestContextMiddleware,
+    RequestContext,
+    track_performance,
+    get_request_id,
+    get_processing_time,
+    get_request_metadata,
+    request_id_var,
+    start_time_var,
+    db_queries_var,
+    cache_operations_var,
+    performance_markers_var
+)
+
 # Convenience function for easy setup
 def setup_middleware(app, config=None):
     """
@@ -123,6 +137,19 @@ __all__ = [
     'TimingMiddleware',
     'ResponseSizeMiddleware',
     'get_performance_summary',
+    
+    # Request context middleware
+    'RequestContextMiddleware',
+    'RequestContext',
+    'track_performance',
+    'get_request_id',
+    'get_processing_time',
+    'get_request_metadata',
+    'request_id_var',
+    'start_time_var',
+    'db_queries_var',
+    'cache_operations_var',
+    'performance_markers_var',
     
     # Convenience functions
     'setup_middleware',

@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Set, Optional
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from loguru import logger
-from ..decorators.permissions import PermissionMetadata
+from neo_commons.auth.decorators import PermissionMetadata
 
 
 class EndpointPermissionScanner:

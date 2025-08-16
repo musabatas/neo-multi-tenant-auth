@@ -9,7 +9,7 @@ from loguru import logger
 
 from src.common.models.base import APIResponse
 from src.common.exceptions.base import UnauthorizedError, NotFoundError
-from ..decorators import require_permission
+from neo_commons.auth.decorators import require_permission
 from ..dependencies import security
 from ..services.permission_service import PermissionService
 from ..models.response import PermissionResponse
@@ -141,8 +141,10 @@ async def trigger_sync(
     # Create app instance to scan
     app = create_app()
     
-    # Run sync
-    sync_manager = PermissionSyncManager()
+    # Run sync with required dependencies
+    from src.common.database.connection import get_database
+    db_manager = get_database()
+    sync_manager = PermissionSyncManager(connection_provider=db_manager)
     result = await sync_manager.sync_permissions(
         app=app,
         dry_run=dry_run,
@@ -181,7 +183,10 @@ async def check_permissions(
     auth_service = AuthService()
     
     # Get current user WITH CACHE - this already has all permissions
-    user = await auth_service.get_current_user(credentials.credentials, use_cache=True)
+    user = await auth_service.get_current_user(
+        access_token=credentials.credentials,
+        use_cache=True
+    )
     
     # Parse requested permissions
     permission_list = [p.strip() for p in permissions.split(',')]

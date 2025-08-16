@@ -25,7 +25,7 @@ def register_health_endpoints(app: FastAPI) -> None:
         """Health check endpoint."""
         from src.common.database.connection import get_database
         from src.common.cache.client import get_cache
-        from src.common.utils.datetime import utc_now
+        from src.common.utils import utc_now
         
         services = {}
         overall_status = HealthStatus.HEALTHY
@@ -106,7 +106,7 @@ def register_health_endpoints(app: FastAPI) -> None:
     async def cache_health():
         """Detailed cache health and status endpoint."""
         from src.common.cache.client import get_cache
-        from src.common.utils.datetime import utc_now
+        from src.common.utils import utc_now
         
         cache = get_cache()
         cache_status = cache.get_cache_status()

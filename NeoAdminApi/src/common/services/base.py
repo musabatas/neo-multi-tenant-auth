@@ -1,42 +1,42 @@
 """
 Base service pattern for business logic operations.
 
-MIGRATED TO NEO-COMMONS: Now using neo-commons BaseService with additional validation helpers.
-Import compatibility maintained - all existing imports continue to work.
+Service wrapper that imports from neo-commons and provides NeoAdminApi-specific
+service patterns while maintaining backward compatibility.
 """
 
-from typing import Optional, Dict, Any, TypeVar, Generic
+from typing import TypeVar, Generic
 
-# NEO-COMMONS IMPORT: Use neo-commons BaseService as foundation
-from neo_commons.services.base import BaseService as NeoCommonsBaseService
+# Import base service class from neo-commons
+from neo_commons.services.base import BaseService as NeoBaseService
+
+# Import service-specific exceptions for compatibility
+from src.common.exceptions.base import NeoAdminException
 
 T = TypeVar('T')
 
 
-class BaseService(NeoCommonsBaseService[T]):
+class BaseService(NeoBaseService[T], Generic[T]):
     """
-    NeoAdminApi base service extending neo-commons BaseService.
+    Service wrapper for NeoAdminApi that extends neo-commons BaseService.
     
-    Maintains backward compatibility while leveraging neo-commons infrastructure.
-    Adds all the enhanced features from neo-commons including:
-    - Enhanced validation helpers (validate_required_fields, validate_field_lengths)
-    - Input sanitization methods (sanitize_input)
-    - Structured logging (log_operation)
-    - Unique constraint validation (validate_unique_constraint)
+    Provides additional service-specific patterns while maintaining
+    full compatibility with existing NeoAdminApi code.
     """
     
-    # All methods are inherited from neo-commons BaseService
-    # The neo-commons version includes additional features like:
-    # - validate_required_fields() for comprehensive field validation
-    # - validate_field_lengths() for length constraint validation
-    # - sanitize_input() for cleaning and filtering input data
-    # - validate_unique_constraint() for uniqueness validation
-    # - log_operation() for structured service operation logging
-    # - Enhanced error handling with proper ValidationError usage
-    pass
-
-
-# Re-export the class for backward compatibility
-__all__ = [
-    "BaseService",
-]
+    def validate_pagination_params(
+        self,
+        page: int,
+        page_size: int,
+        max_page_size: int = 100
+    ):
+        """Override to convert ValidationError to NeoAdminException for service compatibility."""
+        try:
+            return super().validate_pagination_params(page, page_size, max_page_size)
+        except Exception as e:
+            # Convert neo-commons ValidationError to NeoAdminException for service compatibility
+            raise NeoAdminException(
+                status_code=400,
+                error_code="PAGINATION_VALIDATION_ERROR",
+                message=str(e)
+            )

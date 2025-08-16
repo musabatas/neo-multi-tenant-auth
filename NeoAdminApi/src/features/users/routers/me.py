@@ -44,7 +44,7 @@ async def get_my_profile(
     
     try:
         # Use shared method from AuthService (same as /auth/me)
-        user_profile = await auth_service.get_current_user_profile(
+        user_profile = await auth_service.get_current_user(
             access_token=access_token,
             use_cache=True
         )

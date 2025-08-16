@@ -1,63 +1,32 @@
 """
 Base models for API requests and responses.
 
-MIGRATED TO NEO-COMMONS: Now using neo-commons base models with NeoAdminApi-specific extensions.
-Import compatibility maintained - all existing imports continue to work.
+Service wrapper for neo-commons base models with NeoAdminApi-specific functionality.
 """
-from typing import Optional, Any, Dict, List, TypeVar, Generic
-from datetime import datetime
-from neo_commons.utils.datetime import utc_now
+from typing import Optional, Any, Dict, List
 
-# NEO-COMMONS IMPORT: Use neo-commons base models as foundation
-from neo_commons.models import (
-    # Base schemas and mixins
+# Import all base models from neo-commons
+from neo_commons.models.base import (
     BaseSchema,
     TimestampMixin,
     UUIDMixin,
     SoftDeleteMixin,
     AuditMixin,
-    # Enums
     StatusEnum,
     SortOrder,
+    PaginationParams,
+    PaginatedResponse,
+    APIResponse as BaseAPIResponse,
     HealthStatus,
-    # API responses
-    APIResponse as NeoCommonsAPIResponse,
-    # Health check models
     ServiceHealth,
-    HealthCheckResponse as NeoCommonsHealthCheckResponse,
-    # Pagination models
-    PaginationParams as NeoCommonsPaginationParams,
-    PaginatedResponse as NeoCommonsPaginatedResponse,
+    HealthCheckResponse,
+    T
 )
 
-# Type variable for generic responses
-T = TypeVar('T')
 
-
-class PaginationParams(NeoCommonsPaginationParams):
-    """
-    NeoAdminApi pagination parameters extending neo-commons.
-    
-    Maintains backward compatibility while leveraging neo-commons infrastructure.
-    """
-    pass
-
-
-class PaginatedResponse(NeoCommonsPaginatedResponse[T]):
-    """
-    NeoAdminApi paginated response extending neo-commons.
-    
-    Maintains backward compatibility while leveraging neo-commons infrastructure.
-    """
-    pass
-
-
-class APIResponse(NeoCommonsAPIResponse[T]):
-    """
-    NeoAdminApi API response extending neo-commons.
-    
-    Adds NeoAdminApi-specific metadata collection capabilities.
-    """
+# Service-specific APIResponse with NeoAdminApi metadata collection
+class APIResponse(BaseAPIResponse[T]):
+    """Service wrapper for APIResponse with NeoAdminApi-specific metadata collection."""
     
     @classmethod
     def _collect_request_metadata(cls) -> Dict[str, Any]:
@@ -68,37 +37,3 @@ class APIResponse(NeoCommonsAPIResponse[T]):
         except Exception:
             # Never fail the response due to metadata collection issues
             return {}
-
-
-class HealthCheckResponse(NeoCommonsHealthCheckResponse):
-    """
-    NeoAdminApi health check response extending neo-commons.
-    
-    Uses NeoAdminApi's utc_now for timestamp generation.
-    """
-    timestamp: datetime = utc_now()  # Use NeoAdminApi's datetime utility
-
-
-# Re-export all neo-commons models for backward compatibility
-__all__ = [
-    # Base schemas and mixins from neo-commons
-    "BaseSchema",
-    "TimestampMixin",
-    "UUIDMixin", 
-    "SoftDeleteMixin",
-    "AuditMixin",
-    
-    # Enums from neo-commons
-    "StatusEnum",
-    "SortOrder",
-    "HealthStatus",
-    
-    # NeoAdminApi-extended models
-    "PaginationParams",
-    "PaginatedResponse",
-    "APIResponse",
-    "HealthCheckResponse",
-    
-    # Direct neo-commons exports
-    "ServiceHealth",
-]

@@ -1,11 +1,14 @@
 """
-Base exception classes for NeoMultiTenant services.
+Base exception classes for the NeoMultiTenant platform.
+
+This module provides a comprehensive hierarchy of exceptions that can be used
+across all services in the platform for consistent error handling.
 """
 from typing import Optional, Any, Dict, List
 
 
-class NeoCommonsException(Exception):
-    """Base exception for all neo-commons exceptions."""
+class NeoException(Exception):
+    """Base exception for all NeoMultiTenant platform exceptions."""
     
     def __init__(
         self,
@@ -30,7 +33,7 @@ class NeoCommonsException(Exception):
         }
 
 
-class ValidationError(NeoCommonsException):
+class ValidationError(NeoException):
     """Raised when validation fails."""
     
     def __init__(
@@ -43,7 +46,7 @@ class ValidationError(NeoCommonsException):
         self.details["errors"] = errors or []
 
 
-class NotFoundError(NeoCommonsException):
+class NotFoundError(NeoException):
     """Raised when a resource is not found."""
     
     def __init__(
@@ -65,7 +68,7 @@ class NotFoundError(NeoCommonsException):
             self.details["identifier"] = str(identifier)
 
 
-class ConflictError(NeoCommonsException):
+class ConflictError(NeoException):
     """Raised when there's a conflict with existing data."""
     
     def __init__(
@@ -82,7 +85,7 @@ class ConflictError(NeoCommonsException):
             self.details["value"] = str(conflicting_value)
 
 
-class UnauthorizedError(NeoCommonsException):
+class UnauthorizedError(NeoException):
     """Raised when authentication is required but not provided."""
     
     def __init__(
@@ -93,7 +96,7 @@ class UnauthorizedError(NeoCommonsException):
         super().__init__(message, status_code=401, **kwargs)
 
 
-class ForbiddenError(NeoCommonsException):
+class ForbiddenError(NeoException):
     """Raised when user doesn't have permission."""
     
     def __init__(
@@ -110,7 +113,7 @@ class ForbiddenError(NeoCommonsException):
             self.details["resource"] = resource
 
 
-class BadRequestError(NeoCommonsException):
+class BadRequestError(NeoException):
     """Raised when request is malformed or invalid."""
     
     def __init__(
@@ -121,7 +124,7 @@ class BadRequestError(NeoCommonsException):
         super().__init__(message, status_code=400, **kwargs)
 
 
-class RateLimitError(NeoCommonsException):
+class RateLimitError(NeoException):
     """Raised when rate limit is exceeded."""
     
     def __init__(
@@ -135,7 +138,7 @@ class RateLimitError(NeoCommonsException):
             self.details["retry_after"] = retry_after
 
 
-class ExternalServiceError(NeoCommonsException):
+class ExternalServiceError(NeoException):
     """Raised when an external service call fails."""
     
     def __init__(

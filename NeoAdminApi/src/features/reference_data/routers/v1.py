@@ -7,7 +7,7 @@ from fastapi import Depends, Query, HTTPException, status, Path
 from src.common.routers.base import NeoAPIRouter
 
 from src.common.models.base import APIResponse
-from src.common.models.pagination import PaginationParams
+from src.common.models import PaginationParams
 from src.common.database.connection import get_database
 from src.features.auth.dependencies import get_reference_data_access, get_guest_session_info
 from ..models.request import CurrencyFilter, CountryFilter, LanguageFilter

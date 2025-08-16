@@ -8,7 +8,7 @@ from uuid import UUID
 import logging
 
 from src.common.services.base import BaseService
-from src.common.models.pagination import PaginationParams, PaginatedResponse
+from src.common.models import PaginationParams, PaginatedResponse
 from src.common.exceptions.base import NotFoundError, ConflictError, ValidationError
 from src.common.cache.client import get_cache
 from src.features.auth.services.permission_service import PermissionService

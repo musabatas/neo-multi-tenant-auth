@@ -14,7 +14,7 @@ from src.common.exceptions.base import (
     ValidationError,
     ConflictError
 )
-from src.features.auth.decorators import require_permission
+from neo_commons.auth.decorators import require_permission
 from src.features.auth.dependencies import security, CheckPermission
 
 from ..models.request import (
@@ -29,6 +29,11 @@ from ..models.response import (
 from ..services.organization_service import OrganizationService
 
 router = NeoAPIRouter()
+
+
+def get_organization_service() -> OrganizationService:
+    """Get organization service instance using neo-commons dependency injection."""
+    return OrganizationService()
 
 
 @router.get(
@@ -51,14 +56,14 @@ async def list_organizations(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
     # Auth
-    current_user: dict = Depends(CheckPermission(["organizations:list"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["organizations:list"], scope="platform")),
+    service: OrganizationService = Depends(get_organization_service)
 ) -> APIResponse[OrganizationListResponse]:
     """
     List organizations with optional filtering and pagination.
     
     Requires platform-level permission to list organizations.
     """
-    service = OrganizationService()
     
     # Build filters
     filters = OrganizationFilter(
@@ -106,14 +111,14 @@ async def list_organizations(
 @require_permission("organizations:create", scope="platform", description="Create organizations")
 async def create_organization(
     organization_data: OrganizationCreate,
-    current_user: dict = Depends(CheckPermission(["organizations:create"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["organizations:create"], scope="platform")),
+    service: OrganizationService = Depends(get_organization_service)
 ) -> APIResponse[OrganizationResponse]:
     """
     Create a new organization.
     
     Requires platform-level permission to create organizations.
     """
-    service = OrganizationService()
     
     try:
         result = await service.create_organization(
@@ -152,14 +157,14 @@ async def create_organization(
 @require_permission("organizations:read", scope="platform", description="View organization details")
 async def get_organization(
     organization_id: UUID,
-    current_user: dict = Depends(CheckPermission(["organizations:read"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["organizations:read"], scope="platform")),
+    service: OrganizationService = Depends(get_organization_service)
 ) -> APIResponse[OrganizationResponse]:
     """
     Get organization details by ID.
     
     Requires platform-level permission to read organization details.
     """
-    service = OrganizationService()
     
     try:
         result = await service.get_organization(str(organization_id))
@@ -190,14 +195,14 @@ async def get_organization(
 @require_permission("organizations:read", scope="platform", description="View organization details")
 async def get_organization_by_slug(
     slug: str,
-    current_user: dict = Depends(CheckPermission(["organizations:read"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["organizations:read"], scope="platform")),
+    service: OrganizationService = Depends(get_organization_service)
 ) -> APIResponse[OrganizationResponse]:
     """
     Get organization details by slug.
     
     Requires platform-level permission to read organization details.
     """
-    service = OrganizationService()
     
     try:
         result = await service.get_organization_by_slug(slug)
@@ -229,14 +234,14 @@ async def get_organization_by_slug(
 async def update_organization(
     organization_id: UUID,
     update_data: OrganizationUpdate,
-    current_user: dict = Depends(CheckPermission(["organizations:update"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["organizations:update"], scope="platform")),
+    service: OrganizationService = Depends(get_organization_service)
 ) -> APIResponse[OrganizationResponse]:
     """
     Update organization details.
     
     Requires platform-level permission to update organizations.
     """
-    service = OrganizationService()
     
     try:
         result = await service.update_organization(str(organization_id), update_data)
@@ -272,7 +277,8 @@ async def update_organization(
 @require_permission("organizations:delete", scope="platform", description="Delete organizations")
 async def delete_organization(
     organization_id: UUID,
-    current_user: dict = Depends(CheckPermission(["organizations:delete"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["organizations:delete"], scope="platform")),
+    service: OrganizationService = Depends(get_organization_service)
 ) -> APIResponse[dict]:
     """
     Soft delete an organization.
@@ -282,7 +288,6 @@ async def delete_organization(
     
     Requires platform-level permission to delete organizations.
     """
-    service = OrganizationService()
     
     try:
         await service.delete_organization(str(organization_id))

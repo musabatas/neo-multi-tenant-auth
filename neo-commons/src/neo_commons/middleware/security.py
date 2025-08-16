@@ -1,11 +1,28 @@
 """
 Security headers middleware for enhanced application security.
+
+Generic security middleware components that can be used across all platform services
+in the NeoMultiTenant ecosystem.
 """
 import time
-import os
-from typing import Callable, Dict, Optional, List
+from typing import Callable, Dict, Optional, List, Protocol, runtime_checkable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+
+
+@runtime_checkable
+class SecurityConfig(Protocol):
+    """Protocol for security configuration."""
+    
+    @property
+    def is_production(self) -> bool:
+        """Whether running in production environment."""
+        ...
+    
+    @property
+    def is_development(self) -> bool:
+        """Whether running in development environment."""
+        ...
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -27,8 +44,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app,
+        security_config: Optional[SecurityConfig] = None,
         *,
-        force_https: bool = None,
+        force_https: bool = False,
         hsts_max_age: int = 31536000,  # 1 year
         hsts_include_subdomains: bool = True,
         hsts_preload: bool = False,
@@ -40,16 +58,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         permissions_policy: Optional[Dict[str, List[str]]] = None,
         custom_headers: Optional[Dict[str, str]] = None,
         exclude_paths: Optional[List[str]] = None,
-        is_production: bool = None
+        server_header: str = "NeoService"
     ):
         super().__init__(app)
-        
-        # Auto-detect production if not specified
-        if is_production is None:
-            is_production = os.getenv("ENVIRONMENT", "development").lower() == "production"
-        
-        self.is_production = is_production
-        self.force_https = force_https if force_https is not None else is_production
+        self.security_config = security_config
+        self.force_https = force_https or (security_config.is_production if security_config else False)
         self.hsts_max_age = hsts_max_age
         self.hsts_include_subdomains = hsts_include_subdomains
         self.hsts_preload = hsts_preload
@@ -59,10 +72,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self.referrer_policy = referrer_policy
         self.custom_headers = custom_headers or {}
         self.exclude_paths = exclude_paths or []
+        self.server_header = server_header
         
-        # Build CSP and Permissions Policy
-        self.content_security_policy = content_security_policy or self._build_default_csp()
-        self.permissions_policy = permissions_policy or self._build_default_permissions_policy()
+        # Build CSP
+        if content_security_policy is None:
+            self.content_security_policy = self._build_default_csp()
+        else:
+            self.content_security_policy = content_security_policy
+        
+        # Build Permissions Policy
+        if permissions_policy is None:
+            self.permissions_policy = self._build_default_permissions_policy()
+        else:
+            self.permissions_policy = permissions_policy
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Add security headers to response."""
@@ -121,9 +143,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         for header_name, header_value in self.custom_headers.items():
             response.headers[header_name] = header_value
         
-        # Server header removal (don't advertise server software)
-        app_name = os.getenv("APP_NAME", "NeoMultiTenant")
-        response.headers["Server"] = app_name
+        # Server header (configurable)
+        response.headers["Server"] = self.server_header
     
     def _build_default_csp(self) -> str:
         """Build default Content Security Policy."""
@@ -143,7 +164,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         ]
         
         # Adjust for development
-        if not self.is_production:
+        if self.security_config and self.security_config.is_development:
             # Allow local development servers
             csp_directives = [directive.replace("'self'", "'self' localhost:* 127.0.0.1:*") 
                             for directive in csp_directives]
@@ -373,16 +394,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def _is_rate_limited(self, client_ip: str) -> bool:
         """Check if client IP is rate limited."""
+        # This is a simplified implementation
+        # In production, use proper sliding window with Redis
         current_time = int(time.time())
         
         if client_ip not in self._request_counts:
             return False
         
-        # Clean old entries and check limits
+        # Clean old entries (simple cleanup)
         counts = self._request_counts[client_ip]
-        recent_requests = [t for t in counts if current_time - t < 3600]
+        recent_requests = [t for t in counts if current_time - t < 3600]  # Last hour
         self._request_counts[client_ip] = recent_requests
         
+        # Check limits
         minute_requests = len([t for t in recent_requests if current_time - t < 60])
         hour_requests = len(recent_requests)
         
@@ -391,6 +415,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def _record_request(self, client_ip: str):
         """Record request timestamp."""
         current_time = int(time.time())
+        
         if client_ip not in self._request_counts:
             self._request_counts[client_ip] = []
+        
         self._request_counts[client_ip].append(current_time)

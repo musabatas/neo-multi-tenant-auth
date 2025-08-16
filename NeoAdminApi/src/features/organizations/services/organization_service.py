@@ -14,7 +14,7 @@ from src.common.exceptions.base import (
 from src.common.models.base import PaginationParams
 from src.common.services.base import BaseService
 # Removed cache import - organizations are not critical performance endpoints
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
 
 from ..models.domain import Organization
 from ..models.request import (

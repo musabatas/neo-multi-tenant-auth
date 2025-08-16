@@ -3,7 +3,6 @@ Dependencies for reference data feature.
 """
 
 from fastapi import Depends
-from src.common.database.connection import get_database
 from src.common.cache.client import get_cache
 from .repositories.reference_data_repository import (
     CurrencyRepository, CountryRepository, LanguageRepository
@@ -14,23 +13,20 @@ from .services.reference_data_service import (
 from .cache.strategies import ReferenceDataCache
 
 
-# Repository dependencies
+# Repository dependencies using neo-commons patterns
 def get_currency_repository() -> CurrencyRepository:
-    """Get currency repository instance."""
-    db = get_database()
-    return CurrencyRepository(db)
+    """Get currency repository instance using neo-commons patterns."""
+    return CurrencyRepository()
 
 
 def get_country_repository() -> CountryRepository:
-    """Get country repository instance."""
-    db = get_database()
-    return CountryRepository(db)
+    """Get country repository instance using neo-commons patterns."""
+    return CountryRepository()
 
 
 def get_language_repository() -> LanguageRepository:
-    """Get language repository instance."""
-    db = get_database()
-    return LanguageRepository(db)
+    """Get language repository instance using neo-commons patterns."""
+    return LanguageRepository()
 
 
 # Cache dependency

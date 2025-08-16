@@ -7,11 +7,11 @@ from uuid import UUID
 from datetime import datetime
 from loguru import logger
 
-from src.common.repositories.base import BaseRepository
-from src.common.database.connection import get_database
-from src.common.database.utils import process_database_record
+from neo_commons.repositories.base import BaseRepository  
+from neo_commons.database.utils import process_database_record
 from src.common.exceptions.base import NotFoundError, ConflictError
-from src.common.utils.datetime import utc_now
+from src.common.utils import utc_now
+from src.common.database.connection_provider import neo_admin_connection_provider
 
 from ..models.domain import (
     PlatformUser, PlatformRole, PlatformPermission,
@@ -22,18 +22,26 @@ from ..models.domain import (
 from ..models.request import PlatformUserCreate, PlatformUserUpdate, PlatformUserFilter
 
 
-class PlatformUserRepository(BaseRepository[PlatformUser]):
+class PlatformUserRepository(BaseRepository[Dict[str, Any]]):
     """Repository for platform user data access."""
     
-    def __init__(self):
-        """Initialize the repository."""
-        super().__init__(table_name="platform_users", schema="admin")
+    def __init__(self, schema: str = "admin"):
+        """Initialize the repository with configurable schema.
+        
+        Args:
+            schema: Database schema to use (default: admin)
+        """
+        super().__init__(
+            table_name="platform_users", 
+            default_schema=schema,
+            connection_provider=neo_admin_connection_provider
+        )
     
     async def get_by_id(self, user_id: str) -> PlatformUser:
         """Get a platform user by ID."""
-        db = get_database()
-        query = """
-            SELECT * FROM admin.platform_users 
+        db = await self.get_connection()
+        query = f"""
+            SELECT * FROM {self.get_current_schema()}.platform_users 
             WHERE id = $1 AND deleted_at IS NULL
         """
         
@@ -52,9 +60,9 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def get_by_email(self, email: str) -> PlatformUser:
         """Get a platform user by email."""
-        db = get_database()
-        query = """
-            SELECT * FROM admin.platform_users 
+        db = await self.get_connection()
+        query = f"""
+            SELECT * FROM {self.get_current_schema()}.platform_users 
             WHERE email = $1 AND deleted_at IS NULL
         """
         
@@ -72,9 +80,9 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def get_by_username(self, username: str) -> PlatformUser:
         """Get a platform user by username."""
-        db = get_database()
-        query = """
-            SELECT * FROM admin.platform_users 
+        db = await self.get_connection()
+        query = f"""
+            SELECT * FROM {self.get_current_schema()}.platform_users 
             WHERE username = $1 AND deleted_at IS NULL
         """
         
@@ -92,9 +100,9 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def get_by_external_id(self, provider: AuthProvider, external_user_id: str) -> Optional[PlatformUser]:
         """Get a platform user by external provider credentials."""
-        db = get_database()
-        query = """
-            SELECT * FROM admin.platform_users 
+        db = await self.get_connection()
+        query = f"""
+            SELECT * FROM {self.get_current_schema()}.platform_users 
             WHERE external_auth_provider = $1 AND external_user_id = $2 AND deleted_at IS NULL
         """
         
@@ -117,7 +125,7 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
         offset: int = 0
     ) -> Tuple[List[PlatformUser], int]:
         """List platform users with optional filtering."""
-        db = get_database()
+        db = await self.get_connection()
         
         # Build WHERE conditions
         where_conditions = ["deleted_at IS NULL"]
@@ -203,8 +211,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                     # Single role - use exact match
                     where_conditions.append(f"""
                         EXISTS (
-                            SELECT 1 FROM admin.platform_user_roles pur
-                            JOIN admin.platform_roles pr ON pur.role_id = pr.id
+                            SELECT 1 FROM {self.get_current_schema()}.platform_user_roles pur
+                            JOIN {self.get_current_schema()}.platform_roles pr ON pur.role_id = pr.id
                             WHERE pur.user_id = platform_users.id 
                             AND pr.code = ${param_counter}
                             AND pur.is_active = true
@@ -218,8 +226,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                     role_placeholders = ','.join([f'${param_counter + i}' for i in range(len(filters.has_role))])
                     where_conditions.append(f"""
                         EXISTS (
-                            SELECT 1 FROM admin.platform_user_roles pur
-                            JOIN admin.platform_roles pr ON pur.role_id = pr.id
+                            SELECT 1 FROM {self.get_current_schema()}.platform_user_roles pur
+                            JOIN {self.get_current_schema()}.platform_roles pr ON pur.role_id = pr.id
                             WHERE pur.user_id = platform_users.id 
                             AND pr.code IN ({role_placeholders})
                             AND pur.is_active = true
@@ -237,9 +245,9 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                         (
                             -- Permission from platform roles
                             EXISTS (
-                                SELECT 1 FROM admin.platform_user_roles pur
-                                JOIN admin.role_permissions rp ON pur.role_id = rp.role_id
-                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.platform_user_roles pur
+                                JOIN {self.get_current_schema()}.role_permissions rp ON pur.role_id = rp.role_id
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON rp.permission_id = pp.id
                                 WHERE pur.user_id = platform_users.id 
                                 AND pp.code = ${param_counter}
                                 AND pur.is_active = true
@@ -249,8 +257,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                             OR
                             -- Direct platform permissions
                             EXISTS (
-                                SELECT 1 FROM admin.platform_user_permissions pup
-                                JOIN admin.platform_permissions pp ON pup.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.platform_user_permissions pup
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON pup.permission_id = pp.id
                                 WHERE pup.user_id = platform_users.id 
                                 AND pp.code = ${param_counter}
                                 AND pup.is_active = true 
@@ -261,9 +269,9 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                             OR
                             -- Permission from tenant roles  
                             EXISTS (
-                                SELECT 1 FROM admin.tenant_user_roles tur
-                                JOIN admin.role_permissions rp ON tur.role_id = rp.role_id
-                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.tenant_user_roles tur
+                                JOIN {self.get_current_schema()}.role_permissions rp ON tur.role_id = rp.role_id
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON rp.permission_id = pp.id
                                 WHERE tur.user_id = platform_users.id 
                                 AND pp.code = ${param_counter}
                                 AND tur.is_active = true
@@ -273,8 +281,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                             OR
                             -- Direct tenant permissions
                             EXISTS (
-                                SELECT 1 FROM admin.tenant_user_permissions tup
-                                JOIN admin.platform_permissions pp ON tup.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.tenant_user_permissions tup
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON tup.permission_id = pp.id
                                 WHERE tup.user_id = platform_users.id 
                                 AND pp.code = ${param_counter}
                                 AND tup.is_active = true 
@@ -293,9 +301,9 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                         (
                             -- Permission from platform roles
                             EXISTS (
-                                SELECT 1 FROM admin.platform_user_roles pur
-                                JOIN admin.role_permissions rp ON pur.role_id = rp.role_id
-                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.platform_user_roles pur
+                                JOIN {self.get_current_schema()}.role_permissions rp ON pur.role_id = rp.role_id
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON rp.permission_id = pp.id
                                 WHERE pur.user_id = platform_users.id 
                                 AND pp.code IN ({perm_placeholders})
                                 AND pur.is_active = true
@@ -305,8 +313,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                             OR
                             -- Direct platform permissions
                             EXISTS (
-                                SELECT 1 FROM admin.platform_user_permissions pup
-                                JOIN admin.platform_permissions pp ON pup.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.platform_user_permissions pup
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON pup.permission_id = pp.id
                                 WHERE pup.user_id = platform_users.id 
                                 AND pp.code IN ({perm_placeholders})
                                 AND pup.is_active = true 
@@ -317,9 +325,9 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                             OR
                             -- Permission from tenant roles  
                             EXISTS (
-                                SELECT 1 FROM admin.tenant_user_roles tur
-                                JOIN admin.role_permissions rp ON tur.role_id = rp.role_id
-                                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.tenant_user_roles tur
+                                JOIN {self.get_current_schema()}.role_permissions rp ON tur.role_id = rp.role_id
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON rp.permission_id = pp.id
                                 WHERE tur.user_id = platform_users.id 
                                 AND pp.code IN ({perm_placeholders})
                                 AND tur.is_active = true
@@ -329,8 +337,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
                             OR
                             -- Direct tenant permissions
                             EXISTS (
-                                SELECT 1 FROM admin.tenant_user_permissions tup
-                                JOIN admin.platform_permissions pp ON tup.permission_id = pp.id
+                                SELECT 1 FROM {self.get_current_schema()}.tenant_user_permissions tup
+                                JOIN {self.get_current_schema()}.platform_permissions pp ON tup.permission_id = pp.id
                                 WHERE tup.user_id = platform_users.id 
                                 AND pp.code IN ({perm_placeholders})
                                 AND tup.is_active = true 
@@ -348,7 +356,7 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
             if filters.tenant_access:
                 where_conditions.append(f"""
                     EXISTS (
-                        SELECT 1 FROM admin.tenant_user_roles tur
+                        SELECT 1 FROM {self.get_current_schema()}.tenant_user_roles tur
                         WHERE tur.user_id = platform_users.id 
                         AND tur.tenant_id = ${param_counter}
                         AND tur.is_active = true
@@ -361,12 +369,12 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
         where_clause = " AND ".join(where_conditions)
         
         # Get total count
-        count_query = f"SELECT COUNT(*) FROM admin.platform_users WHERE {where_clause}"
+        count_query = f"SELECT COUNT(*) FROM {self.get_current_schema()}.platform_users WHERE {where_clause}"
         total_count = await db.fetchval(count_query, *params)
         
         # Get paginated results
         list_query = f"""
-            SELECT * FROM admin.platform_users 
+            SELECT * FROM {self.get_current_schema()}.platform_users 
             WHERE {where_clause}
             ORDER BY created_at DESC, email ASC
             LIMIT ${param_counter} OFFSET ${param_counter + 1}
@@ -388,7 +396,7 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def create(self, user_data: PlatformUserCreate) -> PlatformUser:
         """Create a new platform user."""
-        db = get_database()
+        db = await self.get_connection()
         
         # Check for conflicts
         conflicts = await self._check_conflicts(user_data.email, user_data.username, user_data.external_user_id, user_data.external_auth_provider)
@@ -399,8 +407,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
         now = utc_now()
         user_id = None  # Let database generate UUID
         
-        query = """
-            INSERT INTO admin.platform_users (
+        query = f"""
+            INSERT INTO {self.get_current_schema()}.platform_users (
                 email, username, external_id, first_name, last_name, display_name,
                 avatar_url, phone, timezone, locale, external_auth_provider, external_user_id,
                 is_active, is_superadmin, provider_metadata, notification_preferences,
@@ -441,7 +449,7 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def update(self, user_id: str, update_data: PlatformUserUpdate) -> PlatformUser:
         """Update a platform user."""
-        db = get_database()
+        db = await self.get_connection()
         
         # Build update query dynamically
         update_fields = []
@@ -467,7 +475,7 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
         params.append(UUID(user_id))
         
         query = f"""
-            UPDATE admin.platform_users 
+            UPDATE {self.get_current_schema()}.platform_users 
             SET {', '.join(update_fields)}
             WHERE id = ${param_counter} AND deleted_at IS NULL
             RETURNING id
@@ -481,10 +489,10 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def delete(self, user_id: str) -> None:
         """Soft delete a platform user."""
-        db = get_database()
+        db = await self.get_connection()
         
-        query = """
-            UPDATE admin.platform_users 
+        query = f"""
+            UPDATE {self.get_current_schema()}.platform_users 
             SET deleted_at = $1, updated_at = $1, is_active = false
             WHERE id = $2 AND deleted_at IS NULL
             RETURNING id
@@ -496,13 +504,13 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def update_last_login(self, user_id: str, login_time: Optional[datetime] = None) -> None:
         """Update user's last login timestamp."""
-        db = get_database()
+        db = await self.get_connection()
         
         if login_time is None:
             login_time = utc_now()
         
-        query = """
-            UPDATE admin.platform_users 
+        query = f"""
+            UPDATE {self.get_current_schema()}.platform_users 
             SET last_login_at = $1, updated_at = $2
             WHERE id = $3 AND deleted_at IS NULL
         """
@@ -511,13 +519,13 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def get_user_platform_roles(self, user_id: str) -> List[PlatformUserRole]:
         """Get platform roles assigned to user."""
-        db = get_database()
+        db = await self.get_connection()
         
-        query = """
+        query = f"""
             SELECT pur.*, pr.code, pr.name, pu.username as granted_by_username
-            FROM admin.platform_user_roles pur
-            JOIN admin.platform_roles pr ON pur.role_id = pr.id
-            LEFT JOIN admin.platform_users pu ON pur.granted_by = pu.id
+            FROM {self.get_current_schema()}.platform_user_roles pur
+            JOIN {self.get_current_schema()}.platform_roles pr ON pur.role_id = pr.id
+            LEFT JOIN {self.get_current_schema()}.platform_users pu ON pur.granted_by = pu.id
             WHERE pur.user_id = $1 AND pur.is_active = true
             ORDER BY pr.priority ASC, pur.granted_at ASC
         """
@@ -546,14 +554,14 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def get_user_tenant_roles(self, user_id: str, tenant_id: Optional[str] = None) -> List[TenantUserRole]:
         """Get tenant roles assigned to user."""
-        db = get_database()
+        db = await self.get_connection()
         
-        base_query = """
+        base_query = f"""
             SELECT tur.*, pr.code, pr.name, pu.username as granted_by_username, t.name as tenant_name
-            FROM admin.tenant_user_roles tur
-            JOIN admin.platform_roles pr ON tur.role_id = pr.id
-            JOIN admin.tenants t ON tur.tenant_id = t.id
-            LEFT JOIN admin.platform_users pu ON tur.granted_by = pu.id
+            FROM {self.get_current_schema()}.tenant_user_roles tur
+            JOIN {self.get_current_schema()}.platform_roles pr ON tur.role_id = pr.id
+            JOIN {self.get_current_schema()}.tenants t ON tur.tenant_id = t.id
+            LEFT JOIN {self.get_current_schema()}.platform_users pu ON tur.granted_by = pu.id
             WHERE tur.user_id = $1 AND tur.is_active = true
         """
         
@@ -590,14 +598,14 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def get_user_permissions(self, user_id: str, include_tenant_permissions: bool = True) -> List[str]:
         """Get all effective permissions for user (from roles and direct grants)."""
-        db = get_database()
+        db = await self.get_connection()
         
         # Get platform permissions from roles
-        platform_role_perms_query = """
+        platform_role_perms_query = f"""
             SELECT DISTINCT pp.code
-            FROM admin.platform_user_roles pur
-            JOIN admin.role_permissions rp ON pur.role_id = rp.role_id
-            JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+            FROM {self.get_current_schema()}.platform_user_roles pur
+            JOIN {self.get_current_schema()}.role_permissions rp ON pur.role_id = rp.role_id
+            JOIN {self.get_current_schema()}.platform_permissions pp ON rp.permission_id = pp.id
             WHERE pur.user_id = $1 AND pur.is_active = true
               AND (pur.expires_at IS NULL OR pur.expires_at > NOW())
               AND pp.deleted_at IS NULL
@@ -607,10 +615,10 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
         permissions = [record['code'] for record in platform_role_perms]
         
         # Get direct platform permissions
-        platform_direct_perms_query = """
+        platform_direct_perms_query = f"""
             SELECT DISTINCT pp.code
-            FROM admin.platform_user_permissions pup
-            JOIN admin.platform_permissions pp ON pup.permission_id = pp.id
+            FROM {self.get_current_schema()}.platform_user_permissions pup
+            JOIN {self.get_current_schema()}.platform_permissions pp ON pup.permission_id = pp.id
             WHERE pup.user_id = $1 AND pup.is_active = true AND pup.is_granted = true
               AND (pup.expires_at IS NULL OR pup.expires_at > NOW())
               AND pp.deleted_at IS NULL
@@ -621,11 +629,11 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
         
         if include_tenant_permissions:
             # Get tenant permissions from roles
-            tenant_role_perms_query = """
+            tenant_role_perms_query = f"""
                 SELECT DISTINCT pp.code
-                FROM admin.tenant_user_roles tur
-                JOIN admin.role_permissions rp ON tur.role_id = rp.role_id
-                JOIN admin.platform_permissions pp ON rp.permission_id = pp.id
+                FROM {self.get_current_schema()}.tenant_user_roles tur
+                JOIN {self.get_current_schema()}.role_permissions rp ON tur.role_id = rp.role_id
+                JOIN {self.get_current_schema()}.platform_permissions pp ON rp.permission_id = pp.id
                 WHERE tur.user_id = $1 AND tur.is_active = true
                   AND (tur.expires_at IS NULL OR tur.expires_at > NOW())
                   AND pp.deleted_at IS NULL
@@ -635,10 +643,10 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
             permissions.extend([record['code'] for record in tenant_role_perms])
             
             # Get direct tenant permissions
-            tenant_direct_perms_query = """
+            tenant_direct_perms_query = f"""
                 SELECT DISTINCT pp.code
-                FROM admin.tenant_user_permissions tup
-                JOIN admin.platform_permissions pp ON tup.permission_id = pp.id
+                FROM {self.get_current_schema()}.tenant_user_permissions tup
+                JOIN {self.get_current_schema()}.platform_permissions pp ON tup.permission_id = pp.id
                 WHERE tup.user_id = $1 AND tup.is_active = true AND tup.is_granted = true
                   AND (tup.expires_at IS NULL OR tup.expires_at > NOW())
                   AND pp.deleted_at IS NULL
@@ -651,11 +659,11 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
     
     async def get_user_tenant_count(self, user_id: str) -> int:
         """Get count of tenants user has access to."""
-        db = get_database()
+        db = await self.get_connection()
         
-        query = """
+        query = f"""
             SELECT COUNT(DISTINCT tenant_id)
-            FROM admin.tenant_user_roles
+            FROM {self.get_current_schema()}.tenant_user_roles
             WHERE user_id = $1 AND is_active = true
         """
         
@@ -670,11 +678,11 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
         exclude_user_id: Optional[str] = None
     ) -> List[str]:
         """Check for conflicting user data."""
-        db = get_database()
+        db = await self.get_connection()
         conflicts = []
         
         # Email conflict check
-        email_query = "SELECT id FROM admin.platform_users WHERE email = $1 AND deleted_at IS NULL"
+        email_query = "SELECT id FROM {self.get_current_schema()}.platform_users WHERE email = $1 AND deleted_at IS NULL"
         params = [email.lower()]
         if exclude_user_id:
             email_query += " AND id != $2"
@@ -685,7 +693,7 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
             conflicts.append("email")
         
         # Username conflict check
-        username_query = "SELECT id FROM admin.platform_users WHERE username = $1 AND deleted_at IS NULL"
+        username_query = "SELECT id FROM {self.get_current_schema()}.platform_users WHERE username = $1 AND deleted_at IS NULL"
         params = [username.lower()]
         if exclude_user_id:
             username_query += " AND id != $2"
@@ -696,8 +704,8 @@ class PlatformUserRepository(BaseRepository[PlatformUser]):
             conflicts.append("username")
         
         # External user ID conflict check
-        external_query = """
-            SELECT id FROM admin.platform_users 
+        external_query = f"""
+            SELECT id FROM {self.get_current_schema()}.platform_users 
             WHERE external_auth_provider = $1 AND external_user_id = $2 AND deleted_at IS NULL
         """
         params = [external_auth_provider.value, external_user_id]

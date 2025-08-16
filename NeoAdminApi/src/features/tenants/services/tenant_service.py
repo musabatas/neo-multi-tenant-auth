@@ -16,9 +16,9 @@ from src.common.exceptions.base import (
 from src.common.models.base import PaginationParams
 from src.common.services.base import BaseService
 from src.common.cache.client import get_cache
-from src.common.utils.datetime import utc_now
-from src.integrations.keycloak.async_client import get_keycloak_client
-from src.integrations.keycloak.realm_manager import get_realm_manager
+from src.common.utils import utc_now
+# Use neo-commons for Keycloak integration
+from neo_commons.auth import create_auth_service
 
 from ..models.domain import Tenant, TenantStatus
 from ..models.request import (
@@ -412,9 +412,9 @@ class TenantService(BaseService):
         email_sent = False
         
         try:
-            # Step 1: Create Keycloak realm
-            realm_manager = get_realm_manager()
-            await realm_manager.create_realm(
+            # Step 1: Create Keycloak realm via neo-commons
+            auth_service = create_auth_service()
+            await auth_service.create_realm(
                 realm_name=tenant.external_auth_realm,
                 display_name=tenant.name,
                 enabled=True
@@ -458,8 +458,8 @@ class TenantService(BaseService):
             # Rollback what we can
             if keycloak_created:
                 try:
-                    realm_manager = get_realm_manager()
-                    await realm_manager.delete_realm(tenant.external_auth_realm)
+                    auth_service = create_auth_service()
+                    await auth_service.delete_realm(tenant.external_auth_realm)
                 except Exception:
                     pass
             
