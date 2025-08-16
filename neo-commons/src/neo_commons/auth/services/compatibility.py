@@ -336,6 +336,56 @@ class PermissionServiceWrapper:
             await self.cache.set(cache_key, permissions, ttl=600)  # 10 minutes
         
         return permissions
+    
+    async def check_all_permissions(
+        self,
+        user_id: str,
+        permissions: List[str],
+        tenant_id: Optional[str] = None
+    ) -> bool:
+        """
+        Check if user has all of the specified permissions.
+        
+        Args:
+            user_id: User identifier
+            permissions: List of permission codes to check
+            tenant_id: Tenant context
+            
+        Returns:
+            True if user has all permissions
+        """
+        return await self.permission_checker.check_permission(
+            user_id=user_id,
+            permissions=permissions,
+            scope="platform",
+            tenant_id=tenant_id,
+            any_of=False  # Require ALL permissions
+        )
+    
+    async def check_any_permission(
+        self,
+        user_id: str,
+        permissions: List[str],
+        tenant_id: Optional[str] = None
+    ) -> bool:
+        """
+        Check if user has any of the specified permissions.
+        
+        Args:
+            user_id: User identifier
+            permissions: List of permission codes to check
+            tenant_id: Tenant context
+            
+        Returns:
+            True if user has at least one permission
+        """
+        return await self.permission_checker.check_permission(
+            user_id=user_id,
+            permissions=permissions,
+            scope="platform",
+            tenant_id=tenant_id,
+            any_of=True  # Require ANY permission
+        )
 
 
 class GuestAuthServiceWrapper:
@@ -425,14 +475,25 @@ class SimpleAuthConfig:
         self.jwt_audience = None
 
 class SimplePermissionChecker:
-    """Simple default permission checker implementation."""
+    """Simple default permission checker implementation for testing/development."""
     
-    async def check_permission(self, user_id: str, permissions: list, scope: str = "platform", tenant_id: str = None, any_of: bool = False) -> bool:
-        # Default implementation - always allow (for testing)
+    async def check_permission(
+        self, 
+        user_id: str, 
+        permissions: List[str], 
+        scope: str = "platform", 
+        tenant_id: Optional[str] = None, 
+        any_of: bool = False
+    ) -> bool:
+        """Default implementation - always allow (for testing)."""
         return True
     
-    async def get_user_permissions(self, user_id: str, tenant_id: str = None) -> List[Dict[str, Any]]:
-        # Default implementation - return empty permissions
+    async def get_user_permissions(
+        self, 
+        user_id: str, 
+        tenant_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Default implementation - return empty permissions."""
         return []
 
 class SimpleCacheKeyProvider:

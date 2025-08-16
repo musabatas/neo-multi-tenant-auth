@@ -502,7 +502,7 @@
     <complete-migrations>
       <file name="cache_service.py" lines="407" redundancy="95%" target="neo_commons.cache.implementations.tenant_aware_cache" status="completed"/>
       <file name="user_identity_patterns" lines="~150" redundancy="90%" target="neo_commons.auth.identity.resolver" status="completed"/>
-      <file name="guest_auth_service.py" lines="95+" redundancy="100%" target="neo_commons.auth.services.guest" status="pending"/>
+      <file name="guest_auth_service.py" lines="320" redundancy="100%" target="neo_commons.auth.services.guest" status="completed"/>
       <file name="permission_registry.py" lines="534" redundancy="90%" target="neo_commons.auth.registry.permissions" status="pending"/>
     </complete-migrations>
     
