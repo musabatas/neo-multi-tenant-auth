@@ -155,11 +155,13 @@ class GuestOrAuthenticated:
                 
                 # Check permissions if required (matching source logic)
                 if self.required_permissions:
-                    # Use check_all_permissions for multiple permissions check
-                    has_permission = await self.permission_checker.check_all_permissions(
+                    # Use check_permission for multiple permissions check (requires ALL by default)
+                    has_permission = await self.permission_checker.check_permission(
                         user_id=user_id,
                         permissions=self.required_permissions,
-                        tenant_id=None
+                        scope="platform",
+                        tenant_id=None,
+                        any_of=False  # Require ALL permissions
                     )
                     
                     if not has_permission:

@@ -14,18 +14,35 @@ from .compatibility import (
     GuestAuthServiceWrapper,
     create_auth_service,
     create_permission_service,
-    create_guest_auth_service,
+    create_guest_auth_service_wrapper,
     create_user_identity_resolver,
     create_neo_commons_guest_service
 )
 
+# Import actual guest service factory (not wrapper)
+from .guest.factory import (
+    create_guest_auth_service,
+    create_default_guest_service,
+    create_restrictive_guest_service,
+    create_liberal_guest_service
+)
+
 __all__ = [
+    # Wrapper services (compatibility layer)
     "AuthServiceWrapper",
     "PermissionServiceWrapper", 
     "GuestAuthServiceWrapper",
+    
+    # Factory functions for wrappers
     "create_auth_service",
     "create_permission_service",
-    "create_guest_auth_service",
+    "create_guest_auth_service_wrapper",
     "create_user_identity_resolver",
-    "create_neo_commons_guest_service"
+    "create_neo_commons_guest_service",
+    
+    # Actual guest service factories
+    "create_guest_auth_service",
+    "create_default_guest_service",
+    "create_restrictive_guest_service",
+    "create_liberal_guest_service"
 ]

@@ -53,7 +53,9 @@ from .registry import (
 )
 from .services import (
     AuthServiceWrapper, PermissionServiceWrapper, GuestAuthServiceWrapper,
-    create_auth_service, create_permission_service, create_guest_auth_service,
+    create_auth_service, create_permission_service, 
+    create_guest_auth_service, create_guest_auth_service_wrapper,
+    create_default_guest_service, create_restrictive_guest_service, create_liberal_guest_service,
     create_user_identity_resolver
 )
 from .permissions import (

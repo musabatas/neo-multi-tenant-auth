@@ -137,9 +137,21 @@ class SlidingWindowRateLimiter:
                 is_exceeded=False
             )
         
-        # Parse existing state
-        window_start = datetime.fromisoformat(state_data["window_start"].replace("Z", "+00:00"))
-        last_request = datetime.fromisoformat(state_data["last_request"].replace("Z", "+00:00"))
+        # Parse existing state with robust timezone handling
+        def parse_datetime_safe(dt_string: str) -> datetime:
+            """Safely parse datetime string with proper timezone handling."""
+            try:
+                # Handle Z suffix (UTC) - Python 3.11+ supports this natively
+                if dt_string.endswith('Z'):
+                    dt_string = dt_string[:-1] + '+00:00'
+                return datetime.fromisoformat(dt_string)
+            except ValueError:
+                # Fallback for malformed timestamps - assume UTC
+                logger.warning(f"Invalid datetime format, using current time: {dt_string}")
+                return utc_now()
+        
+        window_start = parse_datetime_safe(state_data["window_start"])
+        last_request = parse_datetime_safe(state_data["last_request"])
         
         # Check if window has expired
         if current_time >= window_start + timedelta(seconds=rate_limit.window_seconds):

@@ -573,11 +573,11 @@ def create_permission_service(
     return PermissionServiceWrapper(permission_checker, cache_service)
 
 
-def create_guest_auth_service(
+def create_guest_auth_service_wrapper(
     guest_service: GuestAuthServiceProtocol,
     cache_service: CacheServiceProtocol
 ) -> GuestAuthServiceWrapper:
-    """Create configured GuestAuthService wrapper."""
+    """Create configured GuestAuthService wrapper for backward compatibility."""
     return GuestAuthServiceWrapper(guest_service, cache_service)
 
 

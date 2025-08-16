@@ -204,6 +204,13 @@ class KeycloakAsyncClient:
             token_endpoint = f"{self.config.keycloak_url}/realms/{realm}/protocol/openid-connect/token"
             
             # Use manual HTTP request to match the working curl exactly
+            # 
+            # NOTE: This manual implementation is used instead of python-keycloak's a_token() method
+            # because the library method had compatibility issues with specific Keycloak configurations.
+            # The manual approach gives us precise control over request formatting and error handling.
+            # 
+            # TODO: Revisit using python-keycloak's a_token() method in future versions
+            # once library compatibility issues are resolved.
             request_data = {
                 "grant_type": "password",
                 "client_id": effective_client_id,

@@ -184,26 +184,100 @@ class BasePermissionRepository(BaseRepository[Dict[str, Any]]):
         Returns:
             List of platform permissions with metadata
         """
-        permissions = []
+        if not include_role_permissions and not include_direct_permissions:
+            return []
         
-        # Get permissions from platform roles
+        # Build optimized UNION query to combine both permission sources in a single database call
+        union_parts = []
+        params = [user_id]
+        param_idx = 1
+        
         if include_role_permissions:
-            role_perms = await self._get_platform_role_based_permissions(user_id)
-            permissions.extend(role_perms)
+            union_parts.append(f"""
+                SELECT DISTINCT
+                    p.id,
+                    p.code as name,
+                    p.resource,
+                    p.action,
+                    p.scope_level,
+                    p.description,
+                    p.is_dangerous,
+                    p.requires_mfa,
+                    p.requires_approval,
+                    p.permissions_config,
+                    (p.deleted_at IS NULL) as is_active,
+                    'platform_role' as source_type,
+                    r.name as source_name,
+                    r.priority as priority
+                FROM {self.get_current_schema()}.platform_user_roles ur
+                JOIN {self.get_current_schema()}.platform_roles r ON r.id = ur.role_id
+                JOIN {self.get_current_schema()}.role_permissions rp ON rp.role_id = r.id
+                JOIN {self.get_current_schema()}.platform_permissions p ON p.id = rp.permission_id
+                WHERE ur.user_id = ${param_idx}
+                    AND ur.is_active = true
+                    AND r.deleted_at IS NULL
+                    AND p.deleted_at IS NULL
+                    AND (ur.expires_at IS NULL OR ur.expires_at > CURRENT_TIMESTAMP)
+                    AND p.scope_level = 'platform'
+            """)
         
-        # Get direct platform permissions
         if include_direct_permissions:
-            direct_perms = await self._get_platform_direct_permissions(user_id)
-            permissions.extend(direct_perms)
+            param_idx += 1
+            params.append(user_id)
+            union_parts.append(f"""
+                SELECT 
+                    p.id,
+                    p.code as name,
+                    p.resource,
+                    p.action,
+                    p.scope_level,
+                    p.description,
+                    p.is_dangerous,
+                    p.requires_mfa,
+                    p.requires_approval,
+                    p.permissions_config,
+                    (p.deleted_at IS NULL) as is_active,
+                    'platform_direct' as source_type,
+                    'Direct Assignment' as source_name,
+                    COALESCE(up.priority, 100) as priority
+                FROM {self.get_current_schema()}.platform_user_permissions up
+                JOIN {self.get_current_schema()}.platform_permissions p ON p.id = up.permission_id
+                WHERE up.user_id = ${param_idx}
+                    AND up.is_active = true
+                    AND p.deleted_at IS NULL
+                    AND (up.expires_at IS NULL OR up.expires_at > CURRENT_TIMESTAMP)
+                    AND p.scope_level = 'platform'
+            """)
         
-        # Deduplicate permissions by ID while keeping the highest priority source
-        unique_perms = {}
-        for perm in permissions:
-            perm_id = perm["id"]
-            if perm_id not in unique_perms or perm.get("priority", 0) > unique_perms[perm_id].get("priority", 0):
-                unique_perms[perm_id] = perm
+        # Combine with UNION ALL and handle deduplication with window functions for better performance
+        query = f"""
+            WITH combined_permissions AS (
+                {' UNION ALL '.join(union_parts)}
+            ),
+            ranked_permissions AS (
+                SELECT *,
+                    ROW_NUMBER() OVER (PARTITION BY id ORDER BY priority DESC, source_type) as rn
+                FROM combined_permissions
+            )
+            SELECT id, name, resource, action, scope_level, description, is_dangerous,
+                   requires_mfa, requires_approval, permissions_config, is_active,
+                   source_type, source_name, priority
+            FROM ranked_permissions 
+            WHERE rn = 1
+            ORDER BY priority DESC, name
+        """
         
-        return list(unique_perms.values())
+        db = await self.get_connection()
+        results = await db.fetch(query, *params)
+        
+        return [
+            process_database_record(
+                record,
+                uuid_fields=['id'],
+                jsonb_fields=['permissions_config']
+            )
+            for record in results
+        ]
     
     async def get_tenant_user_permissions(
         self,
@@ -224,26 +298,100 @@ class BasePermissionRepository(BaseRepository[Dict[str, Any]]):
         Returns:
             List of tenant permissions with metadata
         """
-        permissions = []
+        if not include_role_permissions and not include_direct_permissions:
+            return []
         
-        # Get permissions from tenant roles
+        # Build optimized UNION query to combine both permission sources in a single database call
+        union_parts = []
+        params = [user_id, tenant_id]
+        param_idx = 2
+        
         if include_role_permissions:
-            role_perms = await self._get_tenant_role_based_permissions(user_id, tenant_id)
-            permissions.extend(role_perms)
+            union_parts.append(f"""
+                SELECT DISTINCT
+                    p.id,
+                    p.code as name,
+                    p.resource,
+                    p.action,
+                    p.scope_level,
+                    p.description,
+                    p.is_dangerous,
+                    p.requires_mfa,
+                    p.requires_approval,
+                    p.permissions_config,
+                    (p.deleted_at IS NULL) as is_active,
+                    'tenant_role' as source_type,
+                    r.name as source_name,
+                    r.priority as priority
+                FROM {self.get_current_schema()}.tenant_user_roles ur
+                JOIN {self.get_current_schema()}.platform_roles r ON r.id = ur.role_id
+                JOIN {self.get_current_schema()}.role_permissions rp ON rp.role_id = r.id
+                JOIN {self.get_current_schema()}.platform_permissions p ON p.id = rp.permission_id
+                WHERE ur.user_id = $1 AND ur.tenant_id = $2
+                    AND ur.is_active = true
+                    AND r.deleted_at IS NULL
+                    AND p.deleted_at IS NULL
+                    AND (ur.expires_at IS NULL OR ur.expires_at > CURRENT_TIMESTAMP)
+                    AND p.scope_level = 'tenant'
+            """)
         
-        # Get direct tenant permissions
         if include_direct_permissions:
-            direct_perms = await self._get_tenant_direct_permissions(user_id, tenant_id)
-            permissions.extend(direct_perms)
+            param_idx += 2  # Skip user_id, tenant_id already used
+            params.extend([user_id, tenant_id])
+            union_parts.append(f"""
+                SELECT 
+                    p.id,
+                    p.code as name,
+                    p.resource,
+                    p.action,
+                    p.scope_level,
+                    p.description,
+                    p.is_dangerous,
+                    p.requires_mfa,
+                    p.requires_approval,
+                    p.permissions_config,
+                    (p.deleted_at IS NULL) as is_active,
+                    'tenant_direct' as source_type,
+                    'Direct Assignment' as source_name,
+                    COALESCE(up.priority, 100) as priority
+                FROM {self.get_current_schema()}.tenant_user_permissions up
+                JOIN {self.get_current_schema()}.platform_permissions p ON p.id = up.permission_id
+                WHERE up.user_id = ${param_idx-1} AND up.tenant_id = ${param_idx}
+                    AND up.is_active = true
+                    AND p.deleted_at IS NULL
+                    AND (up.expires_at IS NULL OR up.expires_at > CURRENT_TIMESTAMP)
+                    AND p.scope_level = 'tenant'
+            """)
         
-        # Deduplicate permissions by ID while keeping the highest priority source
-        unique_perms = {}
-        for perm in permissions:
-            perm_id = perm["id"]
-            if perm_id not in unique_perms or perm.get("priority", 0) > unique_perms[perm_id].get("priority", 0):
-                unique_perms[perm_id] = perm
+        # Combine with UNION ALL and handle deduplication with window functions for better performance
+        query = f"""
+            WITH combined_permissions AS (
+                {' UNION ALL '.join(union_parts)}
+            ),
+            ranked_permissions AS (
+                SELECT *,
+                    ROW_NUMBER() OVER (PARTITION BY id ORDER BY priority DESC, source_type) as rn
+                FROM combined_permissions
+            )
+            SELECT id, name, resource, action, scope_level, description, is_dangerous,
+                   requires_mfa, requires_approval, permissions_config, is_active,
+                   source_type, source_name, priority
+            FROM ranked_permissions 
+            WHERE rn = 1
+            ORDER BY priority DESC, name
+        """
         
-        return list(unique_perms.values())
+        db = await self.get_connection()
+        results = await db.fetch(query, *params)
+        
+        return [
+            process_database_record(
+                record,
+                uuid_fields=['id'],
+                jsonb_fields=['permissions_config']
+            )
+            for record in results
+        ]
     
     async def _get_platform_role_based_permissions(
         self,
