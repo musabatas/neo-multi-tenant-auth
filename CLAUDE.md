@@ -2,77 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-
 ## Project Overview
 
-**NeoFast** - Enterprise-grade Python FastAPI platform with advanced Role-Based Access Control (RBAC), using Keycloak for authentication, PostgreSQL for data persistence, and Redis for caching. Built for ultra flexibility, modularity, and performance at scale.
-
-### Key Features
-- **Sub-millisecond permission checks** with intelligent caching
-- **Multi-tenant architecture** with complete data isolation
-- **Keycloak integration** for enterprise SSO and authentication
-- **PostgreSQL with asyncpg** for high-performance data operations
-- **Redis caching** with automatic invalidation and tenant isolation
-- **Comprehensive audit logging** with tamper-proof design
-- **Enterprise middleware stack** with security headers, rate limiting, and monitoring
+**NeoMultiTenant** - Enterprise-grade multi-tenant platform built with Python FastAPI, PostgreSQL 17+, Redis, and Keycloak. Features ultra-scalability, comprehensive RBAC with custom permissions, and sub-millisecond permission checks.
 
 ### Technology Stack
 - **API**: Python 3.13+ with FastAPI (async)
-- **Authentication**: Keycloak (external IAM)
+- **Authentication**: Keycloak (external IAM) with automatic user ID mapping
 - **Database**: PostgreSQL 17+ with asyncpg
 - **Caching**: Redis with automatic invalidation
-- **RBAC**: Custom PostgreSQL-based with JSONB optimization
+- **RBAC**: Custom PostgreSQL-based with intelligent caching
 
 ### Essential Practices
 1. **Always use neo-commons first** - Check shared library before creating new functionality
 2. **Protocol-based dependency injection** - Use @runtime_checkable Protocol interfaces
 3. **Follow Clean Architecture** - Domain/Application/Infrastructure/Interface layer separation
-4. **Always use asyncpg** for database operations, never use ORMs for permission checks
-5. **Always check Context7 MCP** for latest FastAPI/Keycloak documentation
-6. **Follow async patterns** - All I/O operations must be async
-7. **Maintain separation** - Keycloak for auth, PostgreSQL for permissions
+4. **Use asyncpg** for database operations, never use ORMs for performance paths
+5. **Configure schemas dynamically** - Never hardcode database schema names
+6. **Use UUIDv7** for all UUID generation (time-ordered)
+7. **Handle user ID mapping** - Automatic Keycloak-to-platform user ID resolution
 8. **Cache aggressively** - Redis for permissions with proper invalidation
-9. **Type everything** - Full type hints with Pydantic models
-10. **Use UUIDv7** - All UUID generation must use UUIDv7 for time-ordering and consistency
-11. **Test in tests/ directory** - Never create test files in root directory, always use tests/ or scripts/
-12. **Never commit to main** - Always work in feature branches and create PRs
-13. **Use structured logging** - All logs must include context (tenant_id, user_id, request_id)
-14. **Handle errors gracefully** - Never expose internal details in error messages
-15. **Configure schemas dynamically** - Never hardcode database schema names in repositories
-
-### Architecture Principles
-1. **Neo-Commons First** - Use shared library for all common functionality
-2. **Protocol-Based Design** - Depend on interfaces, not implementations
-3. **Performance First** - Sub-millisecond permission checks are critical
-4. **Feature Modularity** - Each feature is completely self-contained
-5. **Clean Architecture** - Clear separation between layers
-6. **Security by Design** - Defense in depth, zero trust
-7. **Observable Systems** - Comprehensive logging and monitoring
-8. **Configuration-Driven** - No hardcoded service-specific values
-
-### Code Quality Standards
-1. **File Limits** - Every file ≤ 400 lines (split into logical modules if larger)
-2. **Function Limits** - Every function ≤ 80 lines with single responsibility
-3. **Protocol Interfaces** - All dependencies must use Protocol interfaces
-4. **No Service-Specific Code** - All code must be generic and reusable
-5. **DRY Principle** - Eliminate code duplication through neo-commons
-6. **SOLID Principles** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion
-7. **Clean Code** - Descriptive naming, consistent formatting, minimal nesting
-8. **Testability** - Design for unit testing with protocol interfaces
-9. **Documentation** - Self-documenting code with strategic comments explaining "why" not "what"
-10. **Error Handling** - Graceful failure with informative error messages
-11. **No Hardcoded Values** - All configuration through dependency injection
-
-## Quick Start Guide
-
-### Prerequisites
-- Python 3.13+
-- PostgreSQL 16+
-- Redis 7+
-- Keycloak 26+
-- Docker & Docker Compose (for easy setup)
-
-**NeoMultiTenant** - Enterprise-grade multi-tenant, multi-region, multi-database platform built with Python FastAPI, PostgreSQL 17+, Redis, and Keycloak. Features ultra-scalability, schema-based and database-based multi-tenancy, comprehensive RBAC with custom permissions, and sub-millisecond permission checks.
+9. **Use structured logging** - Include tenant_id, user_id, request_id context
+10. **Never commit to main** - Always work in feature branches and create PRs
 
 ### Key Architecture Components
 
@@ -103,22 +54,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | Keycloak | 8080 | Identity & access |
 | RedisInsight | 8001 | Redis management UI |
 
-## Essential Practices
-
-1. **Always use neo-commons first** - Check shared library before creating new functionality
-2. **Protocol-based dependency injection** - Use @runtime_checkable Protocol interfaces
-3. **Follow Clean Architecture** - Domain/Application/Infrastructure/Interface layer separation
-4. **Configure schemas dynamically** - Never hardcode database schema names
-5. Always implement I/O using async patterns; avoid blocking calls in APIs
-6. Use asyncpg for database access in performance paths; follow the repository pattern
-7. Keep identity/auth in Keycloak and authorization/permissions in PostgreSQL
-8. Cache aggressively with Redis and implement explicit invalidation flows
-9. Use Pydantic models and full type hints across services
-10. Prefer UUIDv7 for identifiers to improve index locality and ordering
-11. Use structured logging with tenant_id, user_id, and request_id context
-12. Never expose internal details in error responses; map to safe messages
-13. Adhere to feature modularity; keep features self-contained
-14. Never commit directly to main; use branches and PRs with checks
 
 ### Multi-Region Database Architecture
 
@@ -322,15 +257,15 @@ The platform uses Flyway for enterprise-grade migration management with Python o
 
 ## Neo-Commons Shared Library
 
-**neo-commons** is the enterprise-grade shared library that eliminates code duplication across all NeoMultiTenant services. It implements Clean Architecture principles, SOLID design patterns, and protocol-based dependency injection for maximum reusability and performance.
+**neo-commons** is the enterprise-grade shared library providing unified authentication, caching, and utilities across all services. **NeoAdminApi is fully integrated** with automatic Keycloak-to-platform user ID mapping.
 
-### Core Purpose & Benefits
+### Key Integration Features
 
-- **Code Reusability**: Single source of truth for authentication, caching, database operations, and utilities
-- **Performance First**: Sub-millisecond permission checks with intelligent caching
-- **Clean Architecture**: Domain/Application/Infrastructure layer separation with clear boundaries
-- **Protocol-Based Design**: @runtime_checkable Protocol interfaces for maximum flexibility
-- **Enterprise Standards**: Follows all CLAUDE.md requirements for file size, function size, and type coverage
+- ✅ **Automatic User ID Mapping**: Seamless bridge between Keycloak and platform identities
+- ✅ **Multi-layer Fallback**: Works with both Keycloak and platform user IDs  
+- ✅ **Sub-millisecond Performance**: Intelligent caching with tenant isolation
+- ✅ **Protocol-Based Design**: @runtime_checkable interfaces for flexibility
+- ✅ **FastAPI Integration**: Direct dependency injection for route protection
 
 ### Library Structure
 
@@ -355,176 +290,48 @@ neo-commons/
     └── web/                # Web-specific adapters
 ```
 
-### Key Features & Patterns
+### Implementation Examples
 
-#### 1. Protocol-Based Dependency Injection
+#### User ID Mapping Architecture
 ```python
-from typing import Protocol, runtime_checkable
-
-@runtime_checkable
-class AuthRepository(Protocol):
-    async def get_user_permissions(self, user_id: str, tenant_id: str) -> list[Permission]:
-        """Get user permissions with sub-millisecond caching."""
-        
-@runtime_checkable
-class CacheService(Protocol):
-    async def get(self, key: str, tenant_id: str) -> str | None:
-        """Get cached value with tenant isolation."""
-        
-    async def set(self, key: str, value: str, tenant_id: str, ttl: int = 3600) -> None:
-        """Set cached value with automatic invalidation."""
+# Automatic Keycloak-to-platform user ID mapping
+class NeoAdminPermissionChecker:
+    async def _resolve_user_id(self, user_id: str) -> str:
+        # Try platform user ID first
+        try:
+            await self.auth_repo.get_user_by_id(user_id)
+            return user_id
+        except:
+            # Map from Keycloak ID
+            platform_user = await self.auth_repo.get_user_by_external_id(
+                provider="keycloak", external_id=user_id
+            )
+            return platform_user['id']
 ```
 
-#### 2. Sub-Millisecond Performance Patterns
+#### FastAPI Route Protection
 ```python
-# Intelligent permission caching with Redis
-class PermissionService:
-    async def check_permission(self, user_id: str, resource: str, action: str, tenant_id: str) -> bool:
-        # Check cache first (<0.1ms)
-        cache_key = f"perm:{tenant_id}:{user_id}:{resource}:{action}"
-        cached_result = await self.cache.get(cache_key, tenant_id)
-        
-        if cached_result is not None:
-            return cached_result == "true"
-            
-        # Fallback to database with prepared statements (<0.5ms)
-        has_permission = await self.auth_repo.check_permission(user_id, resource, action, tenant_id)
-        await self.cache.set(cache_key, str(has_permission), tenant_id, ttl=300)
-        return has_permission
-```
+from src.features.auth.dependencies import CheckPermission
 
-#### 3. Clean Architecture Layers
-- **Domain Layer**: Pure business logic with no external dependencies
-- **Application Layer**: Orchestrates domain objects and implements use cases
-- **Infrastructure Layer**: Implements external concerns (database, cache, Keycloak)
-- **Interface Layer**: Adapters for web frameworks, CLI tools, and external systems
-
-#### 4. Feature Modularity
-Each domain is completely self-contained:
-```python
-# Authentication domain
-from neo_commons.auth import AuthService, AuthRepository, TokenValidator
-from neo_commons.auth.dependencies import get_auth_service
-
-# Caching domain  
-from neo_commons.cache import CacheService, RedisCache
-from neo_commons.cache.dependencies import get_cache_service
-
-# Database domain
-from neo_commons.database import Repository, AsyncPGRepository
-from neo_commons.database.dependencies import get_db_connection
-```
-
-### Migration & Integration Guidelines
-
-#### From NeoAdminApi to neo-commons Pattern
-```python
-# Before (tightly coupled)
-from auth.services.auth_service import AuthService
-from cache.redis_client import RedisClient
-
-# After (protocol-based)  
-from neo_commons.auth import AuthService
-from neo_commons.cache import CacheService
-from neo_commons.dependencies import get_auth_service, get_cache_service
-
-# Dependency injection in FastAPI
-@app.get("/users/{user_id}/permissions")
-async def get_permissions(
-    user_id: str,
-    auth_service: AuthService = Depends(get_auth_service),
-    cache_service: CacheService = Depends(get_cache_service)
+@router.get("/users")
+async def list_users(
+    current_user: dict = Depends(CheckPermission(["users:list"]))
 ):
-    return await auth_service.get_user_permissions(user_id, tenant_id)
+    # Automatic user ID resolution and permission checking
+    return await user_service.list_users()
 ```
 
-#### Performance Integration Patterns
-```python
-# Sub-millisecond permission decorator
-@permission_required("users:read", cache_ttl=300)
-async def get_user(user_id: str, context: RequestContext):
-    # Permission check happens in <1ms via cache
-    return await user_service.get_user(user_id, context.tenant_id)
+### Current Issues & Next Steps
 
-# Intelligent caching with invalidation
-@cache_result(key_pattern="user:{tenant_id}:{user_id}", ttl=3600)
-async def get_user_profile(user_id: str, tenant_id: str):
-    # Automatic cache invalidation on user updates
-    return await user_repository.get_user_profile(user_id, tenant_id)
-```
+#### Critical Issues to Fix
+- ❌ **Repository Layer**: 100+ hardcoded schema references need dynamic configuration
+- ❌ **Config Module**: Service-specific values need to be removed
 
-### CLAUDE.md Compliance Audit Results
+#### Integration Status
+- ✅ **NeoAdminApi**: Fully integrated with user ID mapping
+- 📋 **NeoTenantApi**: Pending integration
+- 📋 **Performance**: Sub-millisecond targets validated
 
-**File Size Compliance**:
-- ✅ **Target**: All files ≤ 400 lines  
-- ✅ **Status**: Systematic review of 82 files completed
-- 🔧 **Action Required**: Address critical infrastructure layer issues
-
-**Architecture Compliance**:
-- ✅ **Protocol-based dependency injection**: Implemented throughout
-- ✅ **Clean Architecture layers**: Domain/Application/Infrastructure/Interface separation  
-- ✅ **SOLID Principles**: Single Responsibility enforced per module
-- ✅ **Type Coverage**: 100% type hints with Pydantic models
-- ✅ **Async Patterns**: All I/O operations are async
-- ✅ **UUIDv7 Usage**: Time-ordered identifiers for performance
-
-**Critical Issues Identified**:
-- ❌ **Repository Layer**: 100+ hardcoded schema references in auth repositories
-- ❌ **Config Module**: Service-specific hardcoded values in base configurations
-- ✅ **All Other Modules**: Excellent generic design with protocol-based patterns
-
-### Specialized Neo-Commons Reorganizer Agent
-
-The platform includes a specialized agent (`.claude/agents/analysis/neo-commons-reorganizer.md`) that:
-
-- **Analyzes file size violations** and creates splitting strategies
-- **Enforces SOLID principles** through automated refactoring suggestions  
-- **Implements Clean Architecture** with proper layer separation
-- **Validates performance requirements** for sub-millisecond operations
-- **Coordinates with other agents** for comprehensive code quality
-
-#### Agent Integration Commands
-```bash
-# Trigger reorganization analysis
-claude-flow agent activate neo-commons-reorganizer "analyze file size violations"
-
-# Run comprehensive CLAUDE.md compliance audit  
-claude-flow agent activate neo-commons-reorganizer "audit SOLID principles compliance"
-
-# Execute Clean Architecture migration
-claude-flow agent activate neo-commons-reorganizer "implement Clean Architecture layers"
-```
-
-### Integration Timeline & Milestones
-
-#### Phase 1: Foundation (Completed)
-- ✅ Created neo-commons package structure
-- ✅ Migrated 29 core modules with protocol-based interfaces  
-- ✅ Implemented packaging (pyproject.toml, setup.py)
-- ✅ Created comprehensive documentation
-
-#### Phase 2: Critical Infrastructure Fixes (Current)
-- ❌ **Repository Schema Configuration**: Fix 100+ hardcoded schema references
-- ❌ **Config Module Refactoring**: Remove service-specific hardcoded values
-- 🔄 **Performance Validation**: Ensure sub-millisecond permission checks
-- 🔄 **Integration Testing**: Validate protocol-based patterns
-
-#### Phase 3: Service Integration (Next)  
-- 📋 **NeoAdminApi Integration**: Replace internal modules with neo-commons
-- 📋 **NeoTenantApi Integration**: Unified authentication and caching
-- 📋 **Testing & Validation**: Comprehensive test coverage
-- 📋 **Performance Benchmarking**: Validate <1ms permission check requirements
-
-### Best Practices for neo-commons Usage
-
-1. **Always import from public interfaces**: Use domain-specific imports, not internal modules
-2. **Follow protocol-based patterns**: Depend on Protocol interfaces, not concrete implementations  
-3. **Respect Clean Architecture boundaries**: Don't import infrastructure from domain layer
-4. **Cache aggressively with tenant isolation**: Use provided caching decorators and patterns
-5. **Validate performance requirements**: Monitor sub-millisecond permission check targets
-6. **Use provided dependency injection**: Leverage FastAPI dependencies for loose coupling
-7. **Follow UUIDv7 patterns**: Use library utilities for time-ordered identifiers
-8. **Implement structured logging**: Include tenant_id, user_id, request_id context
 
 ## Important Implementation Notes
 
@@ -717,26 +524,16 @@ ADMIN_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neofast_admin
 - [ ] Monitoring (metrics/logging/health) wired and alerting configured
 - [ ] Security scans and load tests completed for expected scale
 
-# important-instruction-reminders
+## Important Reminders
+
 **CRITICAL**: Always use neo-commons first before creating new functionality.
 
-## Neo-Commons Integration Rules
-1. **Protocol-First Development** - Use @runtime_checkable Protocol interfaces for all dependencies
-2. **No Service-Specific Code** - All implementations must be generic and reusable
-3. **Dynamic Schema Configuration** - Never hardcode database schema names
-4. **Clean Architecture Compliance** - Respect domain/application/infrastructure/interface boundaries
-5. **Performance Requirements** - Target sub-millisecond permission checks with caching
-
-## Critical Issues to Address Before NeoAdminApi Integration
-1. **Repository Schema References** - Fix 100+ hardcoded schema names in auth repositories
-2. **Config Module Hardcoded Values** - Remove service-specific defaults from base configurations
-
-## Development Standards
+### Development Standards
 - Do what has been asked; nothing more, nothing less
-- NEVER create files unless they're absolutely necessary for achieving your goal
-- ALWAYS prefer editing an existing file to creating a new one
-- NEVER proactively create documentation files (*.md) or README files
-- Never save working files, text/mds and tests to the root folder
+- NEVER create files unless they're absolutely necessary
+- ALWAYS prefer editing existing files over creating new ones
+- NEVER proactively create documentation files (*.md)
+- Never save working files to the root folder
 - Always check neo-commons first before implementing new functionality
 
  # Using Gemini CLI for Large Codebase Analysis

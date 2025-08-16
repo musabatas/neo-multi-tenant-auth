@@ -10,8 +10,6 @@ from src.common.routers.base import NeoAPIRouter
 from src.common.models.base import APIResponse
 from src.common.exceptions.base import NotFoundError, ValidationError, UnauthorizedError
 from src.features.auth.dependencies import security
-from src.features.auth.models.response import UserProfile
-from src.features.auth.services.auth_service import AuthService
 from loguru import logger
 
 from ..models.request import PlatformUserUpdate, UserPreferencesUpdate
@@ -20,46 +18,6 @@ from ..services.user_service import PlatformUserService
 
 router = NeoAPIRouter()
 
-
-@router.get(
-    "/",
-    response_model=APIResponse[UserProfile],
-    status_code=status.HTTP_200_OK,
-    summary="Get current user profile",
-    description="Get complete profile of the currently authenticated user (same as /auth/me)"
-)
-async def get_my_profile(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> APIResponse[UserProfile]:
-    """
-    Get current user information from token.
-    
-    This endpoint is identical to /auth/me and returns the exact same response.
-    Both endpoints use the centralized UserDataService for consistency.
-    """
-    auth_service = AuthService()
-    
-    # Extract access token
-    access_token = credentials.credentials
-    
-    try:
-        # Use shared method from AuthService (same as /auth/me)
-        user_profile = await auth_service.get_current_user(
-            access_token=access_token,
-            use_cache=True
-        )
-        
-        return APIResponse.success_response(
-            message="User retrieved successfully",
-            data=user_profile
-        )
-        
-    except UnauthorizedError as e:
-        logger.warning(f"Get current user failed: {e.message}")
-        raise
-    except Exception as e:
-        logger.error(f"Get current user error: {e}")
-        raise UnauthorizedError("Failed to get user information")
 
 
 @router.put(

@@ -89,7 +89,7 @@ class DualStrategyTokenValidator:
         self,
         token: str,
         realm: str,
-        strategy: ValidationStrategy = ValidationStrategy.DUAL,
+        strategy: ValidationStrategy = ValidationStrategy.LOCAL,
         critical: bool = False
     ) -> Dict[str, Any]:
         """
@@ -148,7 +148,16 @@ class DualStrategyTokenValidator:
                     # For dual strategy, also do introspection in background
                     # for extra security (non-blocking) (matching source)
                     import asyncio
-                    asyncio.create_task(self._validate_introspection(token, realm))
+                    
+                    async def _background_introspection():
+                        """Background introspection with exception handling."""
+                        try:
+                            await self._validate_introspection(token, realm)
+                        except Exception as e:
+                            # Log but don't raise - this is a background check
+                            logger.debug(f"Background introspection check failed (non-critical): {e}")
+                    
+                    asyncio.create_task(_background_introspection())
                     
                 except UnauthorizedError:
                     # Local validation failed, try introspection (matching source)

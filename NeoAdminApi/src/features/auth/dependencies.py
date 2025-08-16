@@ -1,18 +1,25 @@
 """
-Migrated Authentication dependencies for FastAPI routes.
+Neo-Commons Auth Dependencies for FastAPI routes.
 
-Gradual migration to neo-commons while maintaining backward compatibility.
+Protocol-based dependency injection using neo-commons auth infrastructure.
 """
 from typing import Optional, List, Annotated, Dict, Any, Union
 from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from loguru import logger
 
+from neo_commons.auth.services.compatibility import (
+    AuthServiceWrapper, PermissionServiceWrapper, GuestAuthServiceWrapper
+)
+from neo_commons.auth.dependencies import (
+    CurrentUser as NeoCurrentUser,
+    CheckPermission as NeoCheckPermission,
+    GuestOrAuthenticated as NeoGuestOrAuthenticated
+)
+
 from src.common.config.settings import settings
 from src.common.exceptions.base import UnauthorizedError, ForbiddenError, RateLimitError
 from src.features.auth.models.response import UserProfile
-
-# Import protocol implementations
 from .implementations import (
     NeoAdminTokenValidator,
     NeoAdminPermissionChecker,
@@ -20,11 +27,6 @@ from .implementations import (
     NeoAdminCacheService,
     NeoAdminAuthConfig
 )
-
-# Import existing services for gradual migration
-from .services.auth_service import AuthService
-from .services.permission_service import PermissionService
-from .services.guest_auth_service import get_guest_auth_service, GuestAuthService
 
 
 # Security scheme
@@ -41,7 +43,7 @@ guest_security = HTTPBearer(
 
 
 # ============================================================================
-# PROTOCOL IMPLEMENTATION FACTORIES
+# SERVICE INSTANCES - Protocol Implementations
 # ============================================================================
 
 def get_token_validator() -> NeoAdminTokenValidator:
@@ -49,8 +51,12 @@ def get_token_validator() -> NeoAdminTokenValidator:
     return NeoAdminTokenValidator()
 
 def get_permission_checker() -> NeoAdminPermissionChecker:
-    """Get permission checker instance.""" 
+    """Get permission checker instance."""
     return NeoAdminPermissionChecker()
+
+def get_guest_auth_service() -> NeoAdminGuestAuthService:
+    """Get guest auth service instance."""
+    return NeoAdminGuestAuthService()
 
 def get_cache_service() -> NeoAdminCacheService:
     """Get cache service instance."""
@@ -62,15 +68,48 @@ def get_auth_config() -> NeoAdminAuthConfig:
 
 
 # ============================================================================
-# BACKWARD COMPATIBLE DEPENDENCIES - ORIGINAL IMPLEMENTATION
+# SERVICE WRAPPERS - Backward Compatibility
+# ============================================================================
+
+def get_auth_service_wrapper() -> AuthServiceWrapper:
+    """Get auth service wrapper for backward compatibility."""
+    return AuthServiceWrapper(
+        token_validator=get_token_validator(),
+        permission_checker=get_permission_checker(),
+        auth_config=get_auth_config(),
+        cache_service=get_cache_service()
+    )
+
+def get_permission_service_wrapper() -> PermissionServiceWrapper:
+    """Get permission service wrapper for backward compatibility."""
+    return PermissionServiceWrapper(
+        permission_checker=get_permission_checker(),
+        cache_service=get_cache_service(),
+        auth_config=get_auth_config()
+    )
+
+def get_guest_service_wrapper() -> GuestAuthServiceWrapper:
+    """Get guest auth service wrapper for backward compatibility."""
+    return GuestAuthServiceWrapper(
+        guest_service=get_guest_auth_service(),
+        permission_checker=get_permission_checker(),
+        token_validator=get_token_validator(),
+        auth_config=get_auth_config()
+    )
+
+
+# ============================================================================
+# NEO-COMMONS DEPENDENCY CLASSES
 # ============================================================================
 
 class CurrentUser:
-    """Current authenticated user dependency - ORIGINAL IMPLEMENTATION."""
+    """Current authenticated user dependency using neo-commons."""
     
     def __init__(self, required: bool = True, permissions: Optional[List[str]] = None):
         self.required = required
         self.required_permissions = permissions or []
+        # Will be configured during instantiation - see get_current_user/get_current_user_optional
+        self.neo_current_user = None
     
     async def __call__(
         self,
@@ -78,52 +117,26 @@ class CurrentUser:
     ) -> Optional[UserProfile]:
         """Validate token and return current user."""
         
-        # If no credentials and not required, return None
-        if not credentials:
-            if not self.required:
-                return None
-            raise UnauthorizedError("Authentication required")
-        
-        # Use existing AuthService for compatibility
-        auth_service = AuthService()
+        # Lazy initialization of neo-commons dependency
+        if self.neo_current_user is None:
+            self.neo_current_user = get_neo_current_user(
+                required=self.required,
+                permissions=self.required_permissions
+            )
         
         try:
-            # Get current user using existing service
-            user_profile = await auth_service.get_current_user(
-                access_token=credentials.credentials,
-                use_cache=True
-            )
-            
-            # Check permissions if required
-            if self.required_permissions:
-                user_permissions = [p.get('code', f"{p.get('resource')}:{p.get('action')}") 
-                                  if isinstance(p, dict) else str(p) 
-                                  for p in user_profile.permissions]
-                
-                missing_permissions = set(self.required_permissions) - set(user_permissions)
-                
-                if missing_permissions:
-                    raise ForbiddenError(
-                        f"Missing required permissions: {', '.join(missing_permissions)}",
-                        required_permission=", ".join(missing_permissions)
-                    )
-            
+            # Delegate directly to neo-commons CurrentUser
+            user_profile = await self.neo_current_user(credentials)
             return user_profile
             
-        except UnauthorizedError:
-            raise
-        except ForbiddenError:
-            raise
         except Exception as e:
             logger.error(f"Token validation error: {e}")
-            raise UnauthorizedError("Invalid or expired token")
+            raise
 
 
 class CheckPermission:
     """
-    Dependency class for checking database-based permissions - ORIGINAL IMPLEMENTATION.
-    
-    This actually validates permissions against the database, not just Keycloak roles.
+    Dependency class for checking database-based permissions using neo-commons.
     """
     
     def __init__(
@@ -146,6 +159,9 @@ class CheckPermission:
         self.scope = scope
         self.any_of = any_of
         self.tenant_id = tenant_id
+        
+        # Will be configured during instantiation
+        self.neo_check_permission = None
     
     async def __call__(
         self,
@@ -161,72 +177,31 @@ class CheckPermission:
         Raises:
             ForbiddenError: User lacks required permissions
         """
-        # Check if credentials are provided
-        if not credentials:
-            raise UnauthorizedError("Authentication required")
-        
-        # Get current user from token - this uses cache and loads from database
-        auth_service = AuthService()
-        user = await auth_service.get_current_user(
-            access_token=credentials.credentials,
-            use_cache=True
-        )
-        
-        if not user:
-            raise UnauthorizedError("Invalid authentication credentials")
-        
-        # Superadmin bypass - they have all permissions
-        if user.get('is_superadmin'):
-            logger.debug(f"Superadmin {user['id']} bypasses permission check")
-            return user
-        
-        # Get user's permissions from the cached user data
-        user_permissions_raw = user.get('permissions', [])
-        
-        # Handle both old string format and new object format
-        user_permission_codes = []
-        if user_permissions_raw and isinstance(user_permissions_raw[0], dict):
-            # New format: list of permission objects
-            user_permission_codes = [p.get('code', f"{p.get('resource')}:{p.get('action')}") for p in user_permissions_raw]
-        else:
-            # Old format: list of strings (for backward compatibility)
-            user_permission_codes = user_permissions_raw
-        
-        # Check if user has required permissions
-        has_permission = False
-        
-        if self.any_of:
-            # User needs ANY of the permissions
-            for perm in self.permissions:
-                if perm in user_permission_codes or f"{perm.split(':')[0]}:*" in user_permission_codes:
-                    has_permission = True
-                    break
-        else:
-            # User needs ALL permissions
-            has_permission = True
-            for perm in self.permissions:
-                if perm not in user_permission_codes and f"{perm.split(':')[0]}:*" not in user_permission_codes:
-                    has_permission = False
-                    break
-        
-        if not has_permission:
-            logger.warning(
-                f"Permission denied for user {user['id']}: "
-                f"required={self.permissions}, user_has={user_permission_codes[:5]}..."  # Show first 5 perms
-            )
-            raise ForbiddenError(
-                f"Insufficient permissions. Required: {', '.join(self.permissions)}"
+        # Lazy initialization of neo-commons dependency
+        if self.neo_check_permission is None:
+            self.neo_check_permission = get_neo_check_permission(
+                permissions=self.permissions,
+                require_all=not self.any_of,
+                tenant_id=self.tenant_id
             )
         
-        logger.debug(
-            f"Permission granted for user {user['id']}: "
-            f"permissions={self.permissions}"
-        )
-        return user
+        try:
+            # Delegate directly to neo-commons CheckPermission
+            user_data = await self.neo_check_permission(credentials, request)
+            return user_data
+            
+        except Exception as e:
+            logger.error(f"Permission check failed: {e}")
+            raise
 
 
 class TokenData:
-    """Token data dependency for accessing raw token claims - ORIGINAL IMPLEMENTATION."""
+    """Token data dependency for accessing raw token claims using neo-commons."""
+    
+    def __init__(self):
+        # Use shared protocol implementations
+        self.token_validator = _token_validator
+        self.auth_config = _auth_config
     
     async def __call__(
         self,
@@ -234,15 +209,16 @@ class TokenData:
     ) -> dict:
         """Get raw token data."""
         try:
-            # Use existing token manager for validation
-            from src.integrations.keycloak.token_manager import get_token_manager, ValidationStrategy
-            
-            token_manager = get_token_manager()
-            return await token_manager.validate_token(
-                credentials.credentials,
-                realm=settings.keycloak_admin_realm,
-                strategy=ValidationStrategy.LOCAL
+            # Validate token using neo-commons protocol
+            validation_result = await self.token_validator.validate_token(
+                token=credentials.credentials,
+                realm=self.auth_config.default_realm,
+                strategy=self.auth_config.token_validation_strategy
             )
+            
+            # Return raw claims for compatibility
+            return validation_result.raw_claims
+            
         except Exception as e:
             logger.error(f"Token validation error: {e}")
             raise UnauthorizedError("Invalid or expired token")
@@ -250,10 +226,7 @@ class TokenData:
 
 class GuestOrAuthenticated:
     """
-    Dependency that allows both authenticated users and guest access - ORIGINAL IMPLEMENTATION.
-    
-    Provides session tracking for guests while maintaining full functionality
-    for authenticated users.
+    Dependency that allows both authenticated users and guest access using neo-commons.
     """
     
     def __init__(self, required_permissions: Optional[list] = None):
@@ -264,13 +237,15 @@ class GuestOrAuthenticated:
             required_permissions: Permissions required for authenticated access
         """
         self.required_permissions = required_permissions or []
+        
+        # Will be configured during instantiation
+        self.neo_guest_or_auth = None
     
     async def __call__(
         self,
         request: Request,
         credentials: Optional[HTTPAuthorizationCredentials] = Depends(guest_security),
-        x_guest_session: Optional[str] = Header(None, description="Guest session token"),
-        guest_service: GuestAuthService = Depends(get_guest_auth_service)
+        x_guest_session: Optional[str] = Header(None, description="Guest session token")
     ) -> Dict[str, Any]:
         """
         Validate either authenticated user or create guest session.
@@ -278,50 +253,60 @@ class GuestOrAuthenticated:
         Returns:
             User data (authenticated) or guest session data
         """
-        # Extract client information
-        client_ip = self._get_client_ip(request)
-        user_agent = request.headers.get("user-agent")
-        referrer = request.headers.get("referer")
+        # Lazy initialization of neo-commons dependency
+        if self.neo_guest_or_auth is None:
+            self.neo_guest_or_auth = get_neo_guest_or_authenticated()
         
-        # Try authenticated access first
-        if credentials and credentials.credentials:
-            try:
-                # Use existing authentication system
-                auth_check = CheckPermission(self.required_permissions, scope="platform")
-                user_data = await auth_check(credentials, request)
-                
-                # Add user type marker
-                user_data["user_type"] = "authenticated"
-                user_data["session_type"] = "keycloak"
-                
-                logger.debug(f"Authenticated user {user_data['id']} accessing reference data")
-                return user_data
-                
-            except Exception as e:
-                logger.debug(f"Authentication failed, falling back to guest: {e}")
-                # Fall through to guest access
-        
-        # Handle guest access
         try:
-            # Get or create guest session
-            guest_token = x_guest_session or (credentials.credentials if credentials else None)
+            # Extract client information
+            client_ip = self._get_client_ip(request)
+            user_agent = request.headers.get("user-agent")
+            referrer = request.headers.get("referer")
             
-            session_data = await guest_service.get_or_create_guest_session(
-                session_token=guest_token,
+            # Use neo-commons GuestOrAuthenticated dependency
+            result = await self.neo_guest_or_auth(
+                token=credentials.credentials if credentials else None,
+                guest_token=x_guest_session,
                 ip_address=client_ip,
                 user_agent=user_agent,
-                referrer=referrer
+                metadata={"referrer": referrer}
             )
             
-            # Format session token for response
-            if not guest_token or not guest_token.startswith("guest_"):
-                session_data["new_session_token"] = f"{session_data['session_id']}:{session_data['session_token']}"
-            
-            logger.debug(f"Guest session {session_data['session_id']} accessing reference data")
-            return session_data
-            
+            # Format result for NeoAdminApi compatibility
+            if result.get("user_type") == "authenticated":
+                # Authenticated user - format as expected
+                return {
+                    "user_type": "authenticated",
+                    "session_type": "keycloak",
+                    "id": result.get("user_id"),
+                    "email": result.get("email"),
+                    "username": result.get("username"),
+                    "permissions": result.get("permissions", []),
+                    "roles": result.get("roles", []),
+                    "tenants": result.get("tenants", [])
+                }
+            else:
+                # Guest session - format as expected
+                guest_data = {
+                    "user_type": "guest",
+                    "session_type": "guest",
+                    "session_id": result.get("session_id"),
+                    "session_token": result.get("session_token"),
+                    "permissions": result.get("permissions", ["reference_data:read"]),
+                    "rate_limit": result.get("rate_limit", {}),
+                    "request_count": result.get("request_count", 0),
+                    "created_at": result.get("created_at"),
+                    "expires_at": result.get("expires_at")
+                }
+                
+                # Add new session token if created
+                if result.get("new_session_token"):
+                    guest_data["new_session_token"] = result["new_session_token"]
+                
+                return guest_data
+                
         except RateLimitError as e:
-            logger.warning(f"Rate limit exceeded for IP {client_ip}: {e}")
+            logger.warning(f"Rate limit exceeded for IP {self._get_client_ip(request)}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=str(e),
@@ -355,29 +340,73 @@ class GuestOrAuthenticated:
 
 
 class GuestSessionInfo:
-    """Dependency to extract guest session information - ORIGINAL IMPLEMENTATION."""
+    """Dependency to extract guest session information using neo-commons."""
+    
+    def __init__(self):
+        # Use shared protocol implementation
+        self.guest_service = _guest_auth_service
     
     async def __call__(
         self,
-        x_guest_session: Optional[str] = Header(None),
-        guest_service: GuestAuthService = Depends(get_guest_auth_service)
+        x_guest_session: Optional[str] = Header(None)
     ) -> Optional[Dict[str, Any]]:
         """Get guest session stats if session token provided."""
         if not x_guest_session:
             return None
         
         try:
-            return await guest_service.get_session_stats(x_guest_session)
+            return await self.guest_service.get_session_stats(x_guest_session)
         except Exception as e:
             logger.debug(f"Failed to get guest session stats: {e}")
             return None
 
 
 # ============================================================================
-# DEPENDENCY INSTANCES 
+# DEPENDENCY INSTANCES
 # ============================================================================
 
-# Current user dependencies
+# Protocol implementations - configured once and reused
+_token_validator = get_token_validator()
+_permission_checker = get_permission_checker()
+_auth_config = get_auth_config()
+_cache_service = get_cache_service()
+_guest_auth_service = get_guest_auth_service()
+
+# Neo-commons dependency factories
+def get_neo_current_user(required: bool = True, permissions: Optional[List[str]] = None) -> NeoCurrentUser:
+    """Create configured neo-commons CurrentUser dependency."""
+    return NeoCurrentUser(
+        token_validator=_token_validator,
+        auth_config=_auth_config,
+        required=required,
+        permissions=permissions
+    )
+
+def get_neo_check_permission(
+    permissions: List[str],
+    require_all: bool = True,
+    tenant_id: Optional[str] = None
+) -> NeoCheckPermission:
+    """Create configured neo-commons CheckPermission dependency."""
+    return NeoCheckPermission(
+        permission_checker=_permission_checker,
+        token_validator=_token_validator,
+        auth_config=_auth_config,
+        permissions=permissions,
+        any_of=not require_all,  # Convert require_all to any_of (inverted logic)
+        tenant_id=tenant_id
+    )
+
+def get_neo_guest_or_authenticated() -> NeoGuestOrAuthenticated:
+    """Create configured neo-commons GuestOrAuthenticated dependency."""
+    return NeoGuestOrAuthenticated(
+        guest_service=_guest_auth_service,
+        permission_checker=_permission_checker,
+        token_validator=_token_validator,
+        auth_config=_auth_config
+    )
+
+# NeoAdminApi dependency instances with protocol implementations
 get_current_user = CurrentUser(required=True)
 get_current_user_optional = CurrentUser(required=False)
 
@@ -419,7 +448,7 @@ def create_guest_or_authenticated(required_permissions: Optional[list] = None):
 async def get_user_permissions(
     token_data: Annotated[dict, Depends(get_token_data)]
 ) -> List[str]:
-    """Get current user's permissions."""
+    """Get current user's permissions from token."""
     permissions = []
     
     # Extract from resource access
@@ -443,7 +472,7 @@ async def get_user_permissions(
 async def get_user_roles(
     token_data: Annotated[dict, Depends(get_token_data)]
 ) -> List[str]:
-    """Get current user's roles."""
+    """Get current user's roles from token."""
     roles = []
     
     # Extract realm roles
@@ -466,29 +495,3 @@ async def get_user_roles(
 # Common permission dependencies
 require_admin = require_permissions("admin", "platform_admin")
 require_superadmin = require_permissions("superadmin")
-
-
-# ============================================================================
-# NEO-COMMONS EXPERIMENTAL DEPENDENCIES (Future Use)
-# ============================================================================
-
-# These are available for testing and future migration
-# but not used by default to maintain stability
-
-def get_neo_current_user(required: bool = True, permissions: Optional[List[str]] = None):
-    """
-    Get neo-commons based CurrentUser dependency (experimental).
-    
-    This is available for testing but not used by default.
-    """
-    from .dependencies_neo import CurrentUser as NeoCurrentUser
-    return NeoCurrentUser(required=required, permissions=permissions)
-
-def get_neo_check_permission(permissions: List[str], scope: str = "platform", any_of: bool = False):
-    """
-    Get neo-commons based CheckPermission dependency (experimental).
-    
-    This is available for testing but not used by default.
-    """
-    from .dependencies_neo import CheckPermission as NeoCheckPermission
-    return NeoCheckPermission(permissions=permissions, scope=scope, any_of=any_of)

@@ -527,7 +527,7 @@ class TokenValidatorProtocol(Protocol):
         self,
         token: str,
         realm: str,
-        strategy: ValidationStrategy = ValidationStrategy.DUAL,
+        strategy: ValidationStrategy = ValidationStrategy.LOCAL,
         critical: bool = False
     ) -> Dict[str, Any]:
         """

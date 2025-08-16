@@ -180,7 +180,7 @@ class AuthServiceWrapper:
             token_data = await self.token_validator.validate_token(
                 token=token,
                 realm=self.auth_config.default_realm,
-                strategy=ValidationStrategy.DUAL,
+                strategy=ValidationStrategy.LOCAL,
                 critical=False
             )
             

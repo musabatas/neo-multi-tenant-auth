@@ -1,15 +1,15 @@
 {
   "version": "1.0",
   "schema": "neo-chain-operations-v1",
-  "updated": "2025-08-15T22:46:13Z",
-  "active_operation": "NC-20250815-ANALYSIS-001",
+  "updated": "2025-08-16T18:51:03Z",
+  "active_operation": "NC-20250816-AUTH-001",
   "operations": {
     "NC-20250815-ANALYSIS-001": {
       "type": "analysis",
       "description": "NeoAdminApi neo-commons integration analysis",
-      "status": "in_progress",
+      "status": "complete",
       "created": "2025-08-15T22:46:13Z",
-      "updated": "2025-08-15T22:46:13Z",
+      "updated": "2025-08-15T23:22:00Z",
       "current_phase": "investigation",
       "current_agent": "neo-investigator",
       "phases": {
@@ -19,6 +19,30 @@
           "started": "2025-08-15T22:46:13Z",
           "completed": "2025-08-15T23:22:00Z",
           "duration": "36m",
+          "progress": 100,
+          "report": "reports/01-investigation.xml"
+        }
+      }
+    },
+    "NC-20250816-AUTH-001": {
+      "type": "auth_analysis",
+      "description": "Comprehensive analysis of NeoAdminApi auth feature for redundancy and neo-commons integration",
+      "status": "in_progress",
+      "created": "2025-08-16T18:51:03Z",
+      "updated": "2025-08-16T18:51:03Z",
+      "current_phase": "investigation",
+      "current_agent": "neo-investigator",
+      "progress": {
+        "completion": 100,
+        "findings": 15
+      },
+      "phases": {
+        "investigation": {
+          "agent": "neo-investigator",
+          "status": "complete",
+          "started": "2025-08-16T18:51:03Z",
+          "completed": "2025-08-16T19:15:00Z",
+          "duration": "24m",
           "progress": 100,
           "report": "reports/01-investigation.xml"
         }

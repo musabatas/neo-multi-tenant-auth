@@ -334,23 +334,29 @@ class PermissionService:
             realm=settings.keycloak_admin_realm
         )
         
-        # Get user ID from token
-        external_id = token_claims.get('sub')
-        if not external_id:
+        # Get Keycloak user ID from token
+        keycloak_user_id = token_claims.get('sub')
+        if not keycloak_user_id:
             raise UnauthorizedError("Invalid token claims")
         
-        # Get user by external ID
+        logger.debug(f"Token validation: Keycloak user ID = {keycloak_user_id}")
+        
+        # Map Keycloak user ID to platform user ID
         user = await self.auth_repo.get_user_by_external_id(
             provider="keycloak",
-            external_id=external_id
+            external_id=keycloak_user_id
         )
         
         if not user:
-            raise UnauthorizedError("User not found")
+            logger.error(f"Platform user not found for Keycloak ID: {keycloak_user_id}")
+            raise UnauthorizedError("User not found in platform database")
         
-        # Check permission
+        platform_user_id = user['id']
+        logger.debug(f"Mapped to platform user ID: {platform_user_id}")
+        
+        # Check permission using platform user ID
         await self.check_permission(
-            user['id'],
+            platform_user_id,
             required_permission,
             tenant_id,
             use_cache=True

@@ -75,6 +75,7 @@ class PlatformUserService(BaseService):
             "id": user_data["id"],
             "email": user_data["email"],
             "username": user_data["username"],
+            "external_id": user_data.get("external_id"),  # Add missing external_id field
             "first_name": user_data.get("first_name"),
             "last_name": user_data.get("last_name"),
             "display_name": user_data.get("display_name"),

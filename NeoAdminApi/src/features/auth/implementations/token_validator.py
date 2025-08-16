@@ -20,12 +20,16 @@ class NeoAdminTokenValidator:
     def __init__(self):
         """Initialize token validator."""
         self.auth_service = create_auth_service()
+        # Import here to avoid circular dependency
+        from ..repositories.auth_repository import AuthRepository
+        self.auth_repo = AuthRepository()
     
     async def validate_token(
         self,
         token: str,
         realm: str,
-        strategy: str = "DUAL"
+        strategy: ValidationStrategy = ValidationStrategy.LOCAL,
+        critical: bool = False
     ) -> Dict[str, Any]:
         """
         Validate a JWT token.
@@ -34,6 +38,7 @@ class NeoAdminTokenValidator:
             token: JWT token to validate
             realm: Keycloak realm
             strategy: Validation strategy (LOCAL, INTROSPECTION, DUAL)
+            critical: Whether this is critical operation (forces introspection)
             
         Returns:
             Dictionary with claims and metadata
@@ -42,25 +47,47 @@ class NeoAdminTokenValidator:
             UnauthorizedError: Invalid or expired token
         """
         try:
-            # Convert string strategy to enum
-            validation_strategy = ValidationStrategy.DUAL
-            if strategy == "LOCAL":
-                validation_strategy = ValidationStrategy.LOCAL
-            elif strategy == "INTROSPECTION":
-                validation_strategy = ValidationStrategy.INTROSPECTION
+            # Use strategy parameter directly if it's already ValidationStrategy enum
+            validation_strategy = strategy
+            if isinstance(strategy, str):
+                # Convert string strategy to enum for backward compatibility
+                if strategy == "LOCAL":
+                    validation_strategy = ValidationStrategy.LOCAL
+                elif strategy == "INTROSPECTION":
+                    validation_strategy = ValidationStrategy.INTROSPECTION
+                else:
+                    validation_strategy = ValidationStrategy.DUAL
             
             # Validate using existing token manager
-            claims = await self.auth_service.validate_token(
+            claims = await self.auth_service.token_validator.validate_token(
                 token=token,
                 realm=realm,
                 strategy=validation_strategy,
-                critical=False
+                critical=critical
             )
             
             # Extract standard fields
-            user_id = claims.get("sub", "")
+            keycloak_user_id = claims.get("sub", "")
             username = claims.get("preferred_username", "")
             email = claims.get("email", "")
+            
+            logger.debug(f"Token validation: Keycloak user ID = {keycloak_user_id}")
+            
+            # Map Keycloak user ID to platform user ID
+            platform_user_id = keycloak_user_id  # Default fallback
+            try:
+                # Try to find platform user by external_user_id
+                platform_user = await self.auth_repo.get_user_by_external_id(
+                    provider="keycloak",
+                    external_id=keycloak_user_id
+                )
+                if platform_user:
+                    platform_user_id = platform_user['id']
+                    logger.debug(f"Mapped to platform user ID: {platform_user_id}")
+                else:
+                    logger.warning(f"Platform user not found for Keycloak ID: {keycloak_user_id}")
+            except Exception as e:
+                logger.warning(f"Failed to map Keycloak user ID to platform user ID: {e}")
             
             # Extract expiration
             expires_at = claims.get("exp")
@@ -89,7 +116,8 @@ class NeoAdminTokenValidator:
             
             # Return dictionary that matches the protocol
             return {
-                "user_id": user_id,
+                "user_id": platform_user_id,  # Use platform user ID for permissions
+                "keycloak_user_id": keycloak_user_id,  # Keep original for reference
                 "username": username,
                 "email": email,
                 "realm": issuer_realm,
@@ -100,7 +128,7 @@ class NeoAdminTokenValidator:
                 "scopes": scopes,
                 "raw_claims": claims,
                 # Standard JWT claims
-                "sub": user_id,
+                "sub": keycloak_user_id,  # Keep original Keycloak ID in sub
                 "preferred_username": username,
                 **claims  # Include all original claims
             }

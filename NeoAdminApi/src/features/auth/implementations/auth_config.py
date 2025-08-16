@@ -6,7 +6,7 @@ Protocol-compliant wrapper around existing settings for neo-commons integration.
 from typing import Dict, Any, Optional, List
 from loguru import logger
 
-from neo_commons.auth.protocols import AuthConfigProtocol
+from neo_commons.auth.protocols import AuthConfigProtocol, ValidationStrategy
 from src.common.config.settings import settings
 
 
@@ -24,37 +24,98 @@ class NeoAdminAuthConfig:
     @property
     def keycloak_server_url(self) -> str:
         """Get Keycloak server URL."""
-        return getattr(settings, 'keycloak_server_url', 'http://localhost:8080')
+        return str(settings.keycloak_url)
     
     @property
     def keycloak_admin_realm(self) -> str:
         """Get Keycloak admin realm."""
-        return getattr(settings, 'keycloak_admin_realm', 'master')
+        return settings.keycloak_admin_realm
     
     @property
     def keycloak_admin_client_id(self) -> str:
         """Get Keycloak admin client ID."""
-        return getattr(settings, 'keycloak_admin_client_id', 'admin-cli')
+        return settings.keycloak_admin_client_id
     
     @property
     def keycloak_admin_client_secret(self) -> Optional[str]:
         """Get Keycloak admin client secret."""
-        return getattr(settings, 'keycloak_admin_client_secret', None)
+        return settings.keycloak_admin_client_secret.get_secret_value()
     
     @property
     def keycloak_admin_username(self) -> Optional[str]:
         """Get Keycloak admin username."""
-        return getattr(settings, 'keycloak_admin_username', None)
+        return settings.keycloak_admin_username
     
     @property
     def keycloak_admin_password(self) -> Optional[str]:
         """Get Keycloak admin password."""
-        return getattr(settings, 'keycloak_admin_password', None)
+        return settings.keycloak_admin_password.get_secret_value()
+    
+    @property
+    def default_realm(self) -> str:
+        """Get default realm for authentication."""
+        return settings.keycloak_admin_realm
+    
+    @property
+    def keycloak_url(self) -> str:
+        """Get Keycloak server URL (alias for keycloak_server_url)."""
+        return self.keycloak_server_url
+    
+    @property
+    def admin_client_id(self) -> str:
+        """Get admin client ID (alias for keycloak_admin_client_id)."""
+        return self.keycloak_admin_client_id
+    
+    @property
+    def admin_client_secret(self) -> str:
+        """Get admin client secret (alias for keycloak_admin_client_secret)."""
+        return self.keycloak_admin_client_secret or ""
+    
+    @property
+    def admin_username(self) -> str:
+        """Get admin username (alias for keycloak_admin_username)."""
+        return self.keycloak_admin_username or ""
+    
+    @property
+    def admin_password(self) -> str:
+        """Get admin password (alias for keycloak_admin_password)."""
+        return self.keycloak_admin_password or ""
+    
+    @property
+    def jwt_algorithm(self) -> str:
+        """Get JWT signing algorithm."""
+        return settings.jwt_algorithm
+    
+    @property
+    def jwt_verify_audience(self) -> bool:
+        """Get whether to verify JWT audience."""
+        return settings.jwt_verify_audience
+    
+    @property
+    def jwt_verify_issuer(self) -> bool:
+        """Get whether to verify JWT issuer."""
+        return settings.jwt_verify_issuer
+    
+    @property
+    def jwt_audience(self) -> Optional[str]:
+        """Get expected JWT audience."""
+        return settings.jwt_audience
+    
+    @property
+    def jwt_issuer(self) -> Optional[str]:
+        """Get expected JWT issuer."""
+        return settings.jwt_issuer
+    
+    @property
+    def default_validation_strategy(self) -> ValidationStrategy:
+        """Get default token validation strategy."""
+        strategy_str = getattr(settings, 'token_validation_strategy', 'LOCAL')
+        return ValidationStrategy(strategy_str.lower())
     
     @property
     def token_validation_strategy(self) -> str:
-        """Get default token validation strategy."""
-        return getattr(settings, 'token_validation_strategy', 'DUAL')
+        """Get default token validation strategy (legacy property)."""
+        return getattr(settings, 'token_validation_strategy', 'LOCAL')
     
     @property
     def token_cache_ttl(self) -> int:

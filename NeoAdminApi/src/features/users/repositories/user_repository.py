@@ -682,7 +682,7 @@ class PlatformUserRepository(BaseRepository[Dict[str, Any]]):
         conflicts = []
         
         # Email conflict check
-        email_query = "SELECT id FROM {self.get_current_schema()}.platform_users WHERE email = $1 AND deleted_at IS NULL"
+        email_query = f"SELECT id FROM {self.get_current_schema()}.platform_users WHERE email = $1 AND deleted_at IS NULL"
         params = [email.lower()]
         if exclude_user_id:
             email_query += " AND id != $2"
@@ -693,7 +693,7 @@ class PlatformUserRepository(BaseRepository[Dict[str, Any]]):
             conflicts.append("email")
         
         # Username conflict check
-        username_query = "SELECT id FROM {self.get_current_schema()}.platform_users WHERE username = $1 AND deleted_at IS NULL"
+        username_query = f"SELECT id FROM {self.get_current_schema()}.platform_users WHERE username = $1 AND deleted_at IS NULL"
         params = [username.lower()]
         if exclude_user_id:
             username_query += " AND id != $2"

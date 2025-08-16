@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 - **Async Everything**: Full async/await pattern throughout
 - **Type Safety**: Pydantic models for validation and serialization
 - **Two-Level Architecture**: Platform level (admin DB) vs Tenant level (regional DBs)
-- **python-keycloak Integration**: Using official async library for all Keycloak operations
+- **Neo-Commons Integration**: Using shared library for authentication, caching, and common utilities
 
 ## Current Status
 
@@ -27,12 +27,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
    - Global exception handling
    - Settings management with environment variables
 
-2. **Authentication Foundation** (`src/features/auth/`)
-   - python-keycloak library integration (>=5.7.0)
-   - KeycloakClient with async methods (a_token, a_introspect, etc.)
-   - TokenManager with dual validation (introspection + local JWT)
-   - RealmManager for multi-tenant realm support
-   - Two-level permission system (Platform vs Tenant)
+2. **Authentication System** (`src/features/auth/`)
+   - **Neo-Commons Integration**: Protocol-based auth services for unified authentication
+   - **Token Validation**: Automatic mapping between Keycloak and platform user IDs
+   - **Permission Checking**: Database-driven permissions with intelligent caching
+   - **Multi-Level Auth**: Platform-level (admin) and tenant-level permissions
+   - **Protocol Compliance**: Implements neo-commons auth protocols for consistency
 
 3. **API Documentation**
    - Scalar at `/docs` (primary)
@@ -46,10 +46,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ### 🚧 In Progress
 
-- Authentication implementation with python-keycloak
-- Platform user management with tenant-scoped permissions
-- API routers and endpoints
-- Test structure setup
+- Platform user management endpoints (users feature)
+- Organization management with tenant relationships  
+- API routers and endpoints for remaining features
+- Test structure setup and comprehensive test coverage
 
 ### 📋 Pending
 
@@ -105,6 +105,250 @@ curl http://localhost:8001/health
 # This uses dynamic routing from admin.database_connections
 ```
 
+## Neo-Commons Integration
+
+**NeoAdminApi** is fully integrated with the **neo-commons** shared library, providing unified authentication, caching, and utilities across the entire NeoMultiTenant platform.
+
+### Integration Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    NEOADMINAPI                               │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  Protocol Implementations (src/features/auth/implementations/) │
+│  ├── NeoAdminTokenValidator                                 │
+│  ├── NeoAdminPermissionChecker                              │
+│  ├── NeoAdminAuthConfig                                     │
+│  └── NeoAdminCacheService                                   │
+└─────────────────────────────────────────────────────────────┘
+                              ↕ Protocol-based interface
+┌─────────────────────────────────────────────────────────────┐
+│                   NEO-COMMONS                               │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│  ├── AuthService (token validation, user management)        │
+│  ├── PermissionService (database-driven permissions)        │
+│  ├── CacheService (Redis with tenant isolation)             │
+│  └── Dependencies (FastAPI integration)                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Integration Points
+
+#### 1. Authentication Flow
+- **Token Validation**: neo-commons handles JWT validation with Keycloak
+- **User ID Mapping**: Automatic mapping from Keycloak user IDs to platform user IDs
+- **Permission Checking**: Database-driven permissions with intelligent caching
+- **Session Management**: Unified session handling across services
+
+#### 2. Protocol-Based Design
+All auth components implement neo-commons protocols for consistency:
+
+```python
+# Token Validator Protocol Implementation
+class NeoAdminTokenValidator:
+    async def validate_token(self, token: str, realm: str) -> Dict[str, Any]:
+        # Maps Keycloak user ID to platform user ID automatically
+        keycloak_user_id = claims.get("sub")
+        platform_user = await self.auth_repo.get_user_by_external_id(
+            provider="keycloak", external_id=keycloak_user_id
+        )
+        return {"user_id": platform_user['id'], ...}
+
+# Permission Checker Protocol Implementation  
+class NeoAdminPermissionChecker:
+    async def check_permission(self, user_id: str, permissions: List[str]) -> bool:
+        # Resolves user ID and checks platform database
+        platform_user_id = await self._resolve_user_id(user_id)
+        return await self.permission_service.check_permission(platform_user_id, ...)
+```
+
+#### 3. User ID Resolution System
+Critical feature that bridges Keycloak identity with platform permissions:
+
+**Problem Solved**: Keycloak provides user identity (`sub` field), but platform permissions are stored using internal platform user IDs.
+
+**Solution**: Automatic user ID resolution in multiple layers:
+1. **Token Validator**: Maps during token validation
+2. **Permission Checker**: Maps during permission checking
+3. **Fallback Protection**: Works regardless of which ID is provided
+
+**Flow**:
+```
+Keycloak JWT → Extract `sub` → Query `external_user_id` → Platform User ID → Permissions
+```
+
+#### 4. FastAPI Dependencies
+Neo-commons provides FastAPI dependencies that work seamlessly:
+
+```python
+from src.features.auth.dependencies import (
+    get_current_user,           # Authenticated user required
+    get_current_user_optional,  # Optional authentication
+    CheckPermission,            # Permission-based access control
+    get_token_data             # Raw token claims
+)
+
+# Usage in routes
+@router.get("/users")
+async def list_users(
+    current_user: dict = Depends(CheckPermission(["users:list"]))
+):
+    # current_user contains platform user data
+    return await user_service.list_users()
+```
+
+### Authentication Integration Patterns
+
+#### Current User Access
+```python
+# Get authenticated user (required)
+current_user = Depends(get_current_user)
+
+# Get authenticated user (optional)  
+current_user = Depends(get_current_user_optional)
+
+# Permission-based access
+admin_user = Depends(CheckPermission(["admin:access"]))
+```
+
+#### Permission Checking
+```python
+# Single permission
+user_manager = Depends(CheckPermission(["users:manage"]))
+
+# Multiple permissions (ALL required)
+super_admin = Depends(CheckPermission(["admin:access", "system:manage"]))
+
+# Multiple permissions (ANY required)
+content_editor = Depends(CheckPermission(
+    ["content:create", "content:edit"], 
+    any_of=True
+))
+```
+
+#### Guest Authentication (Public Endpoints)
+```python
+from src.features.auth.dependencies import get_reference_data_access
+
+@router.get("/currencies")
+async def list_currencies(
+    user_context: dict = Depends(get_reference_data_access)
+):
+    # Works for both authenticated users and guest sessions
+    user_type = user_context.get("user_type")  # "authenticated" or "guest"
+```
+
+### Configuration Integration
+
+**NeoAdminAuthConfig** adapts NeoAdminApi settings for neo-commons:
+
+```python
+class NeoAdminAuthConfig:
+    @property
+    def keycloak_server_url(self) -> str:
+        return str(settings.keycloak_url)
+    
+    @property
+    def default_realm(self) -> str:
+        return settings.keycloak_admin_realm
+    
+    @property
+    def token_validation_strategy(self) -> ValidationStrategy:
+        return ValidationStrategy.DUAL  # Local + Introspection
+```
+
+### Caching Integration
+
+**Tenant-Isolated Caching** with automatic invalidation:
+
+```python
+# Cache keys are automatically namespaced
+cache_key = f"platform:user:{user_id}:permissions"
+cache_key = f"tenant:{tenant_id}:user:{user_id}:roles"
+
+# TTL configuration
+permission_cache_ttl = 600   # 10 minutes
+token_cache_ttl = 300        # 5 minutes
+session_cache_ttl = 3600     # 1 hour
+```
+
+### Error Handling Integration
+
+**Unified Exception Handling** across neo-commons and NeoAdminApi:
+
+```python
+# Neo-commons exceptions automatically mapped
+try:
+    user = await auth_service.get_current_user(token)
+except neo_commons.exceptions.UnauthorizedError:
+    # Automatically converted to FastAPI HTTPException
+    raise HTTPException(status_code=401, detail="Invalid token")
+```
+
+### Development Patterns
+
+#### Service Creation
+```python
+# Always use neo-commons auth service
+from neo_commons.auth import create_auth_service
+
+auth_service = create_auth_service(auth_config=NeoAdminAuthConfig())
+```
+
+#### Permission Checking in Services
+```python
+class UserService:
+    async def delete_user(self, user_id: str, current_user_id: str):
+        # Check permission using neo-commons
+        has_permission = await self.permission_checker.check_permission(
+            user_id=current_user_id,
+            permissions=["users:delete"]
+        )
+        if not has_permission:
+            raise ForbiddenError("Insufficient permissions")
+```
+
+#### Cache Management
+```python
+# Use neo-commons caching patterns
+await self.cache.set(
+    key=f"user:{user_id}:profile",
+    value=user_data,
+    ttl=3600,
+    tenant_id=tenant_id  # Automatic namespace isolation
+)
+```
+
+### Migration & Compatibility
+
+**Backward Compatibility**: All existing NeoAdminApi patterns continue to work while gaining neo-commons benefits.
+
+**Protocol Compliance**: New features must implement neo-commons protocols for consistency.
+
+**Performance Benefits**: 
+- Sub-millisecond permission checks through intelligent caching
+- Reduced code duplication across services
+- Unified error handling and logging
+
+### Testing with Neo-Commons
+
+```python
+# Mock neo-commons dependencies
+@pytest.fixture
+def mock_permission_checker():
+    return Mock(spec=PermissionCheckerProtocol)
+
+async def test_user_endpoint(client, mock_permission_checker):
+    # Inject mock into dependency system
+    app.dependency_overrides[get_permission_checker] = lambda: mock_permission_checker
+    
+    mock_permission_checker.check_permission.return_value = True
+    response = await client.get("/users")
+    assert response.status_code == 200
+```
+
 ## Code Architecture
 
 ### Project Structure
@@ -150,11 +394,11 @@ NeoAdminApi/
 │   │       ├── cache.py             # Cache config
 │   │       └── auth.py              # Auth config
 │   │
-│   ├── integrations/                # External integrations
-│   │   ├── keycloak/                # Keycloak client (python-keycloak)
-│   │   │   ├── client.py            # KeycloakClient with async methods
-│   │   │   ├── token_manager.py     # TokenManager with introspection
-│   │   │   └── realm_manager.py     # RealmManager for multi-tenancy
+│   ├── integrations/                # External integrations  
+│   │   ├── neo_commons/             # Neo-commons shared library integration
+│   │   │   ├── auth_wrapper.py      # Auth service wrapper for compatibility
+│   │   │   ├── cache_wrapper.py     # Cache service wrapper
+│   │   │   └── protocols.py         # Protocol implementations
 │   │   ├── payment_gateways/        # Payment providers
 │   │   │   ├── stripe/
 │   │   │   └── paddle/

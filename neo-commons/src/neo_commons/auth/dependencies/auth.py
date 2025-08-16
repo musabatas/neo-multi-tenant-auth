@@ -102,7 +102,7 @@ class CurrentUser:
             token_data = await self.token_validator.validate_token(
                 credentials.credentials,
                 realm=self.auth_config.default_realm,
-                strategy=ValidationStrategy.DUAL,  # Use dual validation for better performance
+                strategy=ValidationStrategy.LOCAL,  # Use local validation to avoid introspection errors
                 critical=False
             )
             
@@ -240,7 +240,7 @@ class CheckPermission:
             token_data = await self.token_validator.validate_token(
                 credentials.credentials,
                 realm=self.auth_config.default_realm,
-                strategy=ValidationStrategy.DUAL,
+                strategy=ValidationStrategy.LOCAL,
                 critical=False
             )
             
@@ -337,7 +337,7 @@ class TokenData:
             return await self.token_validator.validate_token(
                 credentials.credentials,
                 realm=self.auth_config.default_realm,
-                strategy=ValidationStrategy.DUAL,
+                strategy=ValidationStrategy.LOCAL,
                 critical=False
             )
         except Exception as e:

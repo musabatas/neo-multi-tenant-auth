@@ -14,6 +14,13 @@ from ..database.connection import DatabaseManager
 from ..models.base import PaginationParams, PaginationMetadata
 from ..database.utils import process_database_record
 from .protocols import SchemaProvider, ConnectionProvider
+from .pagination import (
+    PaginationHelper, 
+    PaginatedRepository,
+    PaginationParams as AdvancedPaginationParams,
+    PaginationType,
+    CursorInfo
+)
 
 T = TypeVar('T')
 
@@ -57,7 +64,7 @@ class DefaultSchemaProvider:
         return self.platform_schema
 
 
-class BaseRepository(ABC, Generic[T]):
+class BaseRepository(ABC, Generic[T], PaginatedRepository):
     """
     Enhanced base repository with dynamic schema configuration.
     
@@ -198,19 +205,46 @@ class BaseRepository(ABC, Generic[T]):
     async def count_with_filters(
         self, 
         filters: Optional[Dict[str, Any]] = None,
-        schema: Optional[str] = None
+        schema: Optional[str] = None,
+        additional_where: Optional[str] = None,
+        additional_joins: Optional[str] = None
     ) -> int:
-        """Count records with optional filters."""
+        """Count records with optional filters and additional WHERE clause.
+        
+        Args:
+            filters: Filter conditions dictionary
+            schema: Override schema for this operation
+            additional_where: Additional WHERE clause to append
+            additional_joins: Additional JOIN clauses for complex counts
+            
+        Returns:
+            Count of matching records
+        """
         table_name = self.get_full_table_name(schema)
         
-        base_query = f"SELECT COUNT(*) FROM {table_name}"
+        # Build base query with optional joins
+        if additional_joins:
+            base_query = f"SELECT COUNT(*) FROM {table_name} t {additional_joins}"
+        else:
+            base_query = f"SELECT COUNT(*) FROM {table_name}"
+        
+        # Build WHERE clause
+        where_parts = []
+        params = []
         
         if filters:
             where_clause, params, _ = self.build_where_clause(filters)
-            query = f"{base_query} WHERE {where_clause}"
+            where_parts.append(where_clause)
+        
+        if additional_where:
+            where_parts.append(f"({additional_where})")
+        
+        # Combine WHERE parts
+        if where_parts:
+            combined_where = " AND ".join(where_parts)
+            query = f"{base_query} WHERE {combined_where}"
         else:
             query = base_query
-            params = []
         
         db = await self.get_connection()
         result = await db.fetchval(query, *params)
@@ -225,6 +259,7 @@ class BaseRepository(ABC, Generic[T]):
         sort_by: Optional[str] = None,
         sort_order: str = "ASC",
         additional_joins: str = "",
+        additional_where: Optional[str] = None,
         schema: Optional[str] = None,
         uuid_fields: Optional[List[str]] = None,
         jsonb_fields: Optional[List[str]] = None
@@ -240,6 +275,7 @@ class BaseRepository(ABC, Generic[T]):
             sort_by: Field to sort by
             sort_order: Sort order (ASC/DESC)
             additional_joins: Additional JOIN clauses
+            additional_where: Additional WHERE clause to append
             schema: Override schema for this operation
             uuid_fields: Fields to convert from UUID to string
             jsonb_fields: Fields to parse as JSON
@@ -260,12 +296,21 @@ class BaseRepository(ABC, Generic[T]):
             {additional_joins}
         """
         
-        # Add WHERE clause if filters provided
+        # Build WHERE clause
+        where_parts = []
+        params = []
+        
         if filters:
             where_clause, params, _ = self.build_where_clause(filters)
-            base_query += f" WHERE {where_clause}"
-        else:
-            params = []
+            where_parts.append(where_clause)
+        
+        if additional_where:
+            where_parts.append(f"({additional_where})")
+        
+        # Add combined WHERE clause to query
+        if where_parts:
+            combined_where = " AND ".join(where_parts)
+            base_query += f" WHERE {combined_where}"
         
         # Add ORDER BY clause
         order_clause = self.build_order_clause(sort_by, sort_order)
@@ -281,7 +326,12 @@ class BaseRepository(ABC, Generic[T]):
         # Get total count and data
         db = await self.get_connection()
         
-        total_count = await self.count_with_filters(filters, schema)
+        total_count = await self.count_with_filters(
+            filters=filters, 
+            schema=schema, 
+            additional_where=additional_where, 
+            additional_joins=additional_joins
+        )
         rows = await db.fetch(query, *params)
         
         # Process results
@@ -308,18 +358,98 @@ class BaseRepository(ABC, Generic[T]):
         
         return items, pagination
     
+    async def paginated_list_cursor(
+        self,
+        select_fields: str = "*",
+        cursor: Optional[str] = None,
+        limit: int = 20,
+        filters: Optional[Dict[str, Any]] = None,
+        sort_by: str = "created_at",
+        sort_order: str = "DESC",
+        additional_joins: str = "",
+        additional_where: Optional[str] = None,
+        schema: Optional[str] = None,
+        uuid_fields: Optional[List[str]] = None,
+        jsonb_fields: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Cursor-based pagination for efficient large dataset navigation.
+        
+        Args:
+            select_fields: SQL SELECT fields
+            cursor: Encoded cursor from previous request
+            limit: Items per page (max 100)
+            filters: Filter conditions
+            sort_by: Field to sort by
+            sort_order: Sort order (ASC/DESC)
+            additional_joins: Additional JOIN clauses
+            additional_where: Additional WHERE clause
+            schema: Override schema for this operation
+            uuid_fields: Fields to convert from UUID to string
+            jsonb_fields: Fields to parse as JSON
+            
+        Returns:
+            Dictionary with items and cursor pagination info
+        """
+        # Create advanced pagination params
+        pagination = AdvancedPaginationParams(
+            cursor=cursor,
+            limit=limit,
+            order_by=sort_by,
+            order_direction=sort_order
+        )
+        
+        # Use the advanced pagination method
+        table_name = self.get_full_table_name(schema)
+        
+        result = await self.paginated_list_advanced(
+            select_fields=select_fields,
+            table_name=table_name,
+            pagination=pagination,
+            filters=filters,
+            additional_joins=additional_joins,
+            additional_where=additional_where,
+            uuid_fields=uuid_fields,
+            jsonb_fields=jsonb_fields,
+            get_connection_func=self.get_connection,
+            build_where_func=self.build_where_clause
+        )
+        
+        return result
+    
     async def get_by_id(
         self, 
         id: str,
         select_fields: str = "*",
+        additional_joins: Optional[str] = None,
         schema: Optional[str] = None,
         uuid_fields: Optional[List[str]] = None,
         jsonb_fields: Optional[List[str]] = None
     ) -> Optional[Dict[str, Any]]:
-        """Get record by ID with dynamic schema support."""
+        """Get record by ID with dynamic schema support and optional joins.
+        
+        Args:
+            id: The record ID
+            select_fields: Fields to select
+            additional_joins: Additional JOIN clauses for complex queries
+            schema: Override schema for this operation
+            uuid_fields: Fields to convert from UUID to string
+            jsonb_fields: Fields to parse as JSON
+            
+        Returns:
+            Record as dictionary or None if not found
+        """
         table_name = self.get_full_table_name(schema)
         
-        query = f"SELECT {select_fields} FROM {table_name} WHERE id = $1"
+        if additional_joins:
+            # Support joins by using table alias
+            query = f"""
+                SELECT {select_fields}
+                FROM {table_name} t
+                {additional_joins}
+                WHERE t.id = $1
+            """
+        else:
+            query = f"SELECT {select_fields} FROM {table_name} WHERE id = $1"
         
         db = await self.get_connection()
         row = await db.fetchrow(query, id)
@@ -421,17 +551,78 @@ class BaseRepository(ABC, Generic[T]):
         id: str,
         schema: Optional[str] = None
     ) -> bool:
-        """Soft delete record by setting is_active to false."""
+        """Soft delete record by setting is_active to false or deleted_at."""
         table_name = self.get_full_table_name(schema)
         
+        # Try deleted_at first (preferred), then is_active
         query = f"""
             UPDATE {table_name} 
-            SET is_active = false, updated_at = NOW()
-            WHERE id = $1 AND is_active = true
+            SET 
+                CASE 
+                    WHEN column_exists('{table_name}', 'deleted_at') THEN deleted_at = NOW()
+                    ELSE is_active = false
+                END,
+                updated_at = NOW()
+            WHERE id = $1 AND (deleted_at IS NULL OR is_active = true)
+        """
+        
+        # Simpler approach - try deleted_at first, fallback to is_active
+        query = f"""
+            UPDATE {table_name} 
+            SET deleted_at = NOW(), updated_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
         """
         
         db = await self.get_connection()
-        result = await db.execute(query, id)
+        
+        try:
+            result = await db.execute(query, id)
+        except Exception:
+            # If deleted_at doesn't exist, use is_active
+            query = f"""
+                UPDATE {table_name} 
+                SET is_active = false, updated_at = NOW()
+                WHERE id = $1 AND is_active = true
+            """
+            result = await db.execute(query, id)
+        
+        return result.split()[-1] == "1"
+    
+    async def restore(
+        self,
+        id: str,
+        schema: Optional[str] = None
+    ) -> bool:
+        """Restore a soft-deleted record.
+        
+        Args:
+            id: The record ID to restore
+            schema: Override schema for this operation
+            
+        Returns:
+            True if restored, False if not found or not deleted
+        """
+        table_name = self.get_full_table_name(schema)
+        
+        # Try to restore deleted_at first, then is_active
+        query = f"""
+            UPDATE {table_name}
+            SET deleted_at = NULL, updated_at = NOW()
+            WHERE id = $1 AND deleted_at IS NOT NULL
+        """
+        
+        db = await self.get_connection()
+        
+        try:
+            result = await db.execute(query, id)
+        except Exception:
+            # If deleted_at doesn't exist, use is_active
+            query = f"""
+                UPDATE {table_name}
+                SET is_active = true, updated_at = NOW()
+                WHERE id = $1 AND is_active = false
+            """
+            result = await db.execute(query, id)
         
         return result.split()[-1] == "1"
     

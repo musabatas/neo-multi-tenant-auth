@@ -14,6 +14,13 @@ from .protocols import (
     AuditableRepositoryProtocol,
     TenantAwareRepositoryProtocol
 )
+from .pagination import (
+    PaginationHelper,
+    PaginatedRepository,
+    PaginationParams,
+    PaginationType,
+    CursorInfo
+)
 
 __all__ = [
     "BaseRepository",
@@ -23,5 +30,11 @@ __all__ = [
     "ConnectionProvider",
     "CacheableRepositoryProtocol",
     "AuditableRepositoryProtocol",
-    "TenantAwareRepositoryProtocol"
+    "TenantAwareRepositoryProtocol",
+    # Pagination utilities
+    "PaginationHelper",
+    "PaginatedRepository",
+    "PaginationParams",
+    "PaginationType",
+    "CursorInfo"
 ]

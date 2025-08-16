@@ -482,8 +482,26 @@ class AuthRepository(BaseRepository[Dict[str, Any]]):
         table_name = self.get_full_table_name()
         query = f"SELECT is_active FROM {table_name} WHERE id = $1"
         db = await self.get_connection()
+        
+        # Debug logging
+        logger.debug(f"Checking user active status: user_id={user_id}, table={table_name}")
+        
+        # First check if user exists at all
+        exists_query = f"SELECT COUNT(*) FROM {table_name} WHERE id = $1"
+        user_count = await db.fetchval(exists_query, user_id)
+        logger.debug(f"User exists check: count={user_count}")
+        
+        if user_count == 0:
+            logger.warning(f"User {user_id} not found in database")
+            return False
+        
         result = await db.fetchval(query, user_id)
-        return bool(result)
+        logger.debug(f"User active query result: {result} (type: {type(result)})")
+        
+        is_active = bool(result)
+        logger.debug(f"User {user_id} active status: {is_active}")
+        
+        return is_active
     
     async def is_user_superadmin(self, user_id: str) -> bool:
         """

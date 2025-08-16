@@ -6,10 +6,11 @@ import asyncpg
 from typing import Optional, List, Dict, Any, Tuple
 from src.common.utils import utc_now
 
-# Import neo-commons base repository
-from src.common.repositories.base import BaseRepository
+# Import neo-commons base repository directly
+from neo_commons.repositories.base import BaseRepository
+from neo_commons.database.utils import process_database_record
+from src.common.database.connection_provider import neo_admin_connection_provider
 from src.common.exceptions import NotFoundError, ConflictError, DatabaseError
-from src.common.database.utils import process_database_record
 from src.common.utils import generate_uuid_v7
 from src.common.models import PaginationParams
 from ..models.domain import Region
@@ -19,14 +20,17 @@ from ..models.request import RegionFilter, RegionCreate, RegionUpdate
 class RegionRepository(BaseRepository[Region]):
     """Repository for region database operations using neo-commons BaseRepository."""
     
-    def __init__(self, db=None):
+    def __init__(self, schema: str = "admin"):
         """Initialize repository with neo-commons BaseRepository.
         
         Args:
-            db: DatabaseManager instance (deprecated, kept for backward compatibility)
+            schema: Database schema to use (default: admin)
         """
-        super().__init__(table_name="regions", schema="admin")
-        # db parameter is deprecated but kept for backward compatibility
+        super().__init__(
+            table_name="regions",
+            default_schema=schema,
+            connection_provider=neo_admin_connection_provider
+        )
     
     async def get_by_id(self, region_id: str) -> Region:
         """Get region by ID using neo-commons BaseRepository."""
@@ -125,26 +129,32 @@ class RegionRepository(BaseRepository[Region]):
         
         # Create pagination params
         page = (offset // limit) + 1
-        pagination = PaginationParams(page=page, limit=limit)
         
         # Use neo-commons paginated_list with priority ordering
-        rows, total_count = await super().paginated_list(
-            pagination=pagination,
+        # The method returns (items, PaginationMetadata)
+        # Pass all arguments as keyword arguments to avoid positional/keyword conflicts
+        items, pagination_metadata = await super().paginated_list(
+            select_fields=select_fields,
+            page=page,
+            page_size=limit,
             filters=filter_dict,
-            select_columns=select_fields,
+            sort_by="priority",
+            sort_order="DESC",
+            additional_joins="",
             additional_where=additional_where,
-            order_by="priority DESC, name ASC"
+            schema=None,
+            uuid_fields=['id'],
+            jsonb_fields=['compliance_certifications', 'availability_zones', 'backup_endpoints']
         )
         
-        # Convert rows to Region objects
+        # Extract total count from pagination metadata
+        total_count = pagination_metadata.total_items
+        
+        # Convert dict items to Region objects
         regions = []
-        for row in rows:
-            data = process_database_record(
-                row,
-                uuid_fields=['id'],
-                list_jsonb_fields=['compliance_certifications', 'availability_zones', 'backup_endpoints']
-            )
-            regions.append(Region(**data))
+        for item in items:
+            # Items are already processed by paginated_list
+            regions.append(Region(**item))
         
         return regions, total_count
     
@@ -277,7 +287,7 @@ class RegionRepository(BaseRepository[Region]):
     async def delete_region(self, region_id: str) -> None:
         """Delete a region (soft delete by deactivating)."""
         db = await self.get_connection()
-        admin_schema = self.schema_provider.get_admin_schema()
+        admin_schema = self.get_current_schema()
         
         # Check if region has active database connections
         check_query = f"""
@@ -326,7 +336,7 @@ class RegionRepository(BaseRepository[Region]):
     async def get_database_count(self, region_id: str) -> int:
         """Get count of database connections for a region."""
         db = await self.get_connection()
-        admin_schema = self.schema_provider.get_admin_schema()
+        admin_schema = self.get_current_schema()
         
         query = f"""
             SELECT COUNT(*) FROM {admin_schema}.database_connections
@@ -337,7 +347,7 @@ class RegionRepository(BaseRepository[Region]):
     async def update_tenant_count(self, region_id: str) -> None:
         """Update current tenant count for a region."""
         db = await self.get_connection()
-        admin_schema = self.schema_provider.get_admin_schema()
+        admin_schema = self.get_current_schema()
         table_name = self.get_full_table_name()
         
         query = f"""
