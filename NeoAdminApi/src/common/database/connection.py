@@ -19,7 +19,7 @@ from src.common.config.settings import settings
 
 
 class AdminDatabaseConfig:
-    """Service-specific database configuration for NeoAdminApi."""
+    """Service-specific database configuration for NeoAdminApi implementing DatabaseConfig protocol."""
     
     @property
     def database_url(self) -> str:

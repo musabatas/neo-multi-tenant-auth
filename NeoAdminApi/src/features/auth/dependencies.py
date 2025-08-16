@@ -1,15 +1,27 @@
 """
-Authentication dependencies for FastAPI routes.
+Migrated Authentication dependencies for FastAPI routes.
+
+Gradual migration to neo-commons while maintaining backward compatibility.
 """
 from typing import Optional, List, Annotated, Dict, Any, Union
 from fastapi import Depends, HTTPException, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from loguru import logger
 
-from src.integrations.keycloak.token_manager import get_token_manager, ValidationStrategy
 from src.common.config.settings import settings
 from src.common.exceptions.base import UnauthorizedError, ForbiddenError, RateLimitError
 from src.features.auth.models.response import UserProfile
+
+# Import protocol implementations
+from .implementations import (
+    NeoAdminTokenValidator,
+    NeoAdminPermissionChecker,
+    NeoAdminGuestAuthService,
+    NeoAdminCacheService,
+    NeoAdminAuthConfig
+)
+
+# Import existing services for gradual migration
 from .services.auth_service import AuthService
 from .services.permission_service import PermissionService
 from .services.guest_auth_service import get_guest_auth_service, GuestAuthService
@@ -21,9 +33,40 @@ security = HTTPBearer(
     auto_error=False
 )
 
+# Optional security scheme for guest tokens
+guest_security = HTTPBearer(
+    description="Optional guest session token for tracking",
+    auto_error=False
+)
+
+
+# ============================================================================
+# PROTOCOL IMPLEMENTATION FACTORIES
+# ============================================================================
+
+def get_token_validator() -> NeoAdminTokenValidator:
+    """Get token validator instance."""
+    return NeoAdminTokenValidator()
+
+def get_permission_checker() -> NeoAdminPermissionChecker:
+    """Get permission checker instance.""" 
+    return NeoAdminPermissionChecker()
+
+def get_cache_service() -> NeoAdminCacheService:
+    """Get cache service instance."""
+    return NeoAdminCacheService()
+
+def get_auth_config() -> NeoAdminAuthConfig:
+    """Get auth config instance."""
+    return NeoAdminAuthConfig()
+
+
+# ============================================================================
+# BACKWARD COMPATIBLE DEPENDENCIES - ORIGINAL IMPLEMENTATION
+# ============================================================================
 
 class CurrentUser:
-    """Current authenticated user dependency."""
+    """Current authenticated user dependency - ORIGINAL IMPLEMENTATION."""
     
     def __init__(self, required: bool = True, permissions: Optional[List[str]] = None):
         self.required = required
@@ -41,29 +84,22 @@ class CurrentUser:
                 return None
             raise UnauthorizedError("Authentication required")
         
-        # Validate token using Token Manager
+        # Use existing AuthService for compatibility
+        auth_service = AuthService()
+        
         try:
-            token_manager = get_token_manager()
-            token_data = await token_manager.validate_token(
-                credentials.credentials,
-                realm=settings.keycloak_admin_realm,
-                critical=False,  # Use dual validation for better performance
-                strategy=ValidationStrategy.DUAL
-            )
-            
-            # Extract user information from token
-            user = UserProfile(
-                id=token_data.get("sub", ""),
-                username=token_data.get("preferred_username", ""),
-                email=token_data.get("email", ""),
-                first_name=token_data.get("given_name"),
-                last_name=token_data.get("family_name"),
-                display_name=token_data.get("name")
+            # Get current user using existing service
+            user_profile = await auth_service.get_current_user(
+                access_token=credentials.credentials,
+                use_cache=True
             )
             
             # Check permissions if required
             if self.required_permissions:
-                user_permissions = self._extract_permissions(token_data)
+                user_permissions = [p.get('code', f"{p.get('resource')}:{p.get('action')}") 
+                                  if isinstance(p, dict) else str(p) 
+                                  for p in user_profile.permissions]
+                
                 missing_permissions = set(self.required_permissions) - set(user_permissions)
                 
                 if missing_permissions:
@@ -72,7 +108,7 @@ class CurrentUser:
                         required_permission=", ".join(missing_permissions)
                     )
             
-            return user
+            return user_profile
             
         except UnauthorizedError:
             raise
@@ -81,47 +117,11 @@ class CurrentUser:
         except Exception as e:
             logger.error(f"Token validation error: {e}")
             raise UnauthorizedError("Invalid or expired token")
-    
-    def _extract_permissions(self, token_data: dict) -> List[str]:
-        """Extract permissions from token claims."""
-        permissions = []
-        
-        # Check resource access
-        resource_access = token_data.get("resource_access", {})
-        if settings.keycloak_admin_client_id in resource_access:
-            client_access = resource_access[settings.keycloak_admin_client_id]
-            permissions.extend(client_access.get("roles", []))
-        
-        # Check realm roles
-        realm_access = token_data.get("realm_access", {})
-        permissions.extend(realm_access.get("roles", []))
-        
-        # Check scope
-        scope = token_data.get("scope", "")
-        if scope:
-            permissions.extend(scope.split(" "))
-        
-        return list(set(permissions))  # Remove duplicates
-
-
-# Dependency instances
-get_current_user = CurrentUser(required=True)
-get_current_user_optional = CurrentUser(required=False)
-
-
-def require_permissions(*permissions: str):
-    """Create a dependency that requires specific permissions."""
-    return CurrentUser(required=True, permissions=list(permissions))
-
-
-# Common permission dependencies
-require_admin = require_permissions("admin", "platform_admin")
-require_superadmin = require_permissions("superadmin")
 
 
 class CheckPermission:
     """
-    Dependency class for checking database-based permissions.
+    Dependency class for checking database-based permissions - ORIGINAL IMPLEMENTATION.
     
     This actually validates permissions against the database, not just Keycloak roles.
     """
@@ -165,9 +165,12 @@ class CheckPermission:
         if not credentials:
             raise UnauthorizedError("Authentication required")
         
-        # Get current user from token - this uses cache
+        # Get current user from token - this uses cache and loads from database
         auth_service = AuthService()
-        user = await auth_service.get_current_user(credentials.credentials, use_cache=True)
+        user = await auth_service.get_current_user(
+            access_token=credentials.credentials,
+            use_cache=True
+        )
         
         if not user:
             raise UnauthorizedError("Invalid authentication credentials")
@@ -223,7 +226,7 @@ class CheckPermission:
 
 
 class TokenData:
-    """Token data dependency for accessing raw token claims."""
+    """Token data dependency for accessing raw token claims - ORIGINAL IMPLEMENTATION."""
     
     async def __call__(
         self,
@@ -231,78 +234,23 @@ class TokenData:
     ) -> dict:
         """Get raw token data."""
         try:
+            # Use existing token manager for validation
+            from src.integrations.keycloak.token_manager import get_token_manager, ValidationStrategy
+            
             token_manager = get_token_manager()
             return await token_manager.validate_token(
                 credentials.credentials,
                 realm=settings.keycloak_admin_realm,
-                critical=False,
-                strategy=ValidationStrategy.DUAL
+                strategy=ValidationStrategy.LOCAL
             )
         except Exception as e:
             logger.error(f"Token validation error: {e}")
             raise UnauthorizedError("Invalid or expired token")
 
 
-get_token_data = TokenData()
-
-
-async def get_user_permissions(
-    token_data: Annotated[dict, Depends(get_token_data)]
-) -> List[str]:
-    """Get current user's permissions."""
-    permissions = []
-    
-    # Extract from resource access
-    resource_access = token_data.get("resource_access", {})
-    if settings.keycloak_admin_client_id in resource_access:
-        client_access = resource_access[settings.keycloak_admin_client_id]
-        permissions.extend(client_access.get("roles", []))
-    
-    # Extract from realm access
-    realm_access = token_data.get("realm_access", {})
-    permissions.extend(realm_access.get("roles", []))
-    
-    # Extract from scope
-    scope = token_data.get("scope", "")
-    if scope:
-        permissions.extend(scope.split(" "))
-    
-    return list(set(permissions))
-
-
-async def get_user_roles(
-    token_data: Annotated[dict, Depends(get_token_data)]
-) -> List[str]:
-    """Get current user's roles."""
-    roles = []
-    
-    # Extract realm roles
-    realm_access = token_data.get("realm_access", {})
-    roles.extend(realm_access.get("roles", []))
-    
-    # Extract client roles
-    resource_access = token_data.get("resource_access", {})
-    if settings.keycloak_admin_client_id in resource_access:
-        client_access = resource_access[settings.keycloak_admin_client_id]
-        roles.extend(client_access.get("roles", []))
-    
-    return list(set(roles))
-
-
-# ============================================================================
-# GUEST AUTHENTICATION DEPENDENCIES
-# ============================================================================
-
-# Optional security scheme for guest tokens
-guest_security = HTTPBearer(
-    description="Optional guest session token for tracking",
-    auto_error=False
-)
-
-
 class GuestOrAuthenticated:
     """
-    Dependency that allows both authenticated users and guest access.
+    Dependency that allows both authenticated users and guest access - ORIGINAL IMPLEMENTATION.
     
     Provides session tracking for guests while maintaining full functionality
     for authenticated users.
@@ -407,7 +355,7 @@ class GuestOrAuthenticated:
 
 
 class GuestSessionInfo:
-    """Dependency to extract guest session information."""
+    """Dependency to extract guest session information - ORIGINAL IMPLEMENTATION."""
     
     async def __call__(
         self,
@@ -425,10 +373,31 @@ class GuestSessionInfo:
             return None
 
 
-# Common dependency instances
-get_reference_data_access = GuestOrAuthenticated(required_permissions=["reference_data:read"])
+# ============================================================================
+# DEPENDENCY INSTANCES 
+# ============================================================================
+
+# Current user dependencies
+get_current_user = CurrentUser(required=True)
+get_current_user_optional = CurrentUser(required=False)
+
+# Token data dependency
+get_token_data = TokenData()
+
+# Guest session info dependency
 get_guest_session_info = GuestSessionInfo()
 
+# Common guest/authenticated access for reference data
+get_reference_data_access = GuestOrAuthenticated(required_permissions=["reference_data:read"])
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
+def require_permissions(*permissions: str):
+    """Create a dependency that requires specific permissions."""
+    return CurrentUser(required=True, permissions=list(permissions))
 
 def create_guest_or_authenticated(required_permissions: Optional[list] = None):
     """
@@ -441,3 +410,85 @@ def create_guest_or_authenticated(required_permissions: Optional[list] = None):
         Configured dependency instance
     """
     return GuestOrAuthenticated(required_permissions)
+
+
+# ============================================================================
+# PERMISSION FUNCTIONS
+# ============================================================================
+
+async def get_user_permissions(
+    token_data: Annotated[dict, Depends(get_token_data)]
+) -> List[str]:
+    """Get current user's permissions."""
+    permissions = []
+    
+    # Extract from resource access
+    resource_access = token_data.get("resource_access", {})
+    if settings.keycloak_admin_client_id in resource_access:
+        client_access = resource_access[settings.keycloak_admin_client_id]
+        permissions.extend(client_access.get("roles", []))
+    
+    # Extract from realm access
+    realm_access = token_data.get("realm_access", {})
+    permissions.extend(realm_access.get("roles", []))
+    
+    # Extract from scope
+    scope = token_data.get("scope", "")
+    if scope:
+        permissions.extend(scope.split(" "))
+    
+    return list(set(permissions))
+
+
+async def get_user_roles(
+    token_data: Annotated[dict, Depends(get_token_data)]
+) -> List[str]:
+    """Get current user's roles."""
+    roles = []
+    
+    # Extract realm roles
+    realm_access = token_data.get("realm_access", {})
+    roles.extend(realm_access.get("roles", []))
+    
+    # Extract client roles
+    resource_access = token_data.get("resource_access", {})
+    if settings.keycloak_admin_client_id in resource_access:
+        client_access = resource_access[settings.keycloak_admin_client_id]
+        roles.extend(client_access.get("roles", []))
+    
+    return list(set(roles))
+
+
+# ============================================================================
+# COMMON PERMISSION DEPENDENCIES
+# ============================================================================
+
+# Common permission dependencies
+require_admin = require_permissions("admin", "platform_admin")
+require_superadmin = require_permissions("superadmin")
+
+
+# ============================================================================
+# NEO-COMMONS EXPERIMENTAL DEPENDENCIES (Future Use)
+# ============================================================================
+
+# These are available for testing and future migration
+# but not used by default to maintain stability
+
+def get_neo_current_user(required: bool = True, permissions: Optional[List[str]] = None):
+    """
+    Get neo-commons based CurrentUser dependency (experimental).
+    
+    This is available for testing but not used by default.
+    """
+    from .dependencies_neo import CurrentUser as NeoCurrentUser
+    return NeoCurrentUser(required=required, permissions=permissions)
+
+def get_neo_check_permission(permissions: List[str], scope: str = "platform", any_of: bool = False):
+    """
+    Get neo-commons based CheckPermission dependency (experimental).
+    
+    This is available for testing but not used by default.
+    """
+    from .dependencies_neo import CheckPermission as NeoCheckPermission
+    return NeoCheckPermission(permissions=permissions, scope=scope, any_of=any_of)

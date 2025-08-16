@@ -11,8 +11,8 @@ from src.common.models.base import APIResponse
 from src.common.models import PaginationParams, PaginatedResponse
 from src.common.exceptions.base import NotFoundError, ConflictError, ValidationError
 from src.features.auth.dependencies import security, CheckPermission
-from src.features.auth.decorators.permissions import require_permission
-from src.features.roles.services.role_service import RoleService
+from neo_commons.auth.decorators import require_permission
+from src.features.roles.dependencies import get_role_service
 from src.features.roles.models.request import (
     RoleCreateRequest, RoleUpdateRequest, RoleAssignmentRequest,
     BulkRoleAssignmentRequest, RolePermissionUpdateRequest, RoleSearchFilter
@@ -43,14 +43,14 @@ async def list_roles(
     max_priority: Optional[int] = Query(None, le=1000, description="Maximum priority"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    current_user: dict = Depends(CheckPermission(["roles:list"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:list"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[PaginatedResponse[RoleResponse]]:
     """
     List all platform roles with optional filtering.
     
     Requires platform-level permission to list roles.
     """
-    service = RoleService()
     
     # Build filters
     filters = RoleSearchFilter(
@@ -89,14 +89,14 @@ async def list_roles(
 @require_permission("roles:read", scope="platform", description="Read role details")
 async def get_role(
     role_id: int,
-    current_user: dict = Depends(CheckPermission(["roles:read"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:read"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[RoleDetailResponse]:
     """
     Get detailed information about a role including its permissions.
     
     Requires platform-level permission to read roles.
     """
-    service = RoleService()
     
     try:
         role = await service.get_role(role_id)
@@ -126,14 +126,14 @@ async def get_role(
 @require_permission("roles:read", scope="platform", description="Read role by code")
 async def get_role_by_code(
     code: str,
-    current_user: dict = Depends(CheckPermission(["roles:read"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:read"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[RoleResponse]:
     """
     Get role information by its unique code.
     
     Requires platform-level permission to read roles.
     """
-    service = RoleService()
     
     try:
         role = await service.get_role_by_code(code)
@@ -164,14 +164,14 @@ async def get_role_by_code(
 @require_permission("roles:create", scope="platform", description="Create new roles")
 async def create_role(
     request: RoleCreateRequest,
-    current_user: dict = Depends(CheckPermission(["roles:create"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:create"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[RoleResponse]:
     """
     Create a new platform role.
     
     Requires platform-level permission to create roles.
     """
-    service = RoleService()
     
     try:
         role = await service.create_role(request)
@@ -207,7 +207,8 @@ async def create_role(
 async def update_role(
     role_id: int,
     request: RoleUpdateRequest,
-    current_user: dict = Depends(CheckPermission(["roles:update"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:update"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[RoleResponse]:
     """
     Update an existing platform role.
@@ -215,7 +216,6 @@ async def update_role(
     System roles cannot be modified.
     Requires platform-level permission to update roles.
     """
-    service = RoleService()
     
     try:
         role = await service.update_role(role_id, request)
@@ -250,7 +250,8 @@ async def update_role(
 @require_permission("roles:delete", scope="platform", description="Delete roles")
 async def delete_role(
     role_id: int,
-    current_user: dict = Depends(CheckPermission(["roles:delete"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:delete"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[dict]:
     """
     Delete a platform role.
@@ -258,7 +259,6 @@ async def delete_role(
     System roles cannot be deleted.
     Requires platform-level permission to delete roles.
     """
-    service = RoleService()
     
     try:
         success = await service.delete_role(role_id)
@@ -294,7 +294,8 @@ async def delete_role(
 async def update_role_permissions(
     role_id: int,
     request: RolePermissionUpdateRequest,
-    current_user: dict = Depends(CheckPermission(["roles:manage_permissions"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:manage_permissions"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[List[PermissionResponse]]:
     """
     Update permissions assigned to a role.
@@ -302,7 +303,6 @@ async def update_role_permissions(
     Can either replace all permissions or add to existing ones.
     Requires platform-level permission to manage role permissions.
     """
-    service = RoleService()
     
     try:
         permissions = await service.update_role_permissions(role_id, request)
@@ -334,7 +334,8 @@ async def update_role_permissions(
 async def assign_role_to_user(
     role_id: int,
     request: RoleAssignmentRequest,
-    current_user: dict = Depends(CheckPermission(["roles:assign"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:assign"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[RoleAssignmentResponse]:
     """
     Assign a role to a user.
@@ -342,7 +343,6 @@ async def assign_role_to_user(
     Can be platform-level or tenant-specific assignment.
     Requires platform-level permission to assign roles.
     """
-    service = RoleService()
     
     try:
         assignment = await service.assign_role_to_user(
@@ -383,14 +383,14 @@ async def remove_role_from_user(
     role_id: int,
     user_id: UUID,
     tenant_id: Optional[UUID] = Query(None, description="Tenant context for removal"),
-    current_user: dict = Depends(CheckPermission(["roles:unassign"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:unassign"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[dict]:
     """
     Remove a role assignment from a user.
     
     Requires platform-level permission to unassign roles.
     """
-    service = RoleService()
     
     try:
         success = await service.remove_role_from_user(role_id, user_id, tenant_id)
@@ -420,14 +420,14 @@ async def remove_role_from_user(
 @require_permission("roles:bulk_assign", scope="platform", description="Bulk role assignments")
 async def bulk_assign_roles(
     request: BulkRoleAssignmentRequest,
-    current_user: dict = Depends(CheckPermission(["roles:bulk_assign"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:bulk_assign"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[BulkRoleOperationResponse]:
     """
     Assign multiple roles to multiple users in a single operation.
     
     Requires platform-level permission for bulk role assignments.
     """
-    service = RoleService()
     
     try:
         result = await service.bulk_assign_roles(
@@ -457,7 +457,8 @@ async def get_user_roles(
     user_id: UUID,
     tenant_id: Optional[UUID] = Query(None, description="Filter by tenant context"),
     include_inactive: bool = Query(False, description="Include inactive assignments"),
-    current_user: dict = Depends(CheckPermission(["roles:view_assignments"], scope="platform"))
+    current_user: dict = Depends(CheckPermission(["roles:view_assignments"], scope="platform")),
+    service = Depends(get_role_service)
 ) -> APIResponse[List[RoleAssignmentResponse]]:
     """
     Get all roles assigned to a specific user.
@@ -465,7 +466,6 @@ async def get_user_roles(
     Can optionally filter by tenant context and include inactive assignments.
     Requires platform-level permission to view role assignments.
     """
-    service = RoleService()
     
     try:
         roles = await service.get_user_roles(user_id, tenant_id, include_inactive)

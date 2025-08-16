@@ -7,7 +7,7 @@ from src.common.routers.base import NeoAPIRouter
 from fastapi.security import HTTPAuthorizationCredentials
 from loguru import logger
 
-from ..decorators import require_permission
+from neo_commons.auth.decorators import require_permission
 from ..dependencies import security
 
 from src.common.models.base import APIResponse
@@ -63,9 +63,9 @@ async def login(
         
         # Map to response model with complete user profile using flattened structure
         login_response = LoginResponse(
-            access_token=result["access_token"],
-            refresh_token=result["refresh_token"],
-            token_type=result["token_type"],
+            access_token=result["tokens"]["access_token"],
+            refresh_token=result["tokens"]["refresh_token"],
+            token_type=result["tokens"]["token_type"],
             expires_in=result["expires_in"],
             refresh_expires_in=result.get("refresh_expires_in"),
             session_id=result["session_id"],
@@ -91,9 +91,9 @@ async def login(
                 profile_completion_percentage=result["user"].get("profile_completion_percentage", 0),
                 is_active=result["user"].get("is_active", True),
                 is_superadmin=result["user"].get("is_superadmin", False),
-                roles=result["user"]["roles"],
-                permissions=result["user"]["permissions"],
-                tenants=result["user"]["tenants"],
+                roles=result["user"].get("roles", []),
+                permissions=result["user"].get("permissions", []),
+                tenants=result["user"].get("tenants", []),
                 last_login_at=result["user"].get("last_login_at"),
                 created_at=result["user"].get("created_at"),
                 updated_at=result["user"].get("updated_at"),
@@ -118,7 +118,7 @@ async def login(
                 samesite="strict"
             )
         
-        logger.info(f"User {result['user']['id']} logged in successfully")
+        # Reduce frequent login logging
         
         return APIResponse.success_response(
             message="Login successful",
@@ -239,8 +239,8 @@ async def get_current_user(
     access_token = credentials.credentials
     
     try:
-        # Use shared method from AuthService
-        user_profile = await auth_service.get_current_user_profile(
+        # Use shared method from AuthService with database lookup
+        user_profile = await auth_service.get_current_user(
             access_token=access_token,
             use_cache=True
         )

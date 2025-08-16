@@ -1,37 +1,97 @@
 """
 Permission synchronization manager.
+
+Enhanced with neo-commons protocol-based dependency injection for:
+- Dynamic schema configuration via SchemaProvider protocol
+- Database connection management via ConnectionProvider protocol
+- Configurable permission registries
+- Audit logging capabilities
 """
 import json
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set, Protocol, runtime_checkable
 from loguru import logger
 from datetime import datetime
 
-from src.common.database.connection import get_database
-from src.common.utils import utc_now
+# Try to use neo-commons, fall back to local imports if not available
+try:
+    from neo_commons.repositories.protocols import SchemaProvider, ConnectionProvider
+    from neo_commons.repositories.base import DefaultSchemaProvider
+    from neo_commons.utils.datetime import utc_now
+except ImportError:
+    # Fallback to local imports
+    from typing import Protocol as SchemaProvider, Protocol as ConnectionProvider
+    from src.common.utils import utc_now
+    
+    # Create fallback DefaultSchemaProvider
+    class DefaultSchemaProvider:
+        def __init__(self, admin_schema: str = "admin"):
+            self.admin_schema = admin_schema
+        
+        def get_admin_schema(self) -> str:
+            return self.admin_schema
+        
+        def get_schema(self, context: str = None) -> str:
+            return self.admin_schema
+
 from .permission_scanner import EndpointPermissionScanner
 from ..models.permission_registry import PLATFORM_PERMISSIONS, TENANT_PERMISSIONS
 
 
+@runtime_checkable
+class PermissionRegistryProvider(Protocol):
+    """Protocol for providing permission registries."""
+    
+    def get_platform_permissions(self) -> List[Dict[str, Any]]:
+        """Get platform-level permissions."""
+        ...
+    
+    def get_tenant_permissions(self) -> List[Dict[str, Any]]:
+        """Get tenant-level permissions."""
+        ...
+
+
+class DefaultPermissionRegistryProvider:
+    """Default permission registry provider using static definitions."""
+    
+    def get_platform_permissions(self) -> List[Dict[str, Any]]:
+        """Get platform-level permissions."""
+        return PLATFORM_PERMISSIONS
+    
+    def get_tenant_permissions(self) -> List[Dict[str, Any]]:
+        """Get tenant-level permissions."""
+        return TENANT_PERMISSIONS
+
+
 class PermissionSyncManager:
     """
-    Manages synchronization of permissions between code and database.
+    Protocol-based permission synchronization manager.
     
     Features:
+    - Dynamic schema configuration via SchemaProvider protocol
+    - Database operations via ConnectionProvider protocol
+    - Configurable permission registries
     - Discovers permissions from endpoints
-    - Syncs with database on startup
-    - Handles permission updates safely
-    - Maintains audit trail
+    - Syncs with database on startup with safe updates
+    - Maintains comprehensive audit trail
     """
     
-    def __init__(self, schema: str = "admin"):
+    def __init__(
+        self,
+        connection_provider: ConnectionProvider,
+        schema_provider: Optional[SchemaProvider] = None,
+        permission_registry: Optional[PermissionRegistryProvider] = None
+    ):
         """
-        Initialize permission sync manager with configurable schema.
+        Initialize permission sync manager with protocol-based dependencies.
         
         Args:
-            schema: Database schema to use (default: admin)
+            connection_provider: Database connection provider
+            schema_provider: Schema provider for dynamic configuration
+            permission_registry: Permission registry provider
         """
-        self.db = get_database()
-        self.schema = schema
+        self.db = connection_provider
+        self.schema_provider = schema_provider or DefaultSchemaProvider()
+        self.permission_registry = permission_registry or DefaultPermissionRegistryProvider()
         self.scanner: Optional[EndpointPermissionScanner] = None
         self.sync_stats = {
             'added': 0,
@@ -120,23 +180,23 @@ class PermissionSyncManager:
     
     def _get_static_permissions(self) -> Dict[str, Dict[str, Any]]:
         """
-        Get static permissions from registry.
+        Get static permissions from registry provider.
         
         Returns:
             Dictionary of permission definitions
         """
         permissions = {}
         
-        # Add platform permissions
-        for perm in PLATFORM_PERMISSIONS:
+        # Add platform permissions from registry
+        for perm in self.permission_registry.get_platform_permissions():
             permissions[perm['code']] = {
                 **perm,
                 'scope_level': 'platform',
                 'endpoints': []  # Static permissions may not have endpoints
             }
         
-        # Add tenant permissions
-        for perm in TENANT_PERMISSIONS:
+        # Add tenant permissions from registry
+        for perm in self.permission_registry.get_tenant_permissions():
             permissions[perm['code']] = {
                 **perm,
                 'scope_level': 'tenant',
@@ -152,6 +212,8 @@ class PermissionSyncManager:
         Returns:
             Dictionary of code -> permission record
         """
+        admin_schema = self.schema_provider.get_admin_schema()
+        
         query = f"""
             SELECT 
                 id,
@@ -167,11 +229,18 @@ class PermissionSyncManager:
                 created_at,
                 updated_at,
                 deleted_at
-            FROM {self.schema}.platform_permissions
+            FROM {admin_schema}.platform_permissions
             WHERE deleted_at IS NULL
         """
         
-        results = await self.db.fetch(query)
+        # Use connection provider for database operations
+        if hasattr(self.db, 'fetch'):
+            # Direct database manager
+            results = await self.db.fetch(query)
+        else:
+            # Connection provider protocol
+            async with self.db.get_connection() as conn:
+                results = await conn.fetch(query)
         
         permissions = {}
         for row in results:
@@ -313,8 +382,10 @@ class PermissionSyncManager:
         Args:
             permission_def: Permission definition
         """
+        admin_schema = self.schema_provider.get_admin_schema()
+        
         query = f"""
-            INSERT INTO {self.schema}.platform_permissions (
+            INSERT INTO {admin_schema}.platform_permissions (
                 code,
                 description,
                 resource,
@@ -338,20 +409,41 @@ class PermissionSyncManager:
         }
         
         now = utc_now()
-        await self.db.execute(
-            query,
-            permission_def['code'],
-            permission_def['description'],
-            permission_def['resource'],
-            permission_def['action'],
-            permission_def['scope_level'],
-            permission_def.get('is_dangerous', False),
-            permission_def.get('requires_mfa', False),
-            permission_def.get('requires_approval', False),
-            json.dumps(config),
-            now,
-            now
-        )
+        
+        # Use connection provider for database operations
+        if hasattr(self.db, 'execute'):
+            # Direct database manager
+            await self.db.execute(
+                query,
+                permission_def['code'],
+                permission_def['description'],
+                permission_def['resource'],
+                permission_def['action'],
+                permission_def['scope_level'],
+                permission_def.get('is_dangerous', False),
+                permission_def.get('requires_mfa', False),
+                permission_def.get('requires_approval', False),
+                json.dumps(config),
+                now,
+                now
+            )
+        else:
+            # Connection provider protocol
+            async with self.db.get_connection() as conn:
+                await conn.execute(
+                    query,
+                    permission_def['code'],
+                    permission_def['description'],
+                    permission_def['resource'],
+                    permission_def['action'],
+                    permission_def['scope_level'],
+                    permission_def.get('is_dangerous', False),
+                    permission_def.get('requires_mfa', False),
+                    permission_def.get('requires_approval', False),
+                    json.dumps(config),
+                    now,
+                    now
+                )
         
         logger.info(f"Created permission: {permission_def['code']}")
     
@@ -363,8 +455,10 @@ class PermissionSyncManager:
             permission_def: New permission definition
             permission_id: Database ID of permission
         """
+        admin_schema = self.schema_provider.get_admin_schema()
+        
         query = f"""
-            UPDATE {self.schema}.platform_permissions
+            UPDATE {admin_schema}.platform_permissions
             SET 
                 description = $1,
                 resource = $2,
@@ -384,19 +478,38 @@ class PermissionSyncManager:
             'last_sync': utc_now().isoformat()
         }
         
-        await self.db.execute(
-            query,
-            permission_def['description'],
-            permission_def['resource'],
-            permission_def['action'],
-            permission_def['scope_level'],
-            permission_def.get('is_dangerous', False),
-            permission_def.get('requires_mfa', False),
-            permission_def.get('requires_approval', False),
-            json.dumps(config_update),
-            utc_now(),
-            permission_id
-        )
+        # Use connection provider for database operations
+        if hasattr(self.db, 'execute'):
+            # Direct database manager
+            await self.db.execute(
+                query,
+                permission_def['description'],
+                permission_def['resource'],
+                permission_def['action'],
+                permission_def['scope_level'],
+                permission_def.get('is_dangerous', False),
+                permission_def.get('requires_mfa', False),
+                permission_def.get('requires_approval', False),
+                json.dumps(config_update),
+                utc_now(),
+                permission_id
+            )
+        else:
+            # Connection provider protocol
+            async with self.db.get_connection() as conn:
+                await conn.execute(
+                    query,
+                    permission_def['description'],
+                    permission_def['resource'],
+                    permission_def['action'],
+                    permission_def['scope_level'],
+                    permission_def.get('is_dangerous', False),
+                    permission_def.get('requires_mfa', False),
+                    permission_def.get('requires_approval', False),
+                    json.dumps(config_update),
+                    utc_now(),
+                    permission_id
+                )
         
         logger.info(f"Updated permission: {permission_def['code']}")
     

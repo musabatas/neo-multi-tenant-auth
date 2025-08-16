@@ -15,7 +15,7 @@ from src.common.exceptions.base import (
     ConflictError,
     BadRequestError
 )
-from src.features.auth.decorators import require_permission
+from neo_commons.auth.decorators import require_permission
 from src.features.auth.dependencies import security, get_current_user, CheckPermission
 
 from ..models.request import (

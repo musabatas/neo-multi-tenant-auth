@@ -7,21 +7,30 @@ from uuid import UUID
 import json
 from loguru import logger
 
-from src.common.database.connection import get_database
-from src.common.database.utils import process_database_record
-from src.common.exceptions.base import NotFoundError, ConflictError
+from neo_commons.repositories.base import BaseRepository
+from neo_commons.database.utils import process_database_record
+from neo_commons.exceptions.base import NotFoundError, ConflictError
 from src.common.utils import utc_now
 from src.common.utils import generate_uuid_v7
+from src.common.database.connection_provider import neo_admin_connection_provider
 from ..models.domain import Organization
 from ..models.request import OrganizationCreate, OrganizationUpdate, OrganizationFilter
 
 
-class OrganizationRepository:
+class OrganizationRepository(BaseRepository[Dict[str, Any]]):
     """Repository for organization database operations."""
     
-    def __init__(self):
-        """Initialize organization repository."""
-        self.db = get_database()
+    def __init__(self, schema: str = "admin"):
+        """Initialize organization repository with BaseRepository and configurable schema.
+        
+        Args:
+            schema: Database schema to use (default: admin)
+        """
+        super().__init__(
+            table_name="organizations", 
+            default_schema=schema,
+            connection_provider=neo_admin_connection_provider
+        )
     
     async def get_by_id(self, organization_id: str) -> Organization:
         """Get organization by ID.
@@ -35,12 +44,13 @@ class OrganizationRepository:
         Raises:
             NotFoundError: If organization not found
         """
-        query = """
-            SELECT * FROM admin.organizations
+        query = f"""
+            SELECT * FROM {self.get_current_schema()}.organizations
             WHERE id = $1 AND deleted_at IS NULL
         """
         
-        result = await self.db.fetchrow(query, organization_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, organization_id)
         
         if not result:
             raise NotFoundError("Organization", organization_id)
@@ -59,12 +69,13 @@ class OrganizationRepository:
         Raises:
             NotFoundError: If organization not found
         """
-        query = """
-            SELECT * FROM admin.organizations
+        query = f"""
+            SELECT * FROM {self.get_current_schema()}.organizations
             WHERE slug = $1 AND deleted_at IS NULL
         """
         
-        result = await self.db.fetchrow(query, slug)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, slug)
         
         if not result:
             raise NotFoundError("Organization", slug)
@@ -143,7 +154,7 @@ class OrganizationRepository:
         # Count query
         count_query = f"""
             SELECT COUNT(*) as total
-            FROM admin.organizations
+            FROM {self.get_current_schema()}.organizations
             WHERE {where_clause}
         """
         
@@ -154,18 +165,19 @@ class OrganizationRepository:
         offset_param = param_count
         
         data_query = f"""
-            SELECT * FROM admin.organizations
+            SELECT * FROM {self.get_current_schema()}.organizations
             WHERE {where_clause}
             ORDER BY created_at DESC
             LIMIT ${limit_param} OFFSET ${offset_param}
         """
         
         # Execute queries
-        count_result = await self.db.fetchrow(count_query, *params)
+        db = await self.get_connection()
+        count_result = await db.fetchrow(count_query, *params)
         total_count = count_result['total']
         
         params.extend([limit, offset])
-        results = await self.db.fetch(data_query, *params)
+        results = await db.fetch(data_query, *params)
         
         organizations = [self._map_to_domain(row) for row in results]
         
@@ -184,8 +196,9 @@ class OrganizationRepository:
             ConflictError: If slug already exists
         """
         # Check if slug exists
-        existing = await self.db.fetchrow(
-            "SELECT id FROM admin.organizations WHERE slug = $1",
+        db = await self.get_connection()
+        existing = await db.fetchrow(
+            f"SELECT id FROM {self.get_current_schema()}.organizations WHERE slug = $1",
             organization_data.slug
         )
         
@@ -199,8 +212,8 @@ class OrganizationRepository:
         organization_id = generate_uuid_v7()
         now = utc_now()
         
-        query = """
-            INSERT INTO admin.organizations (
+        query = f"""
+            INSERT INTO {self.get_current_schema()}.organizations (
                 id, name, slug, legal_name,
                 tax_id, business_type, industry, company_size, website_url,
                 primary_contact_id,
@@ -220,7 +233,8 @@ class OrganizationRepository:
             RETURNING *
         """
         
-        result = await self.db.fetchrow(
+        db = await self.get_connection()
+        result = await db.fetchrow(
             query,
             organization_id,
             organization_data.name,
@@ -386,13 +400,14 @@ class OrganizationRepository:
         update_clause = ", ".join(update_fields)
         
         query = f"""
-            UPDATE admin.organizations
+            UPDATE {self.get_current_schema()}.organizations
             SET {update_clause}
             WHERE id = ${param_count} AND deleted_at IS NULL
             RETURNING *
         """
         
-        result = await self.db.fetchrow(query, *params)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, *params)
         
         if not result:
             raise NotFoundError("Organization", organization_id)
@@ -407,8 +422,8 @@ class OrganizationRepository:
         Args:
             organization_id: Organization ID to delete
         """
-        query = """
-            UPDATE admin.organizations
+        query = f"""
+            UPDATE {self.get_current_schema()}.organizations
             SET 
                 deleted_at = $1,
                 is_active = false,
@@ -416,7 +431,8 @@ class OrganizationRepository:
             WHERE id = $2 AND deleted_at IS NULL
         """
         
-        result = await self.db.execute(query, utc_now(), organization_id)
+        db = await self.get_connection()
+        result = await db.execute(query, utc_now(), organization_id)
         
         if result == "UPDATE 0":
             raise NotFoundError("Organization", organization_id)
@@ -433,14 +449,15 @@ class OrganizationRepository:
             Dictionary with statistics
         """
         # Get tenant count
-        tenant_query = """
+        tenant_query = f"""
             SELECT COUNT(*) as tenant_count,
                    COUNT(*) FILTER (WHERE status = 'active') as active_tenant_count
-            FROM admin.tenants
+            FROM {self.get_current_schema()}.tenants
             WHERE organization_id = $1 AND deleted_at IS NULL
         """
         
-        tenant_result = await self.db.fetchrow(tenant_query, organization_id)
+        db = await self.get_connection()
+        tenant_result = await db.fetchrow(tenant_query, organization_id)
         
         # User count would come from tenant databases
         # For now, return mock data
@@ -462,13 +479,14 @@ class OrganizationRepository:
         if not contact_id:
             return None
         
-        query = """
+        query = f"""
             SELECT id, name, email
-            FROM admin.platform_users
+            FROM {self.get_current_schema()}.platform_users
             WHERE id = $1
         """
         
-        result = await self.db.fetchrow(query, contact_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, contact_id)
         
         if not result:
             return None

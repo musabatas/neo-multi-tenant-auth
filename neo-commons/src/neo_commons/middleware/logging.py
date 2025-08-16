@@ -243,6 +243,7 @@ class StructuredLoggingMiddleware(BaseHTTPMiddleware):
             except Exception as e:
                 log_data["body_error"] = str(e)
         
+        # Log incoming request (loguru handles level filtering)
         logger.info("Incoming request", **log_data)
     
     async def _log_response(
@@ -286,6 +287,7 @@ class StructuredLoggingMiddleware(BaseHTTPMiddleware):
         elif response.status_code >= 400:
             log_level = "warning"
         
+        # Log all responses (loguru handles level filtering)
         getattr(logger, log_level)("Request completed", **log_data)
     
     async def _log_error(

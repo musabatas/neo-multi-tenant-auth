@@ -1,28 +1,103 @@
 """
 Guest authentication service for public endpoints.
 
+Enhanced with neo-commons protocol-based patterns for cache management,
+datetime utilities, and exception handling.
+
 Provides session tracking and basic authentication for unauthenticated users
 accessing public reference data.
 """
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Protocol, runtime_checkable
 import secrets
 from loguru import logger
 
-from src.common.cache.client import get_cache
-from src.common.utils import utc_now
-from src.common.exceptions.base import ValidationError, RateLimitError
+# Try to use neo-commons, fall back to local imports if not available
+try:
+    from neo_commons.cache.client import CacheClient
+    from neo_commons.utils.datetime import utc_now
+    from neo_commons.exceptions.base import ValidationError, RateLimitError
+except ImportError:
+    # Fallback to local imports
+    from src.common.cache.client import get_cache as CacheClient
+    from src.common.utils import utc_now
+    from src.common.exceptions.base import ValidationError, RateLimitError
+
+
+@runtime_checkable
+class GuestSessionProvider(Protocol):
+    """Protocol for guest session configuration."""
+    
+    @property
+    def session_ttl(self) -> int:
+        """Session TTL in seconds."""
+        ...
+    
+    @property
+    def max_requests_per_session(self) -> int:
+        """Maximum requests per session."""
+        ...
+    
+    @property
+    def max_requests_per_ip(self) -> int:
+        """Maximum requests per IP per day."""
+        ...
+    
+    def get_guest_permissions(self) -> list[str]:
+        """Get default guest permissions."""
+        ...
+
+
+class DefaultGuestSessionProvider:
+    """Default guest session configuration provider."""
+    
+    @property
+    def session_ttl(self) -> int:
+        return 3600  # 1 hour
+    
+    @property
+    def max_requests_per_session(self) -> int:
+        return 1000
+    
+    @property
+    def max_requests_per_ip(self) -> int:
+        return 5000
+    
+    def get_guest_permissions(self) -> list[str]:
+        return ["reference_data:read"]
 
 
 class GuestAuthService:
-    """Service for managing guest authentication and session tracking."""
+    """
+    Protocol-based guest authentication service with dependency injection.
     
-    def __init__(self):
-        self.cache = get_cache()
-        self.session_ttl = 3600  # 1 hour session
-        self.max_requests_per_session = 1000  # Rate limiting
-        self.max_requests_per_ip = 5000  # Daily IP limit
+    Features:
+    - Configurable session management via GuestSessionProvider
+    - Cache operations via CacheClient protocol
+    - Rate limiting with IP and session controls
+    - Session tracking and statistics
+    """
+    
+    def __init__(
+        self,
+        cache_client: CacheClient,
+        session_provider: Optional[GuestSessionProvider] = None
+    ):
+        """
+        Initialize guest auth service with protocol-based dependencies.
+        
+        Args:
+            cache_client: Cache client for session storage
+            session_provider: Configuration provider for session settings
+        """
+        self.cache = cache_client
+        self.session_provider = session_provider or DefaultGuestSessionProvider()
+        
+        # Get configuration from provider
+        self.session_ttl = self.session_provider.session_ttl
+        self.max_requests_per_session = self.session_provider.max_requests_per_session
+        self.max_requests_per_ip = self.session_provider.max_requests_per_ip
     
     async def create_guest_session(
         self, 
@@ -51,7 +126,7 @@ class GuestAuthService:
         session_id = f"guest_{uuid.uuid4().hex}"
         session_token = secrets.token_urlsafe(32)
         
-        # Create session data
+        # Create session data using session provider for permissions
         session_data = {
             "session_id": session_id,
             "session_token": session_token,
@@ -62,7 +137,7 @@ class GuestAuthService:
             "created_at": utc_now().isoformat(),
             "expires_at": (utc_now() + timedelta(seconds=self.session_ttl)).isoformat(),
             "request_count": 0,
-            "permissions": ["reference_data:read"],  # Guest permissions
+            "permissions": self.session_provider.get_guest_permissions(),
             "rate_limit": {
                 "requests_remaining": self.max_requests_per_session,
                 "reset_time": (utc_now() + timedelta(seconds=self.session_ttl)).isoformat()
@@ -245,6 +320,42 @@ class GuestAuthService:
         return True
 
 
+def create_guest_auth_service(
+    cache_client: Optional[CacheClient] = None,
+    session_provider: Optional[GuestSessionProvider] = None
+) -> GuestAuthService:
+    """
+    Create guest authentication service instance with dependency injection.
+    
+    Args:
+        cache_client: Optional cache client (falls back to default)
+        session_provider: Optional session configuration provider
+        
+    Returns:
+        Configured GuestAuthService instance
+    """
+    # Import here to avoid circular dependencies
+    if cache_client is None:
+        try:
+            # Try neo-commons first
+            from neo_commons.cache.client import get_cache_client
+            cache_client = get_cache_client()
+        except ImportError:
+            # Fallback to local cache
+            from src.common.cache.client import get_cache
+            cache_client = get_cache()
+    
+    return GuestAuthService(
+        cache_client=cache_client,
+        session_provider=session_provider
+    )
+
+
 def get_guest_auth_service() -> GuestAuthService:
-    """Get guest authentication service instance."""
-    return GuestAuthService()
+    """
+    Simple factory for FastAPI dependency injection.
+    
+    Returns:
+        GuestAuthService instance with default configuration
+    """
+    return create_guest_auth_service()

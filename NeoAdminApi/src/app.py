@@ -8,6 +8,11 @@ from scalar_fastapi import get_scalar_api_reference
 from loguru import logger
 
 from src.common.config.settings import settings
+
+# Ensure Redis URL is available as environment variable for neo-commons before any imports
+import os
+if settings.redis_url and not os.getenv('REDIS_URL'):
+    os.environ['REDIS_URL'] = str(settings.redis_url)
 from src.common.database.connection import init_database, close_database
 from src.common.cache.client import init_cache, close_cache
 from src.common.middleware import setup_middleware
@@ -23,6 +28,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"Environment: {settings.environment}")
     
+    
     try:
         # Initialize database connections
         await init_database()
@@ -35,8 +41,12 @@ async def lifespan(app: FastAPI):
         
         # Sync permissions on startup
         from src.features.auth.services.permission_manager import PermissionSyncManager
+        from src.common.database.connection import get_database
         logger.info("Syncing permissions from code to database...")
-        sync_manager = PermissionSyncManager()
+        
+        # Create permission sync manager with required dependencies
+        db_manager = get_database()
+        sync_manager = PermissionSyncManager(connection_provider=db_manager)
         sync_result = await sync_manager.sync_permissions(
             app=app,
             dry_run=False,  # Actually apply changes

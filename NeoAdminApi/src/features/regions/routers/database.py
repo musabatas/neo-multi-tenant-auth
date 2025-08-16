@@ -7,7 +7,7 @@ from fastapi import Depends, Query, HTTPException, status
 from src.common.routers.base import NeoAPIRouter
 
 from src.common.models.base import APIResponse
-from src.features.auth.decorators import require_permission
+from neo_commons.auth.decorators import require_permission
 from src.features.auth.dependencies import CheckPermission
 from ..models.request import DatabaseConnectionFilter, HealthCheckRequest
 from ..models.response import DatabaseConnectionListResponse, DatabaseConnectionResponse

@@ -17,7 +17,7 @@ from src.common.models.base import PaginationParams
 from src.common.services.base import BaseService
 from src.common.cache.client import get_cache
 from src.common.utils import utc_now
-from src.integrations.keycloak.token_manager import get_token_manager
+from neo_commons.auth import create_auth_service
 
 from ..models.domain import (
     PlatformUser, AuthProvider
@@ -43,7 +43,7 @@ class PlatformUserService(BaseService):
         super().__init__()
         self.repository = PlatformUserRepository()
         self.cache = get_cache()
-        self.token_manager = get_token_manager()
+        self.auth_service = create_auth_service()
         
         # Cache key patterns
         self.CACHE_KEY_USER = "platform_user:{user_id}"
@@ -283,7 +283,7 @@ class PlatformUserService(BaseService):
         """Sync user data from Keycloak token."""
         try:
             # Validate token and extract user data
-            token_data = await self.token_manager.validate_token(token)
+            token_data = await self.auth_service.validate_token(token)
             
             external_user_id = token_data.get('sub')
             if not external_user_id:

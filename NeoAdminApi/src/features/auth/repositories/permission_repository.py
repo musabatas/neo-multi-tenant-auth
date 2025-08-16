@@ -6,12 +6,13 @@ from typing import List, Dict, Any, Optional, Set
 from uuid import UUID
 from loguru import logger
 
-from src.common.database.connection import get_database
-from src.common.database.utils import process_database_record
+from neo_commons.repositories.base import BaseRepository
+from neo_commons.database.utils import process_database_record
 from src.common.utils import utc_now
+from src.common.database.connection_provider import neo_admin_connection_provider
 
 
-class PermissionRepository:
+class PermissionRepository(BaseRepository[Dict[str, Any]]):
     """
     Efficient permission queries for multi-level RBAC (Platform + Tenant) with dynamic schema configuration.
     
@@ -28,13 +29,16 @@ class PermissionRepository:
     
     def __init__(self, schema: str = "admin"):
         """
-        Initialize repository with database connection and configurable schema.
+        Initialize repository with BaseRepository and configurable schema.
         
         Args:
             schema: Database schema to use (default: admin)
         """
-        self.db = get_database()
-        self.schema = schema
+        super().__init__(
+            table_name="platform_permissions", 
+            default_schema=schema,
+            connection_provider=neo_admin_connection_provider
+        )
     
     async def get_platform_user_roles(
         self,
@@ -70,8 +74,8 @@ class PermissionRepository:
                 r.is_system as role_is_system,
                 (r.deleted_at IS NULL) as role_is_active,
                 0 as permissions_count
-            FROM {self.schema}.platform_user_roles ur
-            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
+            FROM {self.get_current_schema()}.platform_user_roles ur
+            JOIN {self.get_current_schema()}.platform_roles r ON r.id = ur.role_id
             WHERE ur.user_id = $1
         """
         
@@ -86,7 +90,8 @@ class PermissionRepository:
         
         query += " ORDER BY r.priority DESC, r.name"
         
-        results = await self.db.fetch(query, *params)
+        db = await self.get_connection()
+        results = await db.fetch(query, *params)
         
         return [
             process_database_record(
@@ -133,8 +138,8 @@ class PermissionRepository:
                 r.is_system as role_is_system,
                 (r.deleted_at IS NULL) as role_is_active,
                 0 as permissions_count
-            FROM {self.schema}.tenant_user_roles ur
-            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
+            FROM {self.get_current_schema()}.tenant_user_roles ur
+            JOIN {self.get_current_schema()}.platform_roles r ON r.id = ur.role_id
             WHERE ur.user_id = $1 AND ur.tenant_id = $2
         """
         
@@ -149,7 +154,8 @@ class PermissionRepository:
         
         query += " ORDER BY r.priority DESC, r.name"
         
-        results = await self.db.fetch(query, *params)
+        db = await self.get_connection()
+        results = await db.fetch(query, *params)
         
         return [
             process_database_record(
@@ -266,10 +272,10 @@ class PermissionRepository:
                 'platform_role' as source_type,
                 r.name as source_name,
                 r.priority as priority
-            FROM {self.schema}.platform_user_roles ur
-            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
-            JOIN {self.schema}.role_permissions rp ON rp.role_id = r.id
-            JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
+            FROM {self.get_current_schema()}.platform_user_roles ur
+            JOIN {self.get_current_schema()}.platform_roles r ON r.id = ur.role_id
+            JOIN {self.get_current_schema()}.role_permissions rp ON rp.role_id = r.id
+            JOIN {self.get_current_schema()}.platform_permissions p ON p.id = rp.permission_id
             WHERE ur.user_id = $1
                 AND ur.is_active = true
                 AND r.deleted_at IS NULL
@@ -278,7 +284,8 @@ class PermissionRepository:
                 AND p.scope_level = 'platform'
         """
         
-        results = await self.db.fetch(query, user_id)
+        db = await self.get_connection()
+        results = await db.fetch(query, user_id)
         
         return [
             process_database_record(
@@ -320,10 +327,10 @@ class PermissionRepository:
                 'tenant_role' as source_type,
                 r.name as source_name,
                 r.priority as priority
-            FROM {self.schema}.tenant_user_roles ur
-            JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
-            JOIN {self.schema}.role_permissions rp ON rp.role_id = r.id
-            JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
+            FROM {self.get_current_schema()}.tenant_user_roles ur
+            JOIN {self.get_current_schema()}.platform_roles r ON r.id = ur.role_id
+            JOIN {self.get_current_schema()}.role_permissions rp ON rp.role_id = r.id
+            JOIN {self.get_current_schema()}.platform_permissions p ON p.id = rp.permission_id
             WHERE ur.user_id = $1 AND ur.tenant_id = $2
                 AND ur.is_active = true
                 AND r.deleted_at IS NULL
@@ -332,7 +339,8 @@ class PermissionRepository:
                 AND p.scope_level = 'tenant'
         """
         
-        results = await self.db.fetch(query, user_id, tenant_id)
+        db = await self.get_connection()
+        results = await db.fetch(query, user_id, tenant_id)
         
         return [
             process_database_record(
@@ -375,8 +383,8 @@ class PermissionRepository:
                 up.granted_by,
                 up.granted_at,
                 up.expires_at
-            FROM {self.schema}.platform_user_permissions up
-            JOIN {self.schema}.platform_permissions p ON p.id = up.permission_id
+            FROM {self.get_current_schema()}.platform_user_permissions up
+            JOIN {self.get_current_schema()}.platform_permissions p ON p.id = up.permission_id
             WHERE up.user_id = $1
                 AND up.is_active = true
                 AND up.is_granted = true
@@ -385,7 +393,8 @@ class PermissionRepository:
                 AND p.scope_level = 'platform'
         """
         
-        results = await self.db.fetch(query, user_id)
+        db = await self.get_connection()
+        results = await db.fetch(query, user_id)
         
         return [
             process_database_record(
@@ -431,8 +440,8 @@ class PermissionRepository:
                 up.granted_at,
                 up.expires_at,
                 up.tenant_id
-            FROM {self.schema}.tenant_user_permissions up
-            JOIN {self.schema}.platform_permissions p ON p.id = up.permission_id
+            FROM {self.get_current_schema()}.tenant_user_permissions up
+            JOIN {self.get_current_schema()}.platform_permissions p ON p.id = up.permission_id
             WHERE up.user_id = $1 AND up.tenant_id = $2
                 AND up.is_active = true
                 AND up.is_granted = true
@@ -441,7 +450,8 @@ class PermissionRepository:
                 AND p.scope_level = 'tenant'
         """
         
-        results = await self.db.fetch(query, user_id, tenant_id)
+        db = await self.get_connection()
+        results = await db.fetch(query, user_id, tenant_id)
         
         return [
             process_database_record(
@@ -479,10 +489,10 @@ class PermissionRepository:
                 FROM (
                     -- Permissions from roles
                     SELECT p.code as name
-                    FROM {self.schema}.platform_user_roles ur
-                    JOIN {self.schema}.platform_roles r ON r.id = ur.role_id
-                    JOIN {self.schema}.role_permissions rp ON rp.role_id = r.id
-                    JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
+                    FROM {self.get_current_schema()}.platform_user_roles ur
+                    JOIN {self.get_current_schema()}.platform_roles r ON r.id = ur.role_id
+                    JOIN {self.get_current_schema()}.role_permissions rp ON rp.role_id = r.id
+                    JOIN {self.get_current_schema()}.platform_permissions p ON p.id = rp.permission_id
                     WHERE ur.user_id = $1
                         AND ur.is_active = true
                         AND r.deleted_at IS NULL
@@ -500,8 +510,8 @@ class PermissionRepository:
                     UNION
                     -- Direct permissions
                     SELECT p.code as name
-                    FROM {self.schema}.platform_user_permissions up
-                    JOIN {self.schema}.platform_permissions p ON p.id = up.permission_id
+                    FROM {self.get_current_schema()}.platform_user_permissions up
+                    JOIN {self.get_current_schema()}.platform_permissions p ON p.id = up.permission_id
                     WHERE up.user_id = $1
                         AND up.is_active = true
                                 AND (up.expires_at IS NULL OR up.expires_at > CURRENT_TIMESTAMP)
@@ -516,7 +526,8 @@ class PermissionRepository:
             )
         """
         
-        result = await self.db.fetchval(query, *params)
+        db = await self.get_connection()
+        result = await db.fetchval(query, *params)
         return bool(result)
     
     async def get_role_permissions(
@@ -543,13 +554,14 @@ class PermissionRepository:
                 true as is_active,
                 NULL as granted_by,
                 now() as granted_at
-            FROM {self.schema}.role_permissions rp
-            JOIN {self.schema}.platform_permissions p ON p.id = rp.permission_id
+            FROM {self.get_current_schema()}.role_permissions rp
+            JOIN {self.get_current_schema()}.platform_permissions p ON p.id = rp.permission_id
             WHERE rp.role_id = $1
             ORDER BY p.resource, p.action
         """
         
-        results = await self.db.fetch(query, role_id)
+        db = await self.get_connection()
+        results = await db.fetch(query, role_id)
         
         return [
             process_database_record(
@@ -586,7 +598,7 @@ class PermissionRepository:
                 requires_approval,
                 created_at,
                 updated_at
-            FROM {self.schema}.platform_permissions
+            FROM {self.get_current_schema()}.platform_permissions
         """
         
         if active_only:
@@ -594,7 +606,8 @@ class PermissionRepository:
         
         query += " ORDER BY resource, action"
         
-        results = await self.db.fetch(query)
+        db = await self.get_connection()
+        results = await db.fetch(query)
         
         return [
             process_database_record(
@@ -614,12 +627,13 @@ class PermissionRepository:
         """
         query = f"""
             SELECT DISTINCT resource
-            FROM {self.schema}.platform_permissions
+            FROM {self.get_current_schema()}.platform_permissions
             WHERE deleted_at IS NULL
             ORDER BY resource
         """
         
-        results = await self.db.fetch(query)
+        db = await self.get_connection()
+        results = await db.fetch(query)
         return [record["resource"] for record in results]
     
     # Backward compatibility and convenience methods

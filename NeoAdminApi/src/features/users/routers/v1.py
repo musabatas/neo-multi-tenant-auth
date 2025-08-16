@@ -15,7 +15,7 @@ from src.common.exceptions.base import (
     ConflictError,
     UnauthorizedError
 )
-from src.features.auth.decorators import require_permission
+from neo_commons.auth.decorators import require_permission
 from src.features.auth.dependencies import security, CheckPermission
 
 from ..models.request import (

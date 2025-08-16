@@ -7,14 +7,15 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID
 from loguru import logger
 
-from src.common.database.connection import get_database
-from src.common.database.utils import process_database_record
+from neo_commons.repositories.base import BaseRepository
+from neo_commons.exceptions.base import NotFoundError
 from src.common.utils import utc_now
 from src.common.utils import generate_uuid_v7
-from src.common.exceptions.base import NotFoundError
+from src.common.database.connection_provider import neo_admin_connection_provider
+from src.common.database.utils import process_database_record
 
 
-class AuthRepository:
+class AuthRepository(BaseRepository[Dict[str, Any]]):
     """
     Database access for authentication data with dynamic schema configuration.
     
@@ -24,21 +25,25 @@ class AuthRepository:
     - Session tracking
     - Tenant access grants
     
-    FIXED: Eliminated hardcoded 'admin' schema references for dynamic configuration.
+    Uses neo-commons BaseRepository for consistent data access patterns.
     """
     
     def __init__(self, schema: str = "admin"):
         """
-        Initialize repository with database connection and configurable schema.
+        Initialize repository with BaseRepository and configurable schema.
         
         Args:
             schema: Database schema to use (default: admin)
         """
-        self.db = get_database()
-        self.schema = schema
+        super().__init__(
+            table_name="platform_users", 
+            default_schema=schema,
+            connection_provider=neo_admin_connection_provider
+        )
     
     def _user_select_query(self) -> str:
         """Get the standard user select query with column mappings."""
+        table_name = self.get_full_table_name()
         return f"""
             SELECT 
                 u.id,
@@ -68,7 +73,7 @@ class AuthRepository:
                 u.metadata,
                 u.created_at,
                 u.updated_at
-            FROM {self.schema}.platform_users u
+            FROM {table_name} u
         """
     
     async def get_user_by_email(
@@ -86,7 +91,8 @@ class AuthRepository:
         """
         query = self._user_select_query() + " WHERE LOWER(u.email) = LOWER($1)"
         
-        result = await self.db.fetchrow(query, email)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, email)
         
         if result:
             return process_database_record(
@@ -112,7 +118,8 @@ class AuthRepository:
         """
         query = self._user_select_query() + " WHERE LOWER(u.username) = LOWER($1)"
         
-        result = await self.db.fetchrow(query, username)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, username)
         
         if result:
             return process_database_record(
@@ -143,7 +150,8 @@ class AuthRepository:
                 AND u.external_user_id = $2
         """
         
-        result = await self.db.fetchrow(query, provider, external_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, provider, external_id)
         
         if result:
             return process_database_record(
@@ -172,7 +180,8 @@ class AuthRepository:
         """
         query = self._user_select_query() + " WHERE u.id = $1"
         
-        result = await self.db.fetchrow(query, user_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, user_id)
         
         if not result:
             raise NotFoundError("User", user_id)
@@ -216,8 +225,9 @@ class AuthRepository:
         
         if existing_user:
             # Update existing user
+            table_name = self.get_full_table_name()
             query = f"""
-                UPDATE {self.schema}.platform_users
+                UPDATE {table_name}
                 SET 
                     email = $1,
                     username = $2,
@@ -232,7 +242,8 @@ class AuthRepository:
             
             display_name = f"{first_name or ''} {last_name or ''}".strip() or username
             
-            result = await self.db.fetchrow(
+            db = await self.get_connection()
+            result = await db.fetchrow(
                 query,
                 email,
                 username,
@@ -244,15 +255,16 @@ class AuthRepository:
                 existing_user["id"]
             )
             
-            logger.info(f"Updated user {existing_user['id']} ({email})")
+            # Reduce verbose logging for frequent user updates
             
             # Fetch the full user record
             return await self.get_user_by_id(str(result['id']))
             
         else:
             # Create new user
+            table_name = self.get_full_table_name()
             query = f"""
-                INSERT INTO {self.schema}.platform_users (
+                INSERT INTO {table_name} (
                     id,
                     email,
                     username,
@@ -276,7 +288,8 @@ class AuthRepository:
             display_name = f"{first_name or ''} {last_name or ''}".strip() or username
             now = utc_now()
             
-            result = await self.db.fetchrow(
+            db = await self.get_connection()
+            result = await db.fetchrow(
                 query,
                 user_id,
                 email,
@@ -313,16 +326,18 @@ class AuthRepository:
         Returns:
             True if updated successfully
         """
+        table_name = self.get_full_table_name()
         query = f"""
-            UPDATE {self.schema}.platform_users
+            UPDATE {table_name}
             SET 
                 last_login_at = $1,
                 updated_at = $1
             WHERE id = $2
         """
         
-        await self.db.execute(query, utc_now(), user_id)
-        logger.info(f"Updated last login for user {user_id}")
+        db = await self.get_connection()
+        await db.execute(query, utc_now(), user_id)
+        # Reduce verbose logging for frequent login updates
         return True
     
     async def update_failed_login(
@@ -375,8 +390,8 @@ class AuthRepository:
                 t.slug as tenant_slug,
                 t.external_auth_realm as tenant_realm,
                 (t.deleted_at IS NULL) as tenant_is_active
-            FROM {self.schema}.tenant_access_grants tag
-            JOIN {self.schema}.tenants t ON t.id = tag.tenant_id
+            FROM {self.get_current_schema()}.tenant_access_grants tag
+            JOIN {self.get_current_schema()}.tenants t ON t.id = tag.tenant_id
             WHERE tag.user_id = $1
         """
         
@@ -389,8 +404,10 @@ class AuthRepository:
         
         query += " ORDER BY tag.granted_at DESC"
         
-        results = await self.db.fetch(query, user_id)
+        db = await self.get_connection()
+        results = await db.fetch(query, user_id)
         
+        from src.common.database.utils import process_database_record
         return [
             process_database_record(
                 record,
@@ -431,8 +448,8 @@ class AuthRepository:
                 t.slug as tenant_slug,
                 t.external_auth_realm as tenant_realm,
                 (t.deleted_at IS NULL) as tenant_is_active
-            FROM {self.schema}.tenant_access_grants tag
-            JOIN {self.schema}.tenants t ON t.id = tag.tenant_id
+            FROM {self.get_current_schema()}.tenant_access_grants tag
+            JOIN {self.get_current_schema()}.tenants t ON t.id = tag.tenant_id
             WHERE tag.user_id = $1
                 AND tag.tenant_id = $2
                 AND tag.is_active = true
@@ -440,7 +457,8 @@ class AuthRepository:
                 AND (tag.expires_at IS NULL OR tag.expires_at > CURRENT_TIMESTAMP)
         """
         
-        result = await self.db.fetchrow(query, user_id, tenant_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, user_id, tenant_id)
         
         if result:
             return process_database_record(
@@ -461,8 +479,10 @@ class AuthRepository:
         Returns:
             True if user is active
         """
-        query = f"SELECT is_active FROM {self.schema}.platform_users WHERE id = $1"
-        result = await self.db.fetchval(query, user_id)
+        table_name = self.get_full_table_name()
+        query = f"SELECT is_active FROM {table_name} WHERE id = $1"
+        db = await self.get_connection()
+        result = await db.fetchval(query, user_id)
         return bool(result)
     
     async def is_user_superadmin(self, user_id: str) -> bool:
@@ -475,8 +495,10 @@ class AuthRepository:
         Returns:
             True if user is a superuser
         """
-        query = f"SELECT is_superadmin FROM {self.schema}.platform_users WHERE id = $1"
-        result = await self.db.fetchval(query, user_id)
+        table_name = self.get_full_table_name()
+        query = f"SELECT is_superadmin FROM {table_name} WHERE id = $1"
+        db = await self.get_connection()
+        result = await db.fetchval(query, user_id)
         return bool(result)
     
     async def update_user_metadata_by_external_id(
@@ -496,8 +518,9 @@ class AuthRepository:
         Returns:
             True if user was updated
         """
+        table_name = self.get_full_table_name()
         query = f"""
-            UPDATE {self.schema}.platform_users
+            UPDATE {table_name}
             SET 
                 metadata = $1,
                 updated_at = $2
@@ -506,7 +529,8 @@ class AuthRepository:
               AND deleted_at IS NULL
         """
         
-        result = await self.db.execute(
+        db = await self.get_connection()
+        result = await db.execute(
             query,
             json.dumps(metadata) if metadata else None,
             utc_now(),

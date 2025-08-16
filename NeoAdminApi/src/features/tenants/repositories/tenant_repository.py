@@ -7,21 +7,30 @@ from uuid import UUID
 import json
 from loguru import logger
 
-from src.common.database.connection import get_database
-from src.common.database.utils import process_database_record
-from src.common.exceptions.base import NotFoundError, ConflictError
+from neo_commons.repositories.base import BaseRepository
+from neo_commons.database.utils import process_database_record
+from neo_commons.exceptions.base import NotFoundError, ConflictError
 from src.common.utils import utc_now
 from src.common.utils import generate_uuid_v7
+from src.common.database.connection_provider import neo_admin_connection_provider
 from ..models.domain import Tenant, TenantContact
 from ..models.request import TenantCreate, TenantUpdate, TenantFilter, TenantStatusUpdate
 
 
-class TenantRepository:
+class TenantRepository(BaseRepository[Dict[str, Any]]):
     """Repository for tenant database operations."""
     
-    def __init__(self):
-        """Initialize tenant repository."""
-        self.db = get_database()
+    def __init__(self, schema: str = "admin"):
+        """Initialize tenant repository with BaseRepository and configurable schema.
+        
+        Args:
+            schema: Database schema to use (default: admin)
+        """
+        super().__init__(
+            table_name="tenants", 
+            default_schema=schema,
+            connection_provider=neo_admin_connection_provider
+        )
     
     async def get_by_id(self, tenant_id: str) -> Tenant:
         """Get tenant by ID.
@@ -35,20 +44,21 @@ class TenantRepository:
         Raises:
             NotFoundError: If tenant not found
         """
-        query = """
+        query = f"""
             SELECT 
                 t.*,
                 o.name as organization_name,
                 o.slug as organization_slug,
                 r.code as region_code,
                 r.name as region_name
-            FROM admin.tenants t
-            LEFT JOIN admin.organizations o ON t.organization_id = o.id
-            LEFT JOIN admin.regions r ON t.region_id = r.id
+            FROM {self.get_current_schema()}.tenants t
+            LEFT JOIN {self.get_current_schema()}.organizations o ON t.organization_id = o.id
+            LEFT JOIN {self.get_current_schema()}.regions r ON t.region_id = r.id
             WHERE t.id = $1 AND t.deleted_at IS NULL
         """
         
-        result = await self.db.fetchrow(query, tenant_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, tenant_id)
         
         if not result:
             raise NotFoundError("Tenant", tenant_id)
@@ -67,20 +77,21 @@ class TenantRepository:
         Raises:
             NotFoundError: If tenant not found
         """
-        query = """
+        query = f"""
             SELECT 
                 t.*,
                 o.name as organization_name,
                 o.slug as organization_slug,
                 r.code as region_code,
                 r.name as region_name
-            FROM admin.tenants t
-            LEFT JOIN admin.organizations o ON t.organization_id = o.id
-            LEFT JOIN admin.regions r ON t.region_id = r.id
+            FROM {self.get_current_schema()}.tenants t
+            LEFT JOIN {self.get_current_schema()}.organizations o ON t.organization_id = o.id
+            LEFT JOIN {self.get_current_schema()}.regions r ON t.region_id = r.id
             WHERE t.slug = $1 AND t.deleted_at IS NULL
         """
         
-        result = await self.db.fetchrow(query, slug)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, slug)
         
         if not result:
             raise NotFoundError("Tenant", slug)
@@ -175,7 +186,7 @@ class TenantRepository:
         # Count query
         count_query = f"""
             SELECT COUNT(*) as total
-            FROM admin.tenants t
+            FROM {self.get_current_schema()}.tenants t
             WHERE {where_clause}
         """
         
@@ -192,20 +203,21 @@ class TenantRepository:
                 o.slug as organization_slug,
                 r.code as region_code,
                 r.name as region_name
-            FROM admin.tenants t
-            LEFT JOIN admin.organizations o ON t.organization_id = o.id
-            LEFT JOIN admin.regions r ON t.region_id = r.id
+            FROM {self.get_current_schema()}.tenants t
+            LEFT JOIN {self.get_current_schema()}.organizations o ON t.organization_id = o.id
+            LEFT JOIN {self.get_current_schema()}.regions r ON t.region_id = r.id
             WHERE {where_clause}
             ORDER BY t.created_at DESC
             LIMIT ${limit_param} OFFSET ${offset_param}
         """
         
         # Execute queries
-        count_result = await self.db.fetchrow(count_query, *params)
+        db = await self.get_connection()
+        count_result = await db.fetchrow(count_query, *params)
         total_count = count_result['total']
         
         params.extend([limit, offset])
-        results = await self.db.fetch(data_query, *params)
+        results = await db.fetch(data_query, *params)
         
         tenants = [self._map_to_domain(row) for row in results]
         
@@ -224,8 +236,9 @@ class TenantRepository:
             ConflictError: If slug already exists
         """
         # Check if slug exists
-        existing = await self.db.fetchrow(
-            "SELECT id FROM admin.tenants WHERE slug = $1",
+        db = await self.get_connection()
+        existing = await db.fetchrow(
+            f"SELECT id FROM {self.get_current_schema()}.tenants WHERE slug = $1",
             tenant_data.slug
         )
         
@@ -251,8 +264,9 @@ class TenantRepository:
         tenant_id = generate_uuid_v7()
         now = utc_now()
         
-        query = """
-            INSERT INTO admin.tenants (
+        table_name = self.get_full_table_name()
+        query = f"""
+            INSERT INTO {table_name} (
                 id, organization_id, slug, name, description,
                 schema_name, database_name, deployment_type, environment,
                 region_id, custom_domain,
@@ -274,7 +288,7 @@ class TenantRepository:
             RETURNING *
         """
         
-        result = await self.db.fetchrow(
+        result = await db.fetchrow(
             query,
             tenant_id,
             str(tenant_data.organization_id),
@@ -383,14 +397,16 @@ class TenantRepository:
         
         update_clause = ", ".join(update_fields)
         
+        table_name = self.get_full_table_name()
         query = f"""
-            UPDATE admin.tenants
+            UPDATE {table_name}
             SET {update_clause}
             WHERE id = ${param_count} AND deleted_at IS NULL
             RETURNING *
         """
         
-        result = await self.db.fetchrow(query, *params)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, *params)
         
         if not result:
             raise NotFoundError("Tenant", tenant_id)
@@ -427,8 +443,9 @@ class TenantRepository:
         elif status_update.status == 'provisioning':
             provisioned_at = now
         
-        query = """
-            UPDATE admin.tenants
+        table_name = self.get_full_table_name()
+        query = f"""
+            UPDATE {table_name}
             SET 
                 status = $1,
                 updated_at = $2,
@@ -439,7 +456,8 @@ class TenantRepository:
             RETURNING *
         """
         
-        result = await self.db.fetchrow(
+        db = await self.get_connection()
+        result = await db.fetchrow(
             query,
             status_update.status,
             now,
@@ -462,8 +480,9 @@ class TenantRepository:
         Args:
             tenant_id: Tenant ID to delete
         """
-        query = """
-            UPDATE admin.tenants
+        table_name = self.get_full_table_name()
+        query = f"""
+            UPDATE {table_name}
             SET 
                 deleted_at = $1,
                 status = 'deleted',
@@ -471,7 +490,8 @@ class TenantRepository:
             WHERE id = $2 AND deleted_at IS NULL
         """
         
-        result = await self.db.execute(query, utc_now(), tenant_id)
+        db = await self.get_connection()
+        result = await db.execute(query, utc_now(), tenant_id)
         
         if result == "UPDATE 0":
             raise NotFoundError("Tenant", tenant_id)
@@ -504,13 +524,14 @@ class TenantRepository:
         Returns:
             Organization info dictionary
         """
-        query = """
+        query = f"""
             SELECT id, name, slug, is_active
-            FROM admin.organizations
+            FROM {self.get_current_schema()}.organizations
             WHERE id = $1 AND deleted_at IS NULL
         """
         
-        result = await self.db.fetchrow(query, organization_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, organization_id)
         
         if not result:
             raise NotFoundError("Organization", organization_id)
@@ -529,13 +550,14 @@ class TenantRepository:
         Returns:
             Region info dictionary
         """
-        query = """
+        query = f"""
             SELECT id, code, name, country_code, is_active
-            FROM admin.regions
+            FROM {self.get_current_schema()}.regions
             WHERE id = $1
         """
         
-        result = await self.db.fetchrow(query, region_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, region_id)
         
         if not result:
             return None
@@ -554,21 +576,22 @@ class TenantRepository:
         Returns:
             Subscription info dictionary
         """
-        query = """
+        query = f"""
             SELECT 
                 ts.id,
                 sp.name as plan_name,
                 sp.plan_tier,
                 ts.status,
                 ts.current_period_end
-            FROM admin.tenant_subscriptions ts
-            JOIN admin.subscription_plans sp ON ts.plan_id = sp.id
+            FROM {self.get_current_schema()}.tenant_subscriptions ts
+            JOIN {self.get_current_schema()}.subscription_plans sp ON ts.plan_id = sp.id
             WHERE ts.tenant_id = $1
             ORDER BY ts.created_at DESC
             LIMIT 1
         """
         
-        result = await self.db.fetchrow(query, tenant_id)
+        db = await self.get_connection()
+        result = await db.fetchrow(query, tenant_id)
         
         if not result:
             return None
@@ -578,107 +601,6 @@ class TenantRepository:
             uuid_fields=['id']
         )
     
-    async def get_organization_info(self, organization_id: str) -> Dict[str, Any]:
-        """Get organization summary information.
-        
-        Args:
-            organization_id: Organization UUID
-            
-        Returns:
-            Organization information dictionary
-        """
-        query = """
-            SELECT 
-                id, name, slug, is_active
-            FROM admin.organizations
-            WHERE id = $1
-        """
-        
-        result = await self.db.fetchrow(query, organization_id)
-        
-        if not result:
-            raise NotFoundError("Organization", organization_id)
-        
-        return process_database_record(
-            result,
-            uuid_fields=['id']
-        )
-    
-    async def get_region_info(self, region_id: str) -> Dict[str, Any]:
-        """Get region summary information.
-        
-        Args:
-            region_id: Region UUID
-            
-        Returns:
-            Region information dictionary
-        """
-        query = """
-            SELECT 
-                id, code, name, country_code, is_active
-            FROM admin.regions
-            WHERE id = $1
-        """
-        
-        result = await self.db.fetchrow(query, region_id)
-        
-        if not result:
-            raise NotFoundError("Region", region_id)
-        
-        return process_database_record(
-            result,
-            uuid_fields=['id']
-        )
-    
-    async def get_subscription_info(self, tenant_id: str) -> Optional[Dict[str, Any]]:
-        """Get subscription information for a tenant.
-        
-        Args:
-            tenant_id: Tenant UUID
-            
-        Returns:
-            Subscription information dictionary or None
-        """
-        query = """
-            SELECT 
-                s.id,
-                sp.name as plan_name,
-                sp.tier as plan_tier,
-                s.status,
-                s.current_period_end
-            FROM admin.subscriptions s
-            JOIN admin.subscription_plans sp ON s.plan_id = sp.id
-            WHERE s.tenant_id = $1
-            ORDER BY s.created_at DESC
-            LIMIT 1
-        """
-        
-        result = await self.db.fetchrow(query, tenant_id)
-        
-        if not result:
-            return None
-        
-        return process_database_record(
-            result,
-            uuid_fields=['id']
-        )
-    
-    async def get_tenant_stats(self, tenant_id: str) -> Dict[str, Any]:
-        """Get tenant statistics.
-        
-        Args:
-            tenant_id: Tenant UUID
-            
-        Returns:
-            Statistics dictionary
-        """
-        # For now, return mock stats until we have the actual tenant schemas
-        # In production, this would query the tenant's schema for real stats
-        return {
-            'user_count': 0,
-            'active_user_count': 0,
-            'storage_used_mb': 0.0
-        }
     
     def _map_to_domain(self, row) -> Tenant:
         """Map database row to domain model.

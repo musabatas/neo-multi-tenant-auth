@@ -120,8 +120,7 @@ class BaseRepository(ABC, Generic[T]):
             return await self.connection_provider.get_connection(self._current_context)
         
         # Fallback to default database manager
-        from ..database.connection import get_database
-        return get_database()
+        return DatabaseManager()
     
     def build_where_clause(
         self,

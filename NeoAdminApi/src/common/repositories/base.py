@@ -76,10 +76,14 @@ class BaseRepository(NeoBaseRepository[T]):
         if schema != "admin":
             schema_provider.admin_schema = schema
         
+        # Import connection provider for neo-commons integration
+        from src.common.database.connection_provider import neo_admin_connection_provider
+        
         # Initialize enhanced neo-commons BaseRepository
         super().__init__(
             table_name=table_name,
             schema_provider=schema_provider,
+            connection_provider=neo_admin_connection_provider,
             default_schema=schema
         )
         

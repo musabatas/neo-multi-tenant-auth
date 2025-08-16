@@ -9,9 +9,10 @@ import logging
 import json
 import asyncpg
 
-from src.common.repositories.base import BaseRepository
-from src.common.database.utils import process_database_record
-from src.common.models import PaginationParams
+from neo_commons.repositories.base import BaseRepository
+from neo_commons.database.utils import process_database_record
+from neo_commons.models.pagination import PaginationParams
+from src.common.database.connection_provider import neo_admin_connection_provider
 from src.common.exceptions.base import NotFoundError, ConflictError
 from src.features.roles.models.domain import (
     PlatformRole, PlatformPermission, RolePermission,
@@ -22,20 +23,30 @@ from src.features.roles.models.domain import (
 logger = logging.getLogger(__name__)
 
 
-class RoleRepository(BaseRepository[PlatformRole]):
+class RoleRepository(BaseRepository[Dict[str, Any]]):
     """Repository for platform roles."""
     
-    def __init__(self):
-        super().__init__(table_name="platform_roles", schema="admin")
+    def __init__(self, schema: str = "admin"):
+        """Initialize role repository with configurable schema.
+        
+        Args:
+            schema: Database schema to use (default: admin)
+        """
+        super().__init__(
+            table_name="platform_roles", 
+            default_schema=schema,
+            connection_provider=neo_admin_connection_provider
+        )
     
     async def get_by_id(self, role_id: int) -> Optional[PlatformRole]:
         """Get role by ID."""
+        db = await self.get_connection()
         query = f"""
-            SELECT * FROM {self.full_table_name}
+            SELECT * FROM {self.get_current_schema()}.{self.table_name}
             WHERE id = $1 AND deleted_at IS NULL
         """
         
-        row = await self.db.fetchrow(query, role_id)
+        row = await db.fetchrow(query, role_id)
         if not row:
             return None
         
@@ -43,12 +54,13 @@ class RoleRepository(BaseRepository[PlatformRole]):
     
     async def get_by_code(self, code: str) -> Optional[PlatformRole]:
         """Get role by code."""
+        db = await self.get_connection()
         query = f"""
-            SELECT * FROM {self.full_table_name}
+            SELECT * FROM {self.get_current_schema()}.{self.table_name}
             WHERE code = $1 AND deleted_at IS NULL
         """
         
-        row = await self.db.fetchrow(query, code)
+        row = await db.fetchrow(query, code)
         if not row:
             return None
         
@@ -60,6 +72,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
         pagination: PaginationParams
     ) -> tuple[List[PlatformRole], int]:
         """List roles with filters and pagination."""
+        db = await self.get_connection()
         
         # Build WHERE clause
         where_conditions = ["deleted_at IS NULL"]
@@ -110,10 +123,10 @@ class RoleRepository(BaseRepository[PlatformRole]):
         
         # Count query
         count_query = f"""
-            SELECT COUNT(*) FROM {self.full_table_name}
+            SELECT COUNT(*) FROM {self.get_current_schema()}.{self.table_name}
             WHERE {where_clause}
         """
-        total_count = await self.db.fetchval(count_query, *params)
+        total_count = await db.fetchval(count_query, *params)
         
         # List query with pagination
         offset = (pagination.page - 1) * pagination.page_size
@@ -124,16 +137,16 @@ class RoleRepository(BaseRepository[PlatformRole]):
         
         list_query = f"""
             SELECT r.*,
-                   (SELECT COUNT(*) FROM admin.role_permissions WHERE role_id = r.id) as permission_count,
-                   (SELECT COUNT(*) FROM admin.platform_user_roles WHERE role_id = r.id AND is_active = true) as user_count
-            FROM {self.full_table_name} r
+                   (SELECT COUNT(*) FROM {self.get_current_schema()}.role_permissions WHERE role_id = r.id) as permission_count,
+                   (SELECT COUNT(*) FROM {self.get_current_schema()}.platform_user_roles WHERE role_id = r.id AND is_active = true) as user_count
+            FROM {self.get_current_schema()}.{self.table_name} r
             WHERE {where_clause}
             ORDER BY priority DESC, name ASC
             LIMIT ${limit_param} OFFSET ${offset_param}
         """
         
         params.extend([pagination.page_size, offset])
-        rows = await self.db.fetch(list_query, *params)
+        rows = await db.fetch(list_query, *params)
         
         roles = [self._row_to_role(row) for row in rows]
         
@@ -141,6 +154,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
     
     async def create(self, role_data: Dict[str, Any]) -> PlatformRole:
         """Create a new role."""
+        db = await self.get_connection()
         
         # Check if code already exists
         existing = await self.get_by_code(role_data["code"])
@@ -152,7 +166,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
             )
         
         query = f"""
-            INSERT INTO {self.full_table_name} (
+            INSERT INTO {self.get_current_schema()}.{self.table_name} (
                 code, name, display_name, description,
                 role_level, priority, is_system, is_default,
                 max_assignees, tenant_scoped, requires_approval,
@@ -163,7 +177,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
             RETURNING *
         """
         
-        row = await self.db.fetchrow(
+        row = await db.fetchrow(
             query,
             role_data["code"],
             role_data["name"],
@@ -184,6 +198,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
     
     async def update(self, role_id: int, updates: Dict[str, Any]) -> Optional[PlatformRole]:
         """Update a role."""
+        db = await self.get_connection()
         
         # Build update query dynamically
         set_clauses = []
@@ -209,14 +224,14 @@ class RoleRepository(BaseRepository[PlatformRole]):
         
         param_count += 1
         query = f"""
-            UPDATE {self.full_table_name}
+            UPDATE {self.get_current_schema()}.{self.table_name}
             SET {', '.join(set_clauses)}
             WHERE id = ${param_count} AND deleted_at IS NULL
             RETURNING *
         """
         
         params.append(role_id)
-        row = await self.db.fetchrow(query, *params)
+        row = await db.fetchrow(query, *params)
         
         if not row:
             return None
@@ -225,18 +240,20 @@ class RoleRepository(BaseRepository[PlatformRole]):
     
     async def delete(self, role_id: int) -> bool:
         """Soft delete a role."""
+        db = await self.get_connection()
         query = f"""
-            UPDATE {self.full_table_name}
+            UPDATE {self.get_current_schema()}.{self.table_name}
             SET deleted_at = NOW()
             WHERE id = $1 AND deleted_at IS NULL
             RETURNING id
         """
         
-        result = await self.db.fetchval(query, role_id)
+        result = await db.fetchval(query, role_id)
         return result is not None
     
     async def get_role_permissions(self, role_id: int) -> List[PlatformPermission]:
         """Get all permissions for a role."""
+        db = await self.get_connection()
         query = """
             SELECT p.*
             FROM admin.platform_permissions p
@@ -245,7 +262,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
             ORDER BY p.resource, p.action
         """
         
-        rows = await self.db.fetch(query, role_id)
+        rows = await db.fetch(query, role_id)
         return [self._row_to_permission(row) for row in rows]
     
     async def update_role_permissions(
@@ -259,7 +276,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
         async with self.db.transaction():
             if replace:
                 # Remove all existing permissions
-                await self.db.execute(
+                await db.execute(
                     "DELETE FROM admin.role_permissions WHERE role_id = $1",
                     role_id
                 )
@@ -268,7 +285,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
             if permission_ids:
                 # Build bulk insert
                 values = [(role_id, perm_id) for perm_id in permission_ids]
-                await self.db.executemany(
+                await db.executemany(
                     """
                     INSERT INTO admin.role_permissions (role_id, permission_id)
                     VALUES ($1, $2)
@@ -307,7 +324,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
                     is_active = true
                 RETURNING *
             """
-            row = await self.db.fetchrow(
+            row = await db.fetchrow(
                 query, tenant_id, user_id, role_id,
                 granted_by, granted_reason, expires_at
             )
@@ -327,7 +344,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
                     is_active = true
                 RETURNING *
             """
-            row = await self.db.fetchrow(
+            row = await db.fetchrow(
                 query, user_id, role_id,
                 granted_by, granted_reason, expires_at
             )
@@ -349,7 +366,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
                 WHERE tenant_id = $1 AND user_id = $2 AND role_id = $3
                 RETURNING user_id
             """
-            result = await self.db.fetchval(query, tenant_id, user_id, role_id)
+            result = await db.fetchval(query, tenant_id, user_id, role_id)
         else:
             query = """
                 UPDATE admin.platform_user_roles
@@ -357,7 +374,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
                 WHERE user_id = $1 AND role_id = $2
                 RETURNING user_id
             """
-            result = await self.db.fetchval(query, user_id, role_id)
+            result = await db.fetchval(query, user_id, role_id)
         
         return result is not None
     
@@ -369,6 +386,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
     ) -> List[UserRoleAssignment]:
         """Get all role assignments for a user."""
         
+        db = await self.get_connection()
         active_filter = "" if include_inactive else "AND ur.is_active = true"
         
         if tenant_id:
@@ -379,7 +397,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
                 WHERE ur.tenant_id = $1 AND ur.user_id = $2 {active_filter}
                 ORDER BY r.priority DESC
             """
-            rows = await self.db.fetch(query, tenant_id, user_id)
+            rows = await db.fetch(query, tenant_id, user_id)
         else:
             query = f"""
                 SELECT ur.*, r.code as role_code, r.name as role_name
@@ -388,7 +406,7 @@ class RoleRepository(BaseRepository[PlatformRole]):
                 WHERE ur.user_id = $1 {active_filter}
                 ORDER BY r.priority DESC
             """
-            rows = await self.db.fetch(query, user_id)
+            rows = await db.fetch(query, user_id)
         
         return [self._row_to_assignment(row) for row in rows]
     

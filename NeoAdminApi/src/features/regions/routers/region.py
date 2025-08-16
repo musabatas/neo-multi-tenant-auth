@@ -8,8 +8,7 @@ from src.common.routers.base import NeoAPIRouter
 
 from src.common.models.base import APIResponse
 from src.common.models import PaginationParams
-from src.common.database.connection import get_database
-from src.features.auth.decorators import require_permission
+from neo_commons.auth.decorators import require_permission
 from src.features.auth.dependencies import CheckPermission
 from ..models.request import RegionFilter, RegionCreate, RegionUpdate
 from ..models.response import RegionResponse, RegionListResponse
@@ -19,10 +18,14 @@ from ..repositories.region import RegionRepository
 router = NeoAPIRouter()
 
 
-def get_region_service() -> RegionService:
-    """Dependency to get region service."""
-    db = get_database()
-    repository = RegionRepository(db)
+def get_region_repository() -> RegionRepository:
+    """Get region repository instance using neo-commons patterns."""
+    return RegionRepository()
+
+def get_region_service(
+    repository: RegionRepository = Depends(get_region_repository)
+) -> RegionService:
+    """Get region service instance using neo-commons dependency injection."""
     return RegionService(repository)
 
 
