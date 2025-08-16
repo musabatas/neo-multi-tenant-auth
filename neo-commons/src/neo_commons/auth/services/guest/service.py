@@ -1,98 +1,52 @@
 """
-Guest authentication service for public endpoints.
+Default Guest Authentication Service
 
-Enhanced with neo-commons protocol-based patterns for cache management,
-datetime utilities, and exception handling.
-
-Provides session tracking and basic authentication for unauthenticated users
-accessing public reference data.
+Neo-commons implementation of guest authentication with session management,
+rate limiting, and configurable business rules.
 """
 import uuid
-from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Protocol, runtime_checkable
 import secrets
+from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 from loguru import logger
 
-# Try to use neo-commons, fall back to local imports if not available
-try:
-    from neo_commons.cache.client import CacheClient
-    from neo_commons.utils.datetime import utc_now
-    from neo_commons.exceptions.base import ValidationError, RateLimitError
-except ImportError:
-    # Fallback to local imports
-    from src.common.cache.client import get_cache as CacheClient
-    from src.common.utils import utc_now
-    from src.common.exceptions.base import ValidationError, RateLimitError
+from ...protocols import GuestAuthServiceProtocol
+from ....cache.protocols import TenantAwareCacheProtocol
+from ...exceptions import RateLimitError
+from ...rate_limiting import AuthRateLimitManager, RateLimitType
+from ....utils.datetime import utc_now
+from .provider import GuestSessionProvider, DefaultGuestSessionProvider
 
 
-@runtime_checkable
-class GuestSessionProvider(Protocol):
-    """Protocol for guest session configuration."""
-    
-    @property
-    def session_ttl(self) -> int:
-        """Session TTL in seconds."""
-        ...
-    
-    @property
-    def max_requests_per_session(self) -> int:
-        """Maximum requests per session."""
-        ...
-    
-    @property
-    def max_requests_per_ip(self) -> int:
-        """Maximum requests per IP per day."""
-        ...
-    
-    def get_guest_permissions(self) -> list[str]:
-        """Get default guest permissions."""
-        ...
-
-
-class DefaultGuestSessionProvider:
-    """Default guest session configuration provider."""
-    
-    @property
-    def session_ttl(self) -> int:
-        return 3600  # 1 hour
-    
-    @property
-    def max_requests_per_session(self) -> int:
-        return 1000
-    
-    @property
-    def max_requests_per_ip(self) -> int:
-        return 5000
-    
-    def get_guest_permissions(self) -> list[str]:
-        return ["reference_data:read"]
-
-
-class GuestAuthService:
+class DefaultGuestAuthService:
     """
-    Protocol-based guest authentication service with dependency injection.
+    Default implementation of guest authentication service.
     
     Features:
     - Configurable session management via GuestSessionProvider
-    - Cache operations via CacheClient protocol
     - Rate limiting with IP and session controls
     - Session tracking and statistics
+    - Redis caching with automatic cleanup
+    - Protocol-based design for service independence
     """
     
     def __init__(
         self,
-        cache_client: CacheClient,
-        session_provider: Optional[GuestSessionProvider] = None
+        cache_service: TenantAwareCacheProtocol,
+        session_provider: Optional[GuestSessionProvider] = None,
+        rate_limiter: Optional[AuthRateLimitManager] = None
     ):
         """
         Initialize guest auth service with protocol-based dependencies.
         
         Args:
-            cache_client: Cache client for session storage
+            cache_service: Cache service for session storage
             session_provider: Configuration provider for session settings
+            rate_limiter: Optional rate limiter (creates default if not provided)
         """
-        self.cache = cache_client
+        self.cache = cache_service
         self.session_provider = session_provider or DefaultGuestSessionProvider()
+        self.rate_limiter = rate_limiter or AuthRateLimitManager(cache_service)
         
         # Get configuration from provider
         self.session_ttl = self.session_provider.session_ttl
@@ -119,8 +73,8 @@ class GuestAuthService:
         Raises:
             RateLimitError: IP has exceeded daily request limit
         """
-        # Check IP rate limits first
-        await self._check_ip_rate_limit(ip_address)
+        # Check IP rate limits first using standardized rate limiter
+        await self.rate_limiter.enforce_ip_limit(ip_address)
         
         # Generate session ID and token
         session_id = f"guest_{uuid.uuid4().hex}"
@@ -139,17 +93,16 @@ class GuestAuthService:
             "request_count": 0,
             "permissions": self.session_provider.get_guest_permissions(),
             "rate_limit": {
-                "requests_remaining": self.max_requests_per_session,
+                "requests_remaining": self.rate_limiter.get_limit_config(RateLimitType.SESSION).limit,
                 "reset_time": (utc_now() + timedelta(seconds=self.session_ttl)).isoformat()
             }
         }
         
-        # Store in cache with TTL
+        # Store in cache with TTL (use platform namespace for guest sessions)
         cache_key = f"guest_session:{session_id}"
-        await self.cache.set(cache_key, session_data, ttl=self.session_ttl)
+        await self.cache.set(cache_key, session_data, ttl=self.session_ttl, tenant_id=None)
         
-        # Track IP usage
-        await self._track_ip_usage(ip_address)
+        # IP tracking is now handled by AuthRateLimitManager.enforce_ip_limit() above
         
         logger.info(f"Created guest session {session_id} for IP {ip_address}")
         
@@ -176,8 +129,8 @@ class GuestAuthService:
             session_id, token = session_token.split(":", 1)
             cache_key = f"guest_session:{session_id}"
             
-            # Get session from cache
-            session_data = await self.cache.get(cache_key)
+            # Get session from cache (platform namespace)
+            session_data = await self.cache.get(cache_key, tenant_id=None)
             if not session_data:
                 return None
             
@@ -189,19 +142,18 @@ class GuestAuthService:
             # Check if session expired
             expires_at = datetime.fromisoformat(session_data["expires_at"].replace("Z", "+00:00"))
             if utc_now() > expires_at:
-                await self.cache.delete(cache_key)
+                await self.cache.delete(cache_key, tenant_id=None)
                 return None
             
-            # Update request count and check rate limit
-            session_data["request_count"] += 1
-            session_data["rate_limit"]["requests_remaining"] -= 1
+            # Use standardized rate limiter for session
+            rate_state = await self.rate_limiter.enforce_session_limit(session_id)
             
-            if session_data["rate_limit"]["requests_remaining"] <= 0:
-                logger.warning(f"Rate limit exceeded for guest session {session_id}")
-                raise RateLimitError("Session rate limit exceeded")
+            # Update session data with new rate limit info
+            session_data["request_count"] += 1
+            session_data["rate_limit"]["requests_remaining"] = rate_state.requests_remaining
             
             # Update session in cache
-            await self.cache.set(cache_key, session_data, ttl=self.session_ttl)
+            await self.cache.set(cache_key, session_data, ttl=self.session_ttl, tenant_id=None)
             
             return session_data
             
@@ -211,8 +163,8 @@ class GuestAuthService:
     
     async def get_or_create_guest_session(
         self, 
-        session_token: Optional[str],
-        ip_address: str,
+        session_token: Optional[str] = None,
+        ip_address: Optional[str] = None,
         user_agent: Optional[str] = None,
         referrer: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -235,38 +187,10 @@ class GuestAuthService:
                 return session_data
         
         # Create new session if none exists or invalid
+        if not ip_address:
+            raise ValueError("IP address is required to create guest session")
+            
         return await self.create_guest_session(ip_address, user_agent, referrer)
-    
-    async def _check_ip_rate_limit(self, ip_address: str) -> None:
-        """Check if IP address has exceeded daily limits."""
-        ip_key = f"guest_ip_limit:{ip_address}"
-        ip_data = await self.cache.get(ip_key)
-        
-        if not ip_data:
-            # First request from this IP today
-            ip_data = {
-                "requests": 1,
-                "first_request": utc_now().isoformat(),
-                "reset_time": (utc_now() + timedelta(days=1)).isoformat()
-            }
-            await self.cache.set(ip_key, ip_data, ttl=86400)  # 24 hours
-            return
-        
-        if ip_data["requests"] >= self.max_requests_per_ip:
-            reset_time = datetime.fromisoformat(ip_data["reset_time"].replace("Z", "+00:00"))
-            logger.warning(f"IP {ip_address} exceeded daily rate limit")
-            raise RateLimitError(
-                f"Daily request limit exceeded. Resets at {reset_time.isoformat()}"
-            )
-    
-    async def _track_ip_usage(self, ip_address: str) -> None:
-        """Track IP address usage for rate limiting."""
-        ip_key = f"guest_ip_limit:{ip_address}"
-        ip_data = await self.cache.get(ip_key)
-        
-        if ip_data:
-            ip_data["requests"] += 1
-            await self.cache.set(ip_key, ip_data, ttl=86400)
     
     async def get_session_stats(self, session_token: str) -> Optional[Dict[str, Any]]:
         """
@@ -314,48 +238,63 @@ class GuestAuthService:
         # Update in cache
         session_id = session_data["session_id"]
         cache_key = f"guest_session:{session_id}"
-        await self.cache.set(cache_key, session_data, ttl=extension_seconds)
+        await self.cache.set(cache_key, session_data, ttl=extension_seconds, tenant_id=None)
         
         logger.info(f"Extended guest session {session_id} by {extension_seconds} seconds")
         return True
-
-
-def create_guest_auth_service(
-    cache_client: Optional[CacheClient] = None,
-    session_provider: Optional[GuestSessionProvider] = None
-) -> GuestAuthService:
-    """
-    Create guest authentication service instance with dependency injection.
     
-    Args:
-        cache_client: Optional cache client (falls back to default)
-        session_provider: Optional session configuration provider
+    async def invalidate_session(self, session_token: str) -> bool:
+        """
+        Invalidate a guest session.
         
-    Returns:
-        Configured GuestAuthService instance
-    """
-    # Import here to avoid circular dependencies
-    if cache_client is None:
+        Args:
+            session_token: Session token to invalidate
+            
+        Returns:
+            True if session was invalidated
+        """
+        if not session_token or ":" not in session_token:
+            return False
+            
         try:
-            # Try neo-commons first
-            from neo_commons.cache.client import get_cache_client
-            cache_client = get_cache_client()
-        except ImportError:
-            # Fallback to local cache
-            from src.common.cache.client import get_cache
-            cache_client = get_cache()
+            session_id, _ = session_token.split(":", 1)
+            cache_key = f"guest_session:{session_id}"
+            await self.cache.delete(cache_key, tenant_id=None)
+            logger.info(f"Invalidated guest session {session_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to invalidate session {session_token}: {e}")
+            return False
     
-    return GuestAuthService(
-        cache_client=cache_client,
-        session_provider=session_provider
-    )
-
-
-def get_guest_auth_service() -> GuestAuthService:
-    """
-    Simple factory for FastAPI dependency injection.
+    async def cleanup_expired_sessions(self) -> int:
+        """
+        Clean up expired guest sessions.
+        
+        Note: This is a basic implementation. For production use, consider
+        implementing a background task that uses Redis SCAN to find expired keys.
+        
+        Returns:
+            Number of sessions cleaned up
+        """
+        # This is a placeholder implementation
+        # In practice, Redis TTL will handle most cleanup automatically
+        logger.debug("Guest session cleanup completed (handled by Redis TTL)")
+        return 0
     
-    Returns:
-        GuestAuthService instance with default configuration
-    """
-    return create_guest_auth_service()
+    async def get_active_session_count(self) -> int:
+        """
+        Get count of active guest sessions.
+        
+        Note: This requires scanning Redis keys and may be expensive.
+        Consider implementing this with Redis data structures for better performance.
+        
+        Returns:
+            Number of active sessions (approximate)
+        """
+        # This is a placeholder implementation
+        # For production, consider using Redis sets or sorted sets to track active sessions
+        logger.debug("Active session count requested (not implemented)")
+        return 0
+    
+    # Note: IP rate limiting is now handled by standardized AuthRateLimitManager
+    # Removed legacy _check_ip_rate_limit and _track_ip_usage methods

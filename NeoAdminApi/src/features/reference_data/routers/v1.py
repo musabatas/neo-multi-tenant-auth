@@ -28,22 +28,19 @@ language_router = NeoAPIRouter(prefix="/languages", tags=["Languages"])
 
 def get_currency_service() -> CurrencyService:
     """Dependency to get currency service."""
-    db = get_database()
-    repository = CurrencyRepository(db)
+    repository = CurrencyRepository()
     return CurrencyService(repository)
 
 
 def get_country_service() -> CountryService:
     """Dependency to get country service."""
-    db = get_database()
-    repository = CountryRepository(db)
+    repository = CountryRepository()
     return CountryService(repository)
 
 
 def get_language_service() -> LanguageService:
     """Dependency to get language service."""
-    db = get_database()
-    repository = LanguageRepository(db)
+    repository = LanguageRepository()
     return LanguageService(repository)
 
 

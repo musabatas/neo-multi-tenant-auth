@@ -9,9 +9,10 @@ and authorization infrastructure. These protocols enable:
 - Permission checking with tenant context support
 - Parameterized cache key management for multi-service deployments
 - Configuration injection for service independence
+- Intelligent permission caching with wildcard matching
 """
 
-from typing import Any, Dict, List, Optional, Protocol, runtime_checkable, Tuple, Union
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable, Tuple, Union, Set
 from enum import Enum
 from datetime import datetime
 
@@ -962,5 +963,280 @@ class CacheServiceProtocol(Protocol):
         
         Returns:
             True if cache is healthy
+        """
+        ...
+
+
+@runtime_checkable
+class UserIdentityResolverProtocol(Protocol):
+    """
+    Protocol for resolving user identities across different authentication providers.
+    
+    This protocol handles the critical mapping between external authentication provider
+    user IDs (e.g., Keycloak) and internal platform user IDs. It provides a unified
+    interface for user ID resolution with caching support and fallback strategies.
+    
+    Key Use Cases:
+    - Map Keycloak `sub` claims to platform user IDs
+    - Handle both authenticated and service-to-service scenarios
+    - Support multiple authentication providers (future expansion)
+    - Provide consistent user identity across all platform services
+    """
+    
+    async def resolve_platform_user_id(
+        self,
+        external_provider: str,
+        external_id: str,
+        fallback_to_external: bool = True
+    ) -> Optional[str]:
+        """
+        Resolve external authentication provider ID to platform user ID.
+        
+        Args:
+            external_provider: Authentication provider name (e.g., "keycloak")
+            external_id: External user ID from the provider
+            fallback_to_external: If True, return external_id when no mapping found
+            
+        Returns:
+            Platform user ID if mapping exists, external_id if fallback enabled, None otherwise
+            
+        Raises:
+            ExternalServiceError: Provider lookup failed
+        """
+        ...
+    
+    async def resolve_user_context(
+        self,
+        user_id: str,
+        provider_hint: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Resolve user ID to complete user context with platform metadata.
+        
+        This method attempts to determine if the provided user_id is already
+        a platform user ID or needs mapping from an external provider.
+        
+        Args:
+            user_id: User ID (could be platform or external)
+            provider_hint: Optional hint about the likely provider
+            
+        Returns:
+            Dictionary containing:
+            - platform_user_id: Internal platform user ID
+            - external_user_id: Original external ID (if mapped)
+            - provider: Authentication provider name
+            - user_metadata: Additional user information
+            - is_mapped: Whether ID mapping was performed
+            
+        Raises:
+            NotFoundError: User not found in any context
+        """
+        ...
+    
+    async def cache_user_mapping(
+        self,
+        external_provider: str,
+        external_id: str,
+        platform_user_id: str,
+        ttl: int = 3600
+    ) -> None:
+        """
+        Cache user ID mapping for faster subsequent lookups.
+        
+        Args:
+            external_provider: Authentication provider name
+            external_id: External user ID
+            platform_user_id: Platform user ID
+            ttl: Cache time-to-live in seconds
+        """
+        ...
+    
+    async def invalidate_user_mapping(
+        self,
+        user_id: str,
+        provider: Optional[str] = None
+    ) -> None:
+        """
+        Invalidate cached user ID mappings.
+        
+        Args:
+            user_id: User ID (platform or external)
+            provider: Optional provider to limit invalidation scope
+        """
+        ...
+    
+    async def get_supported_providers(self) -> List[str]:
+        """
+        Get list of supported authentication providers.
+        
+        Returns:
+            List of provider names (e.g., ["keycloak", "oauth2", "saml"])
+        """
+        ...
+
+
+@runtime_checkable
+class PermissionCacheProtocol(Protocol):
+    """
+    Protocol for permission caching implementations.
+    
+    Provides intelligent caching strategies for permission data including
+    user permissions, roles, and permission summaries with tenant isolation.
+    """
+    
+    async def check_permission_cached(
+        self,
+        user_id: str,
+        permission: str,
+        tenant_id: Optional[str] = None
+    ) -> bool:
+        """
+        Check if user has a specific permission using cached data.
+        
+        Args:
+            user_id: User UUID
+            permission: Permission name (e.g., "users:read")
+            tenant_id: Optional tenant context
+            
+        Returns:
+            True if user has the permission
+        """
+        ...
+    
+    async def get_user_permissions_cached(
+        self,
+        user_id: str,
+        tenant_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all permissions for a user with caching.
+        
+        Args:
+            user_id: User UUID
+            tenant_id: Optional tenant context
+            
+        Returns:
+            List of permission details
+        """
+        ...
+    
+    async def warm_user_cache(
+        self,
+        user_id: str,
+        tenant_id: Optional[str] = None
+    ) -> None:
+        """
+        Warm the cache for a user by pre-loading permission data.
+        
+        Args:
+            user_id: User UUID
+            tenant_id: Optional tenant context
+        """
+        ...
+    
+    async def invalidate_user_cache(
+        self,
+        user_id: str,
+        tenant_id: Optional[str] = None
+    ) -> None:
+        """
+        Invalidate all cached data for a user.
+        
+        Args:
+            user_id: User UUID
+            tenant_id: Optional tenant to clear specific cache
+        """
+        ...
+
+
+@runtime_checkable
+class PermissionDataSourceProtocol(Protocol):
+    """
+    Protocol for permission data sources.
+    
+    Defines the interface for loading permission data from databases
+    or other storage systems.
+    """
+    
+    async def check_permission(
+        self,
+        user_id: str,
+        permission: str,
+        tenant_id: Optional[str] = None
+    ) -> bool:
+        """Check if user has permission in data source."""
+        ...
+    
+    async def get_user_permissions(
+        self,
+        user_id: str,
+        tenant_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get user permissions from data source."""
+        ...
+    
+    async def get_user_roles(
+        self,
+        user_id: str,
+        tenant_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get user roles from data source."""
+        ...
+    
+    async def get_user_permission_summary(
+        self,
+        user_id: str,
+        tenant_id: Optional[str] = None
+    ) -> Dict[str, Set[str]]:
+        """Get user permission summary from data source."""
+        ...
+    
+    async def get_users_with_role(
+        self,
+        role_id: str,
+        tenant_id: Optional[str] = None
+    ) -> List[str]:
+        """Get list of user IDs with specific role."""
+        ...
+
+
+@runtime_checkable
+class WildcardMatcherProtocol(Protocol):
+    """
+    Protocol for wildcard permission matching.
+    
+    Provides pattern matching for permission strings including
+    wildcard support (e.g., "users:*" matches "users:read").
+    """
+    
+    def matches_permission(
+        self,
+        required_permission: str,
+        granted_permission: str
+    ) -> bool:
+        """
+        Check if granted permission matches required permission.
+        
+        Args:
+            required_permission: Permission being checked
+            granted_permission: Permission that was granted
+            
+        Returns:
+            True if granted permission satisfies required permission
+        """
+        ...
+    
+    def expand_wildcard_permissions(
+        self,
+        permissions: List[str]
+    ) -> Set[str]:
+        """
+        Expand wildcard permissions to include all possible matches.
+        
+        Args:
+            permissions: List of permission strings (may include wildcards)
+            
+        Returns:
+            Set of expanded permission strings
         """
         ...

@@ -18,6 +18,7 @@ from ..protocols import (
     GuestAuthServiceProtocol,
     AuthConfigProtocol,
     CacheServiceProtocol,
+    UserIdentityResolverProtocol,
     ValidationStrategy
 )
 from ...exceptions import UnauthorizedError, ForbiddenError, RateLimitError
@@ -517,3 +518,56 @@ def create_guest_auth_service(
 ) -> GuestAuthServiceWrapper:
     """Create configured GuestAuthService wrapper."""
     return GuestAuthServiceWrapper(guest_service, cache_service)
+
+
+def create_user_identity_resolver(
+    auth_repository,
+    cache_service,
+    default_ttl: int = 3600,
+    cache_prefix: str = "user_identity"
+) -> UserIdentityResolverProtocol:
+    """
+    Create configured user identity resolver.
+    
+    Args:
+        auth_repository: Repository for user data access
+        cache_service: Cache service for performance optimization  
+        default_ttl: Default cache TTL in seconds (1 hour)
+        cache_prefix: Cache key prefix for namespacing
+        
+    Returns:
+        Configured DefaultUserIdentityResolver instance
+    """
+    from ..identity.resolver import DefaultUserIdentityResolver
+    
+    return DefaultUserIdentityResolver(
+        auth_repository=auth_repository,
+        cache_service=cache_service,
+        default_ttl=default_ttl,
+        cache_prefix=cache_prefix
+    )
+
+
+def create_neo_commons_guest_service(
+    cache_service,
+    provider_type: str = "default",
+    **provider_kwargs
+) -> GuestAuthServiceProtocol:
+    """
+    Create neo-commons guest authentication service.
+    
+    Args:
+        cache_service: Cache service for session storage
+        provider_type: Type of session provider ("default", "restrictive", "liberal", "custom")
+        **provider_kwargs: Additional arguments for custom provider
+        
+    Returns:
+        Configured neo-commons guest authentication service
+    """
+    from .guest.factory import create_guest_auth_service
+    
+    return create_guest_auth_service(
+        cache_service=cache_service,
+        provider_type=provider_type,
+        **provider_kwargs
+    )

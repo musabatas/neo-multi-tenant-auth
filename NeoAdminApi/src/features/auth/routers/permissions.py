@@ -136,15 +136,13 @@ async def trigger_sync(
     This endpoint requires platform admin permissions and MFA.
     """
     from src.app import create_app
-    from ..services.permission_manager import PermissionSyncManager
+    from ..services.permission_manager import NeoAdminPermissionSyncManager
     
     # Create app instance to scan
     app = create_app()
     
-    # Run sync with required dependencies
-    from src.common.database.connection import get_database
-    db_manager = get_database()
-    sync_manager = PermissionSyncManager(connection_provider=db_manager)
+    # Run sync with NeoAdminApi configuration
+    sync_manager = NeoAdminPermissionSyncManager()
     result = await sync_manager.sync_permissions(
         app=app,
         dry_run=dry_run,

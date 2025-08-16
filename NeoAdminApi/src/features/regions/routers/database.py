@@ -7,7 +7,6 @@ from fastapi import Depends, Query, HTTPException, status
 from src.common.routers.base import NeoAPIRouter
 
 from src.common.models.base import APIResponse
-from neo_commons.auth.decorators import require_permission
 from src.features.auth.dependencies import CheckPermission
 from ..models.request import DatabaseConnectionFilter, HealthCheckRequest
 from ..models.response import DatabaseConnectionListResponse, DatabaseConnectionResponse
@@ -27,7 +26,6 @@ def get_database_service() -> DatabaseConnectionService:
     summary="List database connections",
     description="Get a paginated list of database connections with health status information"
 )
-@require_permission("databases:read", scope="platform", description="View database connections")
 async def list_database_connections(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -84,10 +82,10 @@ async def list_database_connections(
     summary="Perform health checks",
     description="Trigger health checks on database connections"
 )
-@require_permission("databases:health_check", scope="platform", description="Check database health")
 async def perform_health_checks(
     request: HealthCheckRequest,
-    service: DatabaseConnectionService = Depends(get_database_service)
+    service: DatabaseConnectionService = Depends(get_database_service),
+    current_user: dict = Depends(CheckPermission(["databases:health_check"], scope="platform"))
 ) -> APIResponse:
     """
     Perform health checks on database connections.
@@ -124,9 +122,9 @@ async def perform_health_checks(
     summary="Get health summary",
     description="Get summary health statistics for all database connections"
 )
-@require_permission("databases:read", scope="platform", description="View database health summary")
 async def get_health_summary(
-    service: DatabaseConnectionService = Depends(get_database_service)
+    service: DatabaseConnectionService = Depends(get_database_service),
+    current_user: dict = Depends(CheckPermission(["databases:read"], scope="platform"))
 ) -> APIResponse:
     """
     Get summary health statistics for all database connections.
@@ -159,10 +157,10 @@ async def get_health_summary(
     summary="Get database connection details",
     description="Get detailed information about a specific database connection"
 )
-@require_permission("databases:read", scope="platform", description="View database connection details")
 async def get_database_connection(
     connection_id: str,
-    service: DatabaseConnectionService = Depends(get_database_service)
+    service: DatabaseConnectionService = Depends(get_database_service),
+    current_user: dict = Depends(CheckPermission(["databases:read"], scope="platform"))
 ) -> APIResponse[DatabaseConnectionResponse]:
     """
     Get detailed information about a specific database connection.

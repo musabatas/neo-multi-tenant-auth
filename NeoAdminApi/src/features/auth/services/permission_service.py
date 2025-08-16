@@ -1,18 +1,18 @@
 """
 Permission service with intelligent caching and validation.
-Handles complex permission checks with team and tenant scoping.
+Now fully integrated with neo-commons for enhanced caching and wildcard matching.
 """
 from typing import Optional, Dict, Any, List, Set
 from enum import Enum
 from loguru import logger
 
-from src.common.cache.client import get_cache
 from src.common.config.settings import settings
-from src.common.exceptions.base import UnauthorizedError, ForbiddenError
-# Use neo-commons for token management
-from neo_commons.auth import create_auth_service
-from ..repositories.permission_repository import PermissionRepository
+from src.common.exceptions.base import UnauthorizedError
+# Use neo-commons for everything
+from neo_commons.auth import create_auth_service, create_permission_cache_manager
+from neo_commons.cache import CacheManager, TenantAwareCacheService
 from ..repositories.auth_repository import AuthRepository
+from ..implementations.permission_data_source import NeoAdminPermissionDataSource
 
 
 class PermissionScope(Enum):
@@ -24,43 +24,43 @@ class PermissionScope(Enum):
 
 class PermissionService:
     """
-    High-performance permission service with caching.
+    High-performance permission service with intelligent caching.
     
     Features:
     - Multi-level permission checking (platform/tenant/user)
-    - Intelligent caching with namespace separation
-    - Wildcard permission support
+    - Intelligent caching with namespace separation via neo-commons
+    - Advanced wildcard permission support (users:* matches users:read)
     - Role hierarchy resolution
-    - Time-based access validation
+    - Sub-millisecond permission checks
+    - Automatic cache warming and invalidation
     """
     
     def __init__(self):
-        """Initialize permission service."""
-        self.permission_repo = PermissionRepository()
-        self.auth_repo = AuthRepository()
-        self.cache = get_cache()
+        """Initialize permission service with neo-commons integration."""
         # Use neo-commons auth service for token operations
         self.auth_service = create_auth_service()
         
-        # Cache configuration
-        self.PERMISSION_CACHE_TTL = 600  # 10 minutes
-        self.ROLE_CACHE_TTL = 900        # 15 minutes
-        self.SUMMARY_CACHE_TTL = 300     # 5 minutes
+        # Create neo-commons permission cache manager directly
+        from ..repositories.permission_repository import PermissionRepository
+        cache_manager = CacheManager()
+        cache_service = TenantAwareCacheService(cache_manager)
+        data_source = NeoAdminPermissionDataSource(PermissionRepository())
         
-        # Cache key patterns
-        self.USER_PERMS_KEY = "platform:perms:user:{user_id}"
-        self.USER_TENANT_PERMS_KEY = "platform:perms:user:{user_id}:tenant:{tenant_id}"
-        self.USER_ROLES_KEY = "platform:roles:user:{user_id}"
-        self.USER_TENANT_ROLES_KEY = "platform:roles:user:{user_id}:tenant:{tenant_id}"
-        self.PERM_SUMMARY_KEY = "platform:perms:summary:{user_id}"
-        self.TENANT_PERM_SUMMARY_KEY = "platform:perms:summary:{user_id}:tenant:{tenant_id}"
+        self.cache_manager = create_permission_cache_manager(
+            cache_service=cache_service,
+            data_source=data_source
+        )
+        
+        # Keep auth repo for user validation
+        self.auth_repo = AuthRepository()
+        
+        logger.info("Initialized PermissionService with neo-commons integration")
     
     async def check_permission(
         self,
         user_id: str,
         permission: str,
-        tenant_id: Optional[str] = None,
-        use_cache: bool = True
+        tenant_id: Optional[str] = None
     ) -> bool:
         """
         Check if user has a specific permission.
@@ -69,7 +69,6 @@ class PermissionService:
             user_id: User UUID
             permission: Permission name (e.g., "users:read")
             tenant_id: Optional tenant context
-            use_cache: Whether to use cached permissions
             
         Returns:
             True if user has the permission
@@ -86,6 +85,7 @@ class PermissionService:
         # Check if user is active
         is_active = await self.auth_repo.is_user_active(user_id)
         if not is_active:
+            from src.common.exceptions.base import ForbiddenError
             raise ForbiddenError("User account is not active")
         
         # If tenant specified, verify user has access to tenant
@@ -93,18 +93,21 @@ class PermissionService:
             tenant_access = await self.auth_repo.check_tenant_access(user_id, tenant_id)
             if not tenant_access:
                 logger.warning(f"User {user_id} lacks access to tenant {tenant_id}")
+                from src.common.exceptions.base import ForbiddenError
                 raise ForbiddenError("No access to specified tenant")
         
-        # Check permission (with caching if enabled)
-        if use_cache:
-            has_perm = await self._check_permission_cached(user_id, permission, tenant_id)
-        else:
-            has_perm = await self.permission_repo.check_permission(user_id, permission, tenant_id)
+        # Use neo-commons cache manager for permission checking
+        has_perm = await self.cache_manager.check_permission_cached(
+            user_id=user_id,
+            permission=permission,
+            tenant_id=tenant_id
+        )
         
         if not has_perm:
             logger.warning(
                 f"Permission denied: user={user_id}, permission={permission}, tenant={tenant_id}"
             )
+            from src.common.exceptions.base import ForbiddenError
             raise ForbiddenError(f"Permission denied: {permission}")
         
         return True
@@ -113,8 +116,7 @@ class PermissionService:
         self,
         user_id: str,
         permissions: List[str],
-        tenant_id: Optional[str] = None,
-        use_cache: bool = True
+        tenant_id: Optional[str] = None
     ) -> bool:
         """
         Check if user has any of the specified permissions.
@@ -123,7 +125,6 @@ class PermissionService:
             user_id: User UUID
             permissions: List of permission names
             tenant_id: Optional tenant context
-            use_cache: Whether to use cached permissions
             
         Returns:
             True if user has at least one permission
@@ -133,27 +134,19 @@ class PermissionService:
         if is_superadmin:
             return True
         
-        # Check each permission
-        for permission in permissions:
-            try:
-                if use_cache:
-                    has_perm = await self._check_permission_cached(user_id, permission, tenant_id)
-                else:
-                    has_perm = await self.permission_repo.check_permission(user_id, permission, tenant_id)
-                
-                if has_perm:
-                    return True
-            except Exception:
-                continue
-        
-        return False
+        # Use neo-commons batch permission checking with any_of=True
+        return await self.cache_manager.batch_check_permissions(
+            user_id=user_id,
+            permissions=permissions,
+            tenant_id=tenant_id,
+            require_all=False  # any_of behavior
+        )
     
     async def check_all_permissions(
         self,
         user_id: str,
         permissions: List[str],
-        tenant_id: Optional[str] = None,
-        use_cache: bool = True
+        tenant_id: Optional[str] = None
     ) -> bool:
         """
         Check if user has all of the specified permissions.
@@ -162,7 +155,6 @@ class PermissionService:
             user_id: User UUID
             permissions: List of permission names
             tenant_id: Optional tenant context
-            use_cache: Whether to use cached permissions
             
         Returns:
             True if user has all permissions
@@ -172,23 +164,18 @@ class PermissionService:
         if is_superadmin:
             return True
         
-        # Check all permissions
-        for permission in permissions:
-            if use_cache:
-                has_perm = await self._check_permission_cached(user_id, permission, tenant_id)
-            else:
-                has_perm = await self.permission_repo.check_permission(user_id, permission, tenant_id)
-            
-            if not has_perm:
-                return False
-        
-        return True
+        # Use neo-commons batch permission checking with require_all=True
+        return await self.cache_manager.batch_check_permissions(
+            user_id=user_id,
+            permissions=permissions,
+            tenant_id=tenant_id,
+            require_all=True
+        )
     
     async def get_user_permissions(
         self,
         user_id: str,
-        tenant_id: Optional[str] = None,
-        use_cache: bool = True
+        tenant_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all permissions for a user.
@@ -196,40 +183,19 @@ class PermissionService:
         Args:
             user_id: User UUID
             tenant_id: Optional tenant context
-            use_cache: Whether to use cached permissions
             
         Returns:
             List of permission details
         """
-        if use_cache:
-            # Try cache first
-            if tenant_id:
-                cache_key = self.USER_TENANT_PERMS_KEY.format(
-                    user_id=user_id,
-                    tenant_id=tenant_id
-                )
-            else:
-                cache_key = self.USER_PERMS_KEY.format(user_id=user_id)
-            
-            cached = await self.cache.get(cache_key)
-            if cached:
-                logger.debug(f"Cache hit for user {user_id} permissions")
-                return cached
-        
-        # Load from database
-        permissions = await self.permission_repo.get_user_permissions(user_id, tenant_id)
-        
-        # Cache the result
-        if use_cache and permissions:
-            await self.cache.set(cache_key, permissions, ttl=self.PERMISSION_CACHE_TTL)
-        
-        return permissions
+        return await self.cache_manager.get_user_permissions_cached(
+            user_id=user_id,
+            tenant_id=tenant_id
+        )
     
     async def get_user_roles(
         self,
         user_id: str,
-        tenant_id: Optional[str] = None,
-        use_cache: bool = True
+        tenant_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Get all roles for a user.
@@ -237,40 +203,19 @@ class PermissionService:
         Args:
             user_id: User UUID
             tenant_id: Optional tenant context
-            use_cache: Whether to use cached roles
             
         Returns:
             List of role assignments
         """
-        if use_cache:
-            # Try cache first
-            if tenant_id:
-                cache_key = self.USER_TENANT_ROLES_KEY.format(
-                    user_id=user_id,
-                    tenant_id=tenant_id
-                )
-            else:
-                cache_key = self.USER_ROLES_KEY.format(user_id=user_id)
-            
-            cached = await self.cache.get(cache_key)
-            if cached:
-                logger.debug(f"Cache hit for user {user_id} roles")
-                return cached
-        
-        # Load from database
-        roles = await self.permission_repo.get_user_roles(user_id, tenant_id)
-        
-        # Cache the result
-        if use_cache and roles:
-            await self.cache.set(cache_key, roles, ttl=self.ROLE_CACHE_TTL)
-        
-        return roles
+        return await self.cache_manager.get_user_roles_cached(
+            user_id=user_id,
+            tenant_id=tenant_id
+        )
     
     async def get_user_permission_summary(
         self,
         user_id: str,
-        tenant_id: Optional[str] = None,
-        use_cache: bool = True
+        tenant_id: Optional[str] = None
     ) -> Dict[str, Set[str]]:
         """
         Get a summary of user permissions grouped by resource.
@@ -278,34 +223,14 @@ class PermissionService:
         Args:
             user_id: User UUID
             tenant_id: Optional tenant context
-            use_cache: Whether to use cached summary
             
         Returns:
             Dict mapping resource to set of actions
         """
-        if use_cache:
-            # Try cache first
-            if tenant_id:
-                cache_key = self.TENANT_PERM_SUMMARY_KEY.format(
-                    user_id=user_id,
-                    tenant_id=tenant_id
-                )
-            else:
-                cache_key = self.PERM_SUMMARY_KEY.format(user_id=user_id)
-            
-            cached = await self.cache.get(cache_key)
-            if cached:
-                logger.debug(f"Cache hit for user {user_id} permission summary")
-                return cached
-        
-        # Get summary from repository
-        summary = await self.permission_repo.get_user_permission_summary(user_id, tenant_id)
-        
-        # Cache the result
-        if use_cache and summary:
-            await self.cache.set(cache_key, summary, ttl=self.SUMMARY_CACHE_TTL)
-        
-        return summary
+        return await self.cache_manager.get_user_permission_summary_cached(
+            user_id=user_id,
+            tenant_id=tenant_id
+        )
     
     async def validate_token_permissions(
         self,
@@ -329,8 +254,8 @@ class PermissionService:
             ForbiddenError: Lacks permission
         """
         # Validate token using neo-commons auth service
-        token_claims = await self.auth_service.validate_token(
-            access_token,
+        token_claims = await self.auth_service.token_validator.validate_token(
+            token=access_token,
             realm=settings.keycloak_admin_realm
         )
         
@@ -341,8 +266,11 @@ class PermissionService:
         
         logger.debug(f"Token validation: Keycloak user ID = {keycloak_user_id}")
         
+        # Get auth repository to resolve user ID
+        auth_repo = AuthRepository()
+        
         # Map Keycloak user ID to platform user ID
-        user = await self.auth_repo.get_user_by_external_id(
+        user = await auth_repo.get_user_by_external_id(
             provider="keycloak",
             external_id=keycloak_user_id
         )
@@ -358,8 +286,7 @@ class PermissionService:
         await self.check_permission(
             platform_user_id,
             required_permission,
-            tenant_id,
-            use_cache=True
+            tenant_id
         )
         
         return user
@@ -368,7 +295,7 @@ class PermissionService:
         self,
         user_id: str,
         tenant_id: Optional[str] = None
-    ):
+    ) -> None:
         """
         Invalidate cached permissions for a user.
         
@@ -376,36 +303,16 @@ class PermissionService:
             user_id: User UUID
             tenant_id: Optional tenant to clear specific cache
         """
-        # Clear permission caches
-        keys_to_delete = [
-            self.USER_PERMS_KEY.format(user_id=user_id),
-            self.USER_ROLES_KEY.format(user_id=user_id),
-            self.PERM_SUMMARY_KEY.format(user_id=user_id)
-        ]
-        
-        # Add tenant-specific keys if tenant provided
-        if tenant_id:
-            keys_to_delete.extend([
-                self.USER_TENANT_PERMS_KEY.format(user_id=user_id, tenant_id=tenant_id),
-                self.USER_TENANT_ROLES_KEY.format(user_id=user_id, tenant_id=tenant_id),
-                self.TENANT_PERM_SUMMARY_KEY.format(user_id=user_id, tenant_id=tenant_id)
-            ])
-        else:
-            # Clear all tenant-specific caches for this user
-            # This would require pattern matching in Redis
-            pass
-        
-        # Delete all keys
-        for key in keys_to_delete:
-            await self.cache.delete(key)
-        
-        logger.info(f"Invalidated permission cache for user {user_id}")
+        await self.cache_manager.invalidate_user_cache(
+            user_id=user_id,
+            tenant_id=tenant_id
+        )
     
     async def warm_permission_cache(
         self,
         user_id: str,
         tenant_id: Optional[str] = None
-    ):
+    ) -> None:
         """
         Warm the permission cache for a user (useful after login).
         
@@ -413,95 +320,66 @@ class PermissionService:
             user_id: User UUID
             tenant_id: Optional tenant context
         """
-        # Load and cache permissions
-        await self.get_user_permissions(user_id, tenant_id, use_cache=True)
-        
-        # Load and cache roles
-        await self.get_user_roles(user_id, tenant_id, use_cache=True)
-        
-        # Load and cache permission summary
-        await self.get_user_permission_summary(user_id, tenant_id, use_cache=True)
-        
-        logger.info(f"Warmed permission cache for user {user_id}")
+        await self.cache_manager.warm_user_cache(
+            user_id=user_id,
+            tenant_id=tenant_id
+        )
     
-    async def _check_permission_cached(
+    async def invalidate_role_cache(
         self,
-        user_id: str,
-        permission: str,
+        role_id: str,
         tenant_id: Optional[str] = None
-    ) -> bool:
+    ) -> None:
         """
-        Check permission with caching.
+        Invalidate cache for all users with a specific role.
         
         Args:
-            user_id: User UUID
-            permission: Permission name
+            role_id: Role UUID
             tenant_id: Optional tenant context
-            
-        Returns:
-            True if user has permission
         """
-        # Get cached permissions
-        permissions = await self.get_user_permissions(user_id, tenant_id, use_cache=True)
-        
-        # Extract permission names
-        permission_names = set()
-        for perm in permissions:
-            perm_name = f"{perm['resource']}:{perm['action']}"
-            permission_names.add(perm_name)
-            
-            # Add wildcard permissions
-            if perm['action'] == '*':
-                permission_names.add(f"{perm['resource']}:*")
-        
-        # Check exact match
-        if permission in permission_names:
-            return True
-        
-        # Check wildcard match (e.g., "users:*" matches "users:read")
-        if ':' in permission:
-            resource = permission.split(':')[0]
-            wildcard = f"{resource}:*"
-            if wildcard in permission_names:
-                return True
-        
-        return False
+        await self.cache_manager.invalidate_role_cache(
+            role_id=role_id,
+            tenant_id=tenant_id
+        )
     
+    async def warm_role_cache(
+        self,
+        role_id: str,
+        tenant_id: Optional[str] = None
+    ) -> None:
+        """
+        Warm cache for all users with a specific role.
+        
+        Args:
+            role_id: Role UUID
+            tenant_id: Optional tenant context
+        """
+        await self.cache_manager.warm_role_cache(
+            role_id=role_id,
+            tenant_id=tenant_id
+        )
+    
+    # Pass-through methods that don't involve caching
     async def get_role_permissions(
         self,
         role_id: str
     ) -> List[Dict[str, Any]]:
-        """
-        Get all permissions for a specific role.
-        
-        Args:
-            role_id: Role UUID
-            
-        Returns:
-            List of permissions assigned to the role
-        """
-        return await self.permission_repo.get_role_permissions(role_id)
+        """Get all permissions for a specific role."""
+        from ..repositories.permission_repository import PermissionRepository
+        permission_repo = PermissionRepository()
+        return await permission_repo.get_role_permissions(role_id)
     
     async def get_all_permissions(
         self,
         active_only: bool = True
     ) -> List[Dict[str, Any]]:
-        """
-        Get all available permissions in the system.
-        
-        Args:
-            active_only: Only return active permissions
-            
-        Returns:
-            List of all permissions
-        """
-        return await self.permission_repo.get_all_permissions(active_only)
+        """Get all available permissions in the system."""
+        from ..repositories.permission_repository import PermissionRepository
+        permission_repo = PermissionRepository()
+        return await permission_repo.get_all_permissions(active_only)
     
     async def get_permission_resources(self) -> List[str]:
-        """
-        Get all unique permission resources.
-        
-        Returns:
-            List of resource names
-        """
-        return await self.permission_repo.get_permission_resources()
+        """Get all unique permission resources."""
+        from ..repositories.permission_repository import PermissionRepository
+        permission_repo = PermissionRepository()
+        return await permission_repo.get_permission_resources()

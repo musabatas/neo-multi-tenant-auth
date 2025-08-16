@@ -21,10 +21,16 @@ from .protocols import (
     PermissionRegistryProtocol,
     PermissionDecoratorProtocol,
     PermissionCheckerProtocol,
+    PermissionCacheProtocol,
+    PermissionDataSourceProtocol,
+    WildcardMatcherProtocol,
     
     # Service protocols
     GuestAuthServiceProtocol,
     CacheServiceProtocol,
+    
+    # Identity protocols
+    UserIdentityResolverProtocol,
     
     # Configuration protocols
     AuthConfigProtocol,
@@ -40,13 +46,19 @@ from .decorators import RequirePermission, require_permission, PermissionMetadat
 from .dependencies import (
     CurrentUser, CheckPermission, TokenData, GuestOrAuthenticated, GuestSessionInfo
 )
+from .identity import DefaultUserIdentityResolver
 from .registry import (
     PermissionRegistry, PermissionDefinition, get_permission_registry,
     PLATFORM_PERMISSIONS, TENANT_PERMISSIONS, PERMISSION_GROUPS
 )
 from .services import (
     AuthServiceWrapper, PermissionServiceWrapper, GuestAuthServiceWrapper,
-    create_auth_service, create_permission_service, create_guest_auth_service
+    create_auth_service, create_permission_service, create_guest_auth_service,
+    create_user_identity_resolver
+)
+from .permissions import (
+    PermissionCacheManager, DefaultPermissionCacheManager,
+    create_permission_cache_manager, create_wildcard_permission_matcher
 )
 
 __all__ = [
@@ -59,8 +71,12 @@ __all__ = [
     "PermissionRegistryProtocol",
     "PermissionDecoratorProtocol",
     "PermissionCheckerProtocol",
+    "PermissionCacheProtocol",
+    "PermissionDataSourceProtocol",
+    "WildcardMatcherProtocol",
     "GuestAuthServiceProtocol",
     "CacheServiceProtocol",
+    "UserIdentityResolverProtocol",
     "AuthConfigProtocol",
     "CacheKeyProviderProtocol",
     # Enums
@@ -76,6 +92,8 @@ __all__ = [
     "TokenData",
     "GuestOrAuthenticated",
     "GuestSessionInfo",
+    # Identity
+    "DefaultUserIdentityResolver",
     # Registry
     "PermissionRegistry",
     "PermissionDefinition",
@@ -89,5 +107,11 @@ __all__ = [
     "GuestAuthServiceWrapper",
     "create_auth_service",
     "create_permission_service",
-    "create_guest_auth_service"
+    "create_guest_auth_service",
+    "create_user_identity_resolver",
+    # Permission Cache Management
+    "PermissionCacheManager",
+    "DefaultPermissionCacheManager",
+    "create_permission_cache_manager",
+    "create_wildcard_permission_matcher"
 ]

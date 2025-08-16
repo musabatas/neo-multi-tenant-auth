@@ -40,13 +40,11 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Cache initialization failed, continuing without cache: {e}")
         
         # Sync permissions on startup
-        from src.features.auth.services.permission_manager import PermissionSyncManager
-        from src.common.database.connection import get_database
+        from src.features.auth.services.permission_manager import NeoAdminPermissionSyncManager
         logger.info("Syncing permissions from code to database...")
         
-        # Create permission sync manager with required dependencies
-        db_manager = get_database()
-        sync_manager = PermissionSyncManager(connection_provider=db_manager)
+        # Create permission sync manager with NeoAdminApi configuration
+        sync_manager = NeoAdminPermissionSyncManager()
         sync_result = await sync_manager.sync_permissions(
             app=app,
             dry_run=False,  # Actually apply changes

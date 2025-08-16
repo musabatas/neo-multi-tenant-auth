@@ -10,6 +10,8 @@ from typing import Optional, Any, List, Dict, Protocol, runtime_checkable
 from redis.asyncio import Redis, ConnectionPool
 from loguru import logger
 
+from .protocols import CacheManagerProtocol
+
 
 @runtime_checkable
 class CacheConfig(Protocol):
@@ -45,7 +47,7 @@ class CacheConfig(Protocol):
         ...
 
 
-class CacheManager:
+class CacheManager(CacheManagerProtocol):
     """Manages Redis cache operations."""
     
     def __init__(self, config: Optional[CacheConfig] = None):

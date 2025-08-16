@@ -63,12 +63,26 @@ class AuthService:
         self.permission_repo = PermissionRepository()
         self.cache = get_cache()
         
-        # Use neo-commons auth service with NeoAdminApi settings
+        # Use neo-commons auth service with NeoAdminApi settings and database connection
         try:
             # Create custom auth config using NeoAdminApi settings
             auth_config = NeoAdminAuthConfig()
-            self.neo_auth_service = create_auth_service(auth_config=auth_config)
-            # Reduce startup logging verbosity
+            
+            # Create cache service for neo-commons
+            from neo_commons.cache.implementations import TenantAwareCacheService
+            cache_manager = self.cache  # Use the already initialized cache
+            cache_service = TenantAwareCacheService(cache_manager)
+            
+            # Use a simple permission checker - the user sync issue is in the auth callback
+            # The real solution is to make sure the user sync callback has database access
+            permission_checker = None  # Will use default SimplePermissionChecker
+            
+            self.neo_auth_service = create_auth_service(
+                auth_config=auth_config,
+                cache_service=cache_service,
+                permission_checker=permission_checker
+            )
+            logger.info("Neo-commons auth service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to create neo-commons auth service: {e}")
             # For now, continue without neo-commons service

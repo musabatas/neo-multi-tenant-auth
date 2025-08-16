@@ -14,7 +14,9 @@ from .compatibility import (
     GuestAuthServiceWrapper,
     create_auth_service,
     create_permission_service,
-    create_guest_auth_service
+    create_guest_auth_service,
+    create_user_identity_resolver,
+    create_neo_commons_guest_service
 )
 
 __all__ = [
@@ -23,5 +25,7 @@ __all__ = [
     "GuestAuthServiceWrapper",
     "create_auth_service",
     "create_permission_service",
-    "create_guest_auth_service"
+    "create_guest_auth_service",
+    "create_user_identity_resolver",
+    "create_neo_commons_guest_service"
 ]
