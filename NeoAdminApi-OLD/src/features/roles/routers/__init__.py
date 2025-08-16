@@ -1,3 +1,0 @@
-"""
-Routers for roles feature.
-"""
