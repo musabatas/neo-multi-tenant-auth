@@ -1,94 +1,163 @@
-"""
-Neo-Commons: Enterprise-grade shared infrastructure library for NeoMultiTenant platform.
+"""Neo-Commons - Enterprise-grade shared library for NeoMultiTenant platform.
 
-This package provides reusable infrastructure components implementing Clean Architecture
-principles, protocol-based dependency injection, and enterprise-grade patterns.
-
-Key Features:
-- Protocol-based design with @runtime_checkable interfaces
-- Sub-millisecond permission checks with intelligent caching
-- Multi-tenant architecture with dynamic schema configuration
-- Clean Architecture with proper layer separation
-- Enterprise security with Keycloak integration
-- 100% type coverage with Pydantic models
+This library provides unified authentication, database connection management,
+caching, and common utilities for the NeoMultiTenant ecosystem.
 """
+
+# Modern configuration management
+from .config import (
+    get_env_config,
+    validate_required_env_vars,
+    get_database_url,
+    get_redis_url,
+    is_production,
+    is_development,
+    DatabaseSchemas,
+    AuthProvider,
+    UserStatus,
+    PermissionScope,
+    TenantStatus,
+)
+
+# Infrastructure components
+from .infrastructure import (
+    ConfigurationService,
+    ConfigKey,
+    ConfigValue,
+    ConfigScope,
+)
+
+from .core.exceptions import (
+    # Base Exception
+    NeoCommonsError,
+    
+    # Common Exceptions
+    ConfigurationError,
+    DatabaseError,
+    AuthenticationError,
+    AuthorizationError,
+    TenantError,
+    CacheError,
+    ValidationError,
+    
+    # Utility Functions
+    get_http_status_code,
+    create_error_response,
+)
+
+from .core.value_objects import (
+    # Value Objects
+    UserId,
+    TenantId,
+    OrganizationId,
+    PermissionCode,
+    RoleCode,
+)
+
+# TODO: Re-enable these imports when the modules are properly implemented
+# from .core.shared import (
+#     # Core Entities
+#     RequestContext,
+#     
+#     # Core Protocols
+#     TenantContextProtocol,
+#     UserIdentityProtocol,
+#     PermissionCheckerProtocol,
+# )
+
+# TODO: Re-enable these imports when entities are properly implemented
+# from .features.users.entities import User
+# from .features.organizations.entities import Organization
+# from .features.tenants.entities import Tenant
+# from .features.teams.entities import Team
+
+# TODO: Re-enable these imports when protocols are properly implemented
+# from .infrastructure.protocols import (
+#     DatabaseConnectionProtocol,
+#     CacheProtocol,
+# )
+
+from .utils import (
+    generate_uuid_v7,
+    generate_uuid_v4,
+    generate_id,
+    is_valid_uuid,
+    generate_tenant_slug,
+)
+
+# TODO: Re-enable feature services when they are properly implemented
+# from .features import (
+#     # Database features
+#     DatabaseService,
+#     
+#     # Cache features
+#     CacheService,
+# )
 
 __version__ = "0.1.0"
-__author__ = "NeoMultiTenant Team"
-__email__ = "dev@neomultitenant.com"
-
-# Protocol interfaces for maximum flexibility and dependency injection
-from . import protocols
-
-# Repository patterns for data access layer
-from .repositories.base import BaseRepository
-
-# Models module exports
-from .models.base import (
-    BaseSchema,
-    TimestampMixin,
-    UUIDMixin,
-    SoftDeleteMixin,
-    AuditMixin,
-    StatusEnum,
-    SortOrder,
-    PaginationParams,
-    PaginationMetadata,
-    PaginatedResponse,
-    APIResponse,
-    HealthStatus,
-    ServiceHealth,
-    HealthCheckResponse,
-)
-
-# Exceptions module exports
-from .exceptions.base import (
-    NeoException,
-    ValidationError,
-    NotFoundError,
-    ConflictError,
-    UnauthorizedError,
-    ForbiddenError,
-    BadRequestError,
-    RateLimitError,
-    ExternalServiceError,
-)
 
 __all__ = [
-    "__version__",
-    "__author__",
-    "__email__",
+    # Modern Configuration
+    "get_env_config",
+    "validate_required_env_vars",
+    "get_database_url",
+    "get_redis_url", 
+    "is_production",
+    "is_development",
+    "DatabaseSchemas",
+    "AuthProvider",
+    "UserStatus",
+    "PermissionScope",
+    "TenantStatus",
     
-    # Protocol interfaces module
-    "protocols",
+    # Infrastructure
+    "ConfigurationService",
+    "ConfigKey",
+    "ConfigValue",
+    "ConfigScope",
     
-    # Repository patterns
-    "BaseRepository",
-    
-    # Base models
-    "BaseSchema",
-    "TimestampMixin",
-    "UUIDMixin", 
-    "SoftDeleteMixin",
-    "AuditMixin",
-    "StatusEnum",
-    "SortOrder",
-    "PaginationParams",
-    "PaginationMetadata",
-    "PaginatedResponse",
-    "APIResponse",
-    "HealthStatus",
-    "ServiceHealth",
-    "HealthCheckResponse",
-    
-    # Exceptions
-    "NeoException",
+    # Core Exceptions
+    "NeoCommonsError",
+    "ConfigurationError",
+    "DatabaseError",
+    "AuthenticationError",
+    "AuthorizationError",
+    "TenantError",
+    "CacheError",
     "ValidationError",
-    "NotFoundError",
-    "ConflictError",
-    "UnauthorizedError",
-    "ForbiddenError",
-    "BadRequestError",
-    "RateLimitError",
-    "ExternalServiceError",
+    "get_http_status_code",
+    "create_error_response",
+    
+    # Value Objects
+    "UserId",
+    "TenantId",
+    "OrganizationId",
+    "PermissionCode",
+    "RoleCode",
+    
+    # TODO: Re-enable when entities and protocols are implemented
+    # "User",
+    # "Organization", 
+    # "Tenant",
+    # "Team",
+    # "RequestContext",
+    # "TenantContextProtocol",
+    # "UserIdentityProtocol", 
+    # "PermissionCheckerProtocol",
+    # "DatabaseConnectionProtocol",
+    # "CacheProtocol",
+    
+    # Utilities
+    "generate_uuid_v7",
+    "generate_uuid_v4",
+    "generate_id",
+    "is_valid_uuid",
+    "generate_tenant_slug",
+    
+    # TODO: Re-enable when feature services are implemented
+    # "DatabaseService",
+    # "CacheService",
+    
+    # Version
+    "__version__",
 ]

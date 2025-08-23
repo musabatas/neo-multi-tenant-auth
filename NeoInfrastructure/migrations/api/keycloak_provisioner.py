@@ -18,7 +18,7 @@ import asyncio
 import requests
 
 
-DEFAULT_CLIENT_ID = "neo-tenant-api"
+DEFAULT_CLIENT_ID = "NeoTenantApi"
 
 
 @dataclass
@@ -146,7 +146,7 @@ class KeycloakProvisioner:
 def build_default_provisioner_from_env() -> KeycloakProvisioner:
     server_url = os.getenv("KEYCLOAK_URL", "http://neo-keycloak:8080")
     username = os.getenv("KEYCLOAK_ADMIN", os.getenv("KC_BOOTSTRAP_ADMIN_USERNAME", "admin"))
-    password = os.getenv("KEYCLOAK_ADMIN_PASSWORD", os.getenv("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin"))
+    password = os.getenv("KEYCLOAK_PASSWORD", os.getenv("KC_BOOTSTRAP_ADMIN_PASSWORD", "admin"))
     return KeycloakProvisioner(server_url=server_url.rstrip("/"), admin_username=username, admin_password=password)
 
 

@@ -148,7 +148,7 @@ fi
 # Clean up orphaned networks
 echo ""
 echo "🧹 Cleaning up orphaned networks..."
-docker network rm neo-infrastructure 2>/dev/null || true
+docker network rm NeoInfrastructure 2>/dev/null || true
 
 # Show final status
 echo ""

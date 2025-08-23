@@ -12,6 +12,7 @@ INSERT INTO admin.regions (
     is_active, accepts_new_tenants, provider, provider_region,
     primary_endpoint, internal_network
 ) VALUES 
+-- North America
 (
     'us-east-1',
     'US East (Virginia)',
@@ -31,6 +32,43 @@ INSERT INTO admin.regions (
     '172.19.0.0/16'
 ),
 (
+    'us-west-2',
+    'US West (Oregon)',
+    'United States West',
+    'US',
+    'North America',
+    'Oregon',
+    'America/Los_Angeles',
+    true,
+    false,
+    ARRAY['SOC2', 'ISO27001', 'HIPAA'],
+    true,
+    true,
+    'Docker',
+    'us-west-2',
+    'neo-postgres-us-east:5432',
+    '172.19.0.0/16'
+),
+(
+    'ca-central-1',
+    'Canada Central (Toronto)',
+    'Canada Central',
+    'CA',
+    'North America',
+    'Toronto',
+    'America/Toronto',
+    true,
+    false,
+    ARRAY['SOC2', 'ISO27001', 'PIPEDA'],
+    true,
+    true,
+    'Docker',
+    'ca-central-1',
+    'neo-postgres-us-east:5432',
+    '172.19.0.0/16'
+),
+-- Europe
+(
     'eu-west-1',
     'EU West (Ireland)',
     'European Union West',
@@ -47,6 +85,116 @@ INSERT INTO admin.regions (
     'eu-west-1',
     'neo-postgres-eu-west:5432',
     '172.19.0.0/16'
+),
+(
+    'eu-central-1',
+    'EU Central (Frankfurt)',
+    'European Union Central',
+    'DE',
+    'Europe',
+    'Frankfurt',
+    'Europe/Berlin',
+    true,
+    true,
+    ARRAY['GDPR', 'SOC2', 'ISO27001', 'BSI'],
+    true,
+    true,
+    'Docker',
+    'eu-central-1',
+    'neo-postgres-eu-west:5432',
+    '172.19.0.0/16'
+),
+(
+    'eu-north-1',
+    'EU North (Stockholm)',
+    'European Union North',
+    'SE',
+    'Europe',
+    'Stockholm',
+    'Europe/Stockholm',
+    true,
+    true,
+    ARRAY['GDPR', 'SOC2', 'ISO27001'],
+    true,
+    true,
+    'Docker',
+    'eu-north-1',
+    'neo-postgres-eu-west:5432',
+    '172.19.0.0/16'
+),
+-- Asia Pacific
+(
+    'ap-southeast-1',
+    'Asia Pacific (Singapore)',
+    'Asia Pacific Southeast',
+    'SG',
+    'Asia',
+    'Singapore',
+    'Asia/Singapore',
+    true,
+    false,
+    ARRAY['SOC2', 'ISO27001', 'PDPA'],
+    true,
+    true,
+    'Docker',
+    'ap-southeast-1',
+    'neo-postgres-us-east:5432',
+    '172.19.0.0/16'
+),
+(
+    'ap-northeast-1',
+    'Asia Pacific (Tokyo)',
+    'Asia Pacific Northeast',
+    'JP',
+    'Asia',
+    'Tokyo',
+    'Asia/Tokyo',
+    true,
+    false,
+    ARRAY['SOC2', 'ISO27001', 'APPI'],
+    true,
+    true,
+    'Docker',
+    'ap-northeast-1',
+    'neo-postgres-us-east:5432',
+    '172.19.0.0/16'
+),
+(
+    'ap-south-1',
+    'Asia Pacific (Mumbai)',
+    'Asia Pacific South',
+    'IN',
+    'Asia',
+    'Mumbai',
+    'Asia/Kolkata',
+    true,
+    false,
+    ARRAY['SOC2', 'ISO27001', 'DPDP'],
+    true,
+    true,
+    'Docker',
+    'ap-south-1',
+    'neo-postgres-us-east:5432',
+    '172.19.0.0/16'
+),
+-- Australia
+(
+    'ap-southeast-2',
+    'Asia Pacific (Sydney)',
+    'Australia Southeast',
+    'AU',
+    'Oceania',
+    'Sydney',
+    'Australia/Sydney',
+    true,
+    false,
+    ARRAY['SOC2', 'ISO27001', 'Privacy Act'],
+    true,
+    true,
+    'Docker',
+    'ap-southeast-2',
+    'neo-postgres-us-east:5432',
+    '172.19.0.0/16'
 )
 ON CONFLICT (code) DO UPDATE SET
     name = EXCLUDED.name,
@@ -61,7 +209,8 @@ ON CONFLICT (code) DO UPDATE SET
 
 -- Insert database connections for each region and database
 WITH region_ids AS (
-    SELECT id, code FROM admin.regions WHERE code IN ('us-east-1', 'eu-west-1')
+    SELECT id, code FROM admin.regions 
+    WHERE code IN ('us-east-1', 'us-west-2', 'ca-central-1', 'eu-west-1', 'eu-central-1', 'eu-north-1', 'ap-southeast-1', 'ap-northeast-1', 'ap-south-1', 'ap-southeast-2')
 )
 INSERT INTO admin.database_connections (
     region_id, connection_name, connection_type, host, port, database_name,
@@ -112,16 +261,19 @@ ON CONFLICT (connection_name) DO UPDATE SET
 SELECT 
     code,
     name,
+    country_code,
+    continent,
     gdpr_region,
     compliance_certifications,
-    is_active
+    is_active,
+    accepts_new_tenants
 FROM admin.regions 
-WHERE code IN ('us-east-1', 'eu-west-1')
-ORDER BY code;
+ORDER BY continent, code;
 
 -- Show database connections
 SELECT 
     r.code as region_code,
+    r.continent,
     dc.connection_name,
     dc.connection_type,
     dc.host,
@@ -131,5 +283,14 @@ SELECT
     dc.is_healthy
 FROM admin.database_connections dc
 JOIN admin.regions r ON dc.region_id = r.id
-WHERE r.code IN ('us-east-1', 'eu-west-1')
-ORDER BY r.code, dc.connection_type, dc.connection_name;
+ORDER BY r.continent, r.code, dc.connection_type, dc.connection_name;
+
+-- Regional summary
+SELECT 
+    continent,
+    COUNT(*) as region_count,
+    COUNT(CASE WHEN gdpr_region THEN 1 END) as gdpr_regions,
+    COUNT(CASE WHEN accepts_new_tenants THEN 1 END) as accepting_tenants
+FROM admin.regions
+GROUP BY continent
+ORDER BY continent;

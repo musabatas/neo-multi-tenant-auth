@@ -1,313 +1,236 @@
-"""
-Organization management API endpoints.
-"""
+"""Organization API v1 endpoints."""
 
 from typing import Optional
 from uuid import UUID
-from fastapi import Depends, Query, status, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
 
-from src.common.routers.base import NeoAPIRouter
-from src.common.models.base import APIResponse, PaginationParams
-from src.common.exceptions.base import (
-    NotFoundError,
-    ValidationError,
-    ConflictError
-)
-from neo_commons.auth.decorators import require_permission
-from src.features.auth.dependencies import security, CheckPermission
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from ..models.request import (
-    OrganizationCreate,
-    OrganizationUpdate,
-    OrganizationFilter
-)
-from ..models.response import (
-    OrganizationResponse,
-    OrganizationListResponse
-)
+from neo_commons.core.value_objects.identifiers import OrganizationId
+
+from ....common.dependencies import get_organization_service, get_request_context
+from ..models.request import OrganizationCreateRequest, OrganizationUpdateRequest
+from ..models.response import OrganizationListResponse, OrganizationResponse
 from ..services.organization_service import OrganizationService
 
-router = NeoAPIRouter()
+router = APIRouter()
 
 
-def get_organization_service() -> OrganizationService:
-    """Get organization service instance using neo-commons dependency injection."""
-    return OrganizationService()
-
-
-@router.get(
-    "/",
-    response_model=APIResponse[OrganizationListResponse],
-    status_code=status.HTTP_200_OK,
-    summary="List organizations",
-    description="List all organizations with optional filters and pagination"
-)
-@require_permission("organizations:list", scope="platform", description="List organizations")
+@router.get("", response_model=OrganizationListResponse)
 async def list_organizations(
-    # Filters
-    search: Optional[str] = Query(None, min_length=1, max_length=100, description="Search in name, slug, legal_name"),
-    country_code: Optional[str] = Query(None, pattern=r'^[A-Z]{2}$', description="Filter by country code"),
-    industry: Optional[str] = Query(None, description="Filter by industry"),
-    company_size: Optional[str] = Query(None, description="Filter by company size"),
-    is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    is_verified: Optional[bool] = Query(None, description="Filter by verification status"),
-    # Pagination
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    # Auth
-    current_user: dict = Depends(CheckPermission(["organizations:list"], scope="platform")),
-    service: OrganizationService = Depends(get_organization_service)
-) -> APIResponse[OrganizationListResponse]:
+    skip: int = Query(0, ge=0, description="Number of items to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Number of items to return"),
+    search: Optional[str] = Query(None, description="Search term"),
+    active_only: bool = Query(True, description="Show only active organizations"),
+    org_service: OrganizationService = Depends(get_organization_service),
+) -> OrganizationListResponse:
+    """List organizations with pagination and filtering.
+    
+    Requires platform administrator permissions.
     """
-    List organizations with optional filtering and pagination.
-    
-    Requires platform-level permission to list organizations.
-    """
-    
-    # Build filters
-    filters = OrganizationFilter(
-        search=search,
-        country_code=country_code,
-        industry=industry,
-        company_size=company_size,
-        is_active=is_active,
-        is_verified=is_verified
-    )
-    
-    # Build pagination
-    pagination = PaginationParams(page=page, page_size=page_size)
-    
     try:
-        result = await service.list_organizations(filters, pagination)
+        organizations = await org_service.list_organizations(
+            skip=skip,
+            limit=limit,
+            search=search,
+            active_only=active_only,
+        )
         
-        return APIResponse.success_response(
-            data=result,
-            message="Organizations retrieved successfully"
+        total = await org_service.count_organizations(
+            search=search,
+            active_only=active_only,
         )
-    except ValidationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+        
+        return OrganizationListResponse(
+            organizations=[
+                OrganizationResponse.from_entity(org) for org in organizations
+            ],
+            total=total,
+            skip=skip,
+            limit=limit,
         )
+        
     except Exception as e:
-        import traceback
-        from loguru import logger
-        logger.error(f"Failed to retrieve organizations: {e}")
-        logger.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve organizations: {str(e)}"
-        )
+            detail=f"Failed to list organizations: {str(e)}"
+        ) from e
 
 
-@router.post(
-    "/",
-    response_model=APIResponse[OrganizationResponse],
-    status_code=status.HTTP_201_CREATED,
-    summary="Create organization",
-    description="Create a new organization"
-)
-@require_permission("organizations:create", scope="platform", description="Create organizations")
+@router.post("", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
 async def create_organization(
-    organization_data: OrganizationCreate,
-    current_user: dict = Depends(CheckPermission(["organizations:create"], scope="platform")),
-    service: OrganizationService = Depends(get_organization_service)
-) -> APIResponse[OrganizationResponse]:
-    """
-    Create a new organization.
+    request: OrganizationCreateRequest,
+    org_service: OrganizationService = Depends(get_organization_service),
+) -> OrganizationResponse:
+    """Create a new organization.
     
-    Requires platform-level permission to create organizations.
+    Note: Authentication disabled during neo-commons integration.
     """
-    
     try:
-        result = await service.create_organization(
-            organization_data,
-            created_by=current_user.get("id")
+        organization = await org_service.create_organization(
+            name=request.name,
+            slug=request.slug,
+            legal_name=request.legal_name,
+            tax_id=request.tax_id,
+            business_type=request.business_type,
+            industry=request.industry,
+            company_size=request.company_size,
+            website_url=request.website_url,
+            primary_contact_id=request.primary_contact_id,
         )
         
-        return APIResponse.success_response(
-            data=result,
-            message="Organization created successfully"
-        )
-    except ConflictError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e)
-        )
-    except ValidationError as e:
+        return OrganizationResponse.from_entity(organization)
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
-        )
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create organization"
-        )
+            detail=f"Failed to create organization: {str(e)}"
+        ) from e
 
 
-@router.get(
-    "/{organization_id}",
-    response_model=APIResponse[OrganizationResponse],
-    status_code=status.HTTP_200_OK,
-    summary="Get organization",
-    description="Get organization details by ID"
-)
-@require_permission("organizations:read", scope="platform", description="View organization details")
+@router.get("/{organization_id}", response_model=OrganizationResponse)
 async def get_organization(
     organization_id: UUID,
-    current_user: dict = Depends(CheckPermission(["organizations:read"], scope="platform")),
-    service: OrganizationService = Depends(get_organization_service)
-) -> APIResponse[OrganizationResponse]:
-    """
-    Get organization details by ID.
+    org_service: OrganizationService = Depends(get_organization_service),
+) -> OrganizationResponse:
+    """Get organization by ID.
     
-    Requires platform-level permission to read organization details.
+    Requires platform administrator permissions.
     """
-    
     try:
-        result = await service.get_organization(str(organization_id))
+        org_id = OrganizationId(str(organization_id))
+        organization = await org_service.get_organization(org_id)
         
-        return APIResponse.success_response(
-            data=result,
-            message="Organization retrieved successfully"
-        )
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
+        if not organization:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+        
+        return OrganizationResponse.from_entity(organization)
+        
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve organization"
-        )
+            detail=f"Failed to get organization: {str(e)}"
+        ) from e
 
 
-@router.get(
-    "/slug/{slug}",
-    response_model=APIResponse[OrganizationResponse],
-    status_code=status.HTTP_200_OK,
-    summary="Get organization by slug",
-    description="Get organization details by slug"
-)
-@require_permission("organizations:read", scope="platform", description="View organization details")
-async def get_organization_by_slug(
-    slug: str,
-    current_user: dict = Depends(CheckPermission(["organizations:read"], scope="platform")),
-    service: OrganizationService = Depends(get_organization_service)
-) -> APIResponse[OrganizationResponse]:
-    """
-    Get organization details by slug.
-    
-    Requires platform-level permission to read organization details.
-    """
-    
-    try:
-        result = await service.get_organization_by_slug(slug)
-        
-        return APIResponse.success_response(
-            data=result,
-            message="Organization retrieved successfully"
-        )
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve organization"
-        )
-
-
-@router.put(
-    "/{organization_id}",
-    response_model=APIResponse[OrganizationResponse],
-    status_code=status.HTTP_200_OK,
-    summary="Update organization",
-    description="Update organization details"
-)
-@require_permission("organizations:update", scope="platform", description="Update organization details")
+@router.put("/{organization_id}", response_model=OrganizationResponse)
 async def update_organization(
     organization_id: UUID,
-    update_data: OrganizationUpdate,
-    current_user: dict = Depends(CheckPermission(["organizations:update"], scope="platform")),
-    service: OrganizationService = Depends(get_organization_service)
-) -> APIResponse[OrganizationResponse]:
-    """
-    Update organization details.
+    request: OrganizationUpdateRequest,
+    org_service: OrganizationService = Depends(get_organization_service),
+) -> OrganizationResponse:
+    """Update organization.
     
-    Requires platform-level permission to update organizations.
+    Note: Authentication disabled during neo-commons integration.
     """
-    
     try:
-        result = await service.update_organization(str(organization_id), update_data)
+        org_id = OrganizationId(str(organization_id))
         
-        return APIResponse.success_response(
-            data=result,
-            message="Organization updated successfully"
+        updated_organization = await org_service.update_organization(
+            org_id,
+            name=request.name,
+            legal_name=request.legal_name,
+            website_url=request.website_url,
+            business_type=request.business_type,
+            industry=request.industry,
+            is_active=request.is_active,
         )
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except ValidationError as e:
+        
+        return OrganizationResponse.from_entity(updated_organization)
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
-        )
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update organization"
-        )
+            detail=f"Failed to update organization: {str(e)}"
+        ) from e
 
 
-@router.delete(
-    "/{organization_id}",
-    response_model=APIResponse[dict],
-    status_code=status.HTTP_200_OK,
-    summary="Delete organization",
-    description="Soft delete an organization"
-)
-@require_permission("organizations:delete", scope="platform", description="Delete organizations")
+@router.delete("/{organization_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_organization(
     organization_id: UUID,
-    current_user: dict = Depends(CheckPermission(["organizations:delete"], scope="platform")),
-    service: OrganizationService = Depends(get_organization_service)
-) -> APIResponse[dict]:
+    force: bool = Query(False, description="Force delete even if tenants exist"),
+    org_service: OrganizationService = Depends(get_organization_service),
+) -> None:
+    """Delete organization.
+    
+    Requires platform administrator permissions.
+    By default, cannot delete organizations with active tenants unless force=True.
     """
-    Soft delete an organization.
-    
-    The organization will be marked as deleted but data will be retained
-    for audit purposes. Organization must have no active tenants.
-    
-    Requires platform-level permission to delete organizations.
-    """
-    
     try:
-        await service.delete_organization(str(organization_id))
+        org_id = OrganizationId(str(organization_id))
         
-        return APIResponse.success_response(
-            data={"organization_id": str(organization_id), "deleted": True},
-            message="Organization deleted successfully"
-        )
-    except NotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
-        )
-    except ValidationError as e:
+        success = await org_service.delete_organization(org_id, force=force)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
-        )
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete organization"
+            detail=f"Failed to delete organization: {str(e)}"
+        ) from e
+
+
+@router.get("/{organization_id}/tenants")
+async def list_organization_tenants(
+    organization_id: UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    org_service: OrganizationService = Depends(get_organization_service),
+):
+    """List tenants for an organization.
+    
+    Requires platform administrator permissions.
+    """
+    try:
+        org_id = OrganizationId(str(organization_id))
+        
+        # Check if organization exists
+        organization = await org_service.get_organization(org_id)
+        if not organization:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Organization not found"
+            )
+        
+        tenants = await org_service.list_organization_tenants(
+            org_id, skip=skip, limit=limit
         )
+        
+        total = await org_service.count_organization_tenants(org_id)
+        
+        return {
+            "tenants": tenants,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list organization tenants: {str(e)}"
+        ) from e

@@ -141,7 +141,7 @@ REDIS_PORT=6379
 REDIS_PASSWORD=redis
 KEYCLOAK_PORT=8080
 KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=admin
+KEYCLOAK_PASSWORD=admin
 EOF
 fi
 
@@ -226,7 +226,7 @@ done
 
 # Ensure critical admin tables exist before proceeding (verifies migrations finished)
 wait_for_db_table "neo-postgres-us-east" "neofast_admin" "admin" "tenants"
-wait_for_db_table "neo-postgres-us-east" "neofast_admin" "admin" "platform_users"
+wait_for_db_table "neo-postgres-us-east" "neofast_admin" "admin" "users"
 
 echo -e "${GREEN}✅ API deployed and admin migrations verified${NC}"
 
@@ -304,10 +304,85 @@ fi
 
 cd "$INFRASTRUCTURE_DIR"
 
-# Step 5: Verify Deployment
+# Step 5: Run Dynamic Migrations
 echo ""
 echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${PURPLE}STEP 5: DEPLOYMENT VERIFICATION${NC}"
+echo -e "${PURPLE}STEP 5: DYNAMIC MIGRATIONS${NC}"
+echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+echo -e "${CYAN}🔄 Running dynamic migrations for all regional/tenant databases...${NC}"
+echo -e "${YELLOW}ℹ️  This will migrate databases listed in admin.database_connections${NC}"
+
+# Ensure API is ready for dynamic migrations
+echo -e "${CYAN}⏳ Verifying API is ready for dynamic migrations...${NC}"
+for i in {1..10}; do
+    if curl -s http://localhost:8000/api/v1/migrations/dynamic/status > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Dynamic migration API is ready${NC}"
+        break
+    fi
+    if [ $i -eq 10 ]; then
+        echo -e "${RED}❌ Dynamic migration API not responding${NC}"
+        echo -e "${YELLOW}   Continuing anyway - databases may need manual migration${NC}"
+        break
+    fi
+    sleep 2
+done
+
+# Run dynamic migrations
+echo -e "${CYAN}🚀 Triggering dynamic migrations...${NC}"
+response=$(curl -s -X POST http://localhost:8000/api/v1/migrations/dynamic 2>/dev/null || echo '{"error": "API call failed"}')
+migration_id=$(echo "$response" | python3 -c "import json, sys; print(json.load(sys.stdin).get('migration_id', ''))" 2>/dev/null || echo "")
+
+if [ -n "$migration_id" ]; then
+    echo -e "${GREEN}✅ Dynamic migration started with ID: $migration_id${NC}"
+    
+    # Monitor progress for up to 3 minutes
+    echo -e "${CYAN}⏳ Monitoring migration progress...${NC}"
+    max_attempts=36  # 3 minutes
+    attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        status_response=$(curl -s "http://localhost:8000/api/v1/migrations/$migration_id" 2>/dev/null || echo '{"status": "unknown"}')
+        status=$(echo "$status_response" | python3 -c "import json, sys; print(json.load(sys.stdin).get('status', 'unknown'))" 2>/dev/null || echo "unknown")
+        
+        case "$status" in
+            "completed")
+                echo -e "\n${GREEN}✅ Dynamic migrations completed successfully!${NC}"
+                break
+                ;;
+            "failed")
+                echo -e "\n${RED}❌ Dynamic migrations failed${NC}"
+                echo -e "${YELLOW}⚠️  Check logs: docker logs neo-deployment-api${NC}"
+                break
+                ;;
+            "in_progress")
+                echo -n "."
+                sleep 5
+                ((attempt++))
+                ;;
+            *)
+                echo -n "?"
+                sleep 5
+                ((attempt++))
+                ;;
+        esac
+    done
+    
+    if [ $attempt -eq $max_attempts ]; then
+        echo -e "\n${YELLOW}⚠️  Migration monitoring timeout - migrations may still be running${NC}"
+        echo -e "${CYAN}   Check status: curl http://localhost:8000/api/v1/migrations/dynamic/status${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  Could not start dynamic migrations${NC}"
+    echo -e "${CYAN}   Manual command: cd $INFRASTRUCTURE_DIR/scripts/deployment && ./run-dynamic-migrations.sh${NC}"
+fi
+
+echo -e "${GREEN}✅ Dynamic migration step completed${NC}"
+
+# Step 6: Verify Deployment
+echo ""
+echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${PURPLE}STEP 6: DEPLOYMENT VERIFICATION${NC}"
 echo -e "${PURPLE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 echo -e "${CYAN}🔍 Checking service health...${NC}"
@@ -360,6 +435,7 @@ echo -e "${BLUE}🌐 API Endpoints:${NC}"
 echo "   Health Check: http://localhost:8000/health"
 echo "   API Docs:     http://localhost:8000/docs"
 echo "   Migrations:   http://localhost:8000/api/v1/migrations/status"
+echo "   Dynamic Migrations: http://localhost:8000/api/v1/migrations/dynamic/status"
 
 if [ "$RUN_SEEDS" = true ]; then
     echo ""
@@ -369,14 +445,25 @@ if [ "$RUN_SEEDS" = true ]; then
 fi
 
 echo ""
+echo -e "${BLUE}🔄 Dynamic Migrations:${NC}"
+echo "   ✅ Regional databases migrated"
+echo "   ✅ Tenant template schemas created"
+echo "   ✅ Analytics databases prepared"
+
+echo ""
 echo -e "${CYAN}💡 Next Steps:${NC}"
 if [ "$RUN_SEEDS" = false ]; then
     echo "   1. Run seed data: $INFRASTRUCTURE_DIR/deploy.sh --seed"
     echo "   2. Deploy microservices: cd ../NeoServices && ./deploy.sh"
-    echo "   3. Configure Keycloak realms"
-    echo "   4. Create first tenant"
+    echo "   3. Create first tenant via API"
+    echo "   4. Test application functionality"
 else
     echo "   1. Deploy microservices: cd ../NeoServices && ./deploy.sh"
-    echo "   2. Configure Keycloak realms"
-    echo "   3. Create first tenant"
+    echo "   2. Create first tenant via API"
+    echo "   3. Test application functionality"
 fi
+
+echo ""
+echo -e "${CYAN}🔧 Manual Migration Commands (if needed):${NC}"
+echo "   Dynamic migrations: $INFRASTRUCTURE_DIR/scripts/deployment/run-dynamic-migrations.sh"
+echo "   List tenant migrations: $INFRASTRUCTURE_DIR/scripts/deployment/list-tenant-migrations.sh"

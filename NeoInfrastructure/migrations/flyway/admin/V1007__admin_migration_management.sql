@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS admin.migration_schedules (
     target_version VARCHAR(50),                 -- Version to migrate to
     max_duration_minutes INTEGER DEFAULT 120,   -- Maximum allowed duration
     is_active BOOLEAN DEFAULT true,
-    created_by UUID REFERENCES admin.platform_users,
+    created_by UUID REFERENCES admin.users,
     metadata JSONB DEFAULT '{}',                -- Schedule-specific configuration
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()

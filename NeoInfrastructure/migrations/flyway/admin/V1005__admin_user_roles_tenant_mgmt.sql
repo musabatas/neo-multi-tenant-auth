@@ -3,100 +3,19 @@
 -- Applied to: Admin database only
 
 -- ============================================================================
--- PLATFORM USER ROLES (User-to-role assignments at platform level)
+-- USER ROLES AND PERMISSIONS - MOVED TO V1002 FOR UNIFIED STRUCTURE
 -- ============================================================================
-
-CREATE TABLE admin.platform_user_roles (
-    user_id UUID NOT NULL REFERENCES admin.platform_users ON DELETE CASCADE,
-    role_id INTEGER NOT NULL REFERENCES admin.platform_roles ON DELETE CASCADE,
-    granted_by UUID REFERENCES admin.platform_users,
-    granted_reason TEXT,
-    granted_at TIMESTAMPTZ DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
-    is_active BOOLEAN DEFAULT true,
-    PRIMARY KEY (user_id, role_id)
-);
-
--- Indexes for platform_user_roles
-CREATE INDEX idx_platform_user_roles_user ON admin.platform_user_roles(user_id);
-CREATE INDEX idx_platform_user_roles_role ON admin.platform_user_roles(role_id);
-CREATE INDEX idx_platform_user_roles_granted_by ON admin.platform_user_roles(granted_by);
-CREATE INDEX idx_platform_user_roles_active ON admin.platform_user_roles(is_active);
-CREATE INDEX idx_platform_user_roles_expires ON admin.platform_user_roles(expires_at);
-
--- ============================================================================
--- PLATFORM USER PERMISSIONS (Direct permission grants to users)
--- ============================================================================
-
-CREATE TABLE admin.platform_user_permissions (
-    user_id UUID NOT NULL REFERENCES admin.platform_users ON DELETE CASCADE,
-    permission_id INTEGER NOT NULL REFERENCES admin.platform_permissions ON DELETE CASCADE,
-    is_granted BOOLEAN DEFAULT true,
-    is_active BOOLEAN DEFAULT true,
-    granted_at TIMESTAMPTZ DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
-    granted_by UUID REFERENCES admin.platform_users,
-    granted_reason TEXT,
-    revoked_by UUID REFERENCES admin.platform_users,
-    revoked_reason TEXT,
-    PRIMARY KEY (user_id, permission_id)
-);
-
--- Indexes for platform_user_permissions
-CREATE INDEX idx_platform_user_permissions_user ON admin.platform_user_permissions(user_id);
-CREATE INDEX idx_platform_user_permissions_permission ON admin.platform_user_permissions(permission_id);
-CREATE INDEX idx_platform_user_permissions_granted ON admin.platform_user_permissions(is_granted);
-CREATE INDEX idx_platform_user_permissions_active ON admin.platform_user_permissions(is_active);
-
--- =========================================================================
--- TENANT USER ROLES (User-to-role assignments at tenant level)
--- =========================================================================
-
-CREATE TABLE admin.tenant_user_roles (
-    tenant_id UUID NOT NULL REFERENCES admin.tenants ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES admin.platform_users ON DELETE CASCADE,
-    role_id INTEGER NOT NULL REFERENCES admin.platform_roles ON DELETE CASCADE,
-    granted_by UUID REFERENCES admin.platform_users,
-    granted_reason TEXT,
-    granted_at TIMESTAMPTZ DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
-    is_active BOOLEAN DEFAULT true,
-    PRIMARY KEY (tenant_id, user_id, role_id)
-);
-
--- Indexes for tenant_user_roles
-CREATE INDEX idx_tenant_user_roles_tenant ON admin.tenant_user_roles(tenant_id);
-CREATE INDEX idx_tenant_user_roles_user ON admin.tenant_user_roles(user_id);
-CREATE INDEX idx_tenant_user_roles_role ON admin.tenant_user_roles(role_id);
-CREATE INDEX idx_tenant_user_roles_granted_by ON admin.tenant_user_roles(granted_by);
-CREATE INDEX idx_tenant_user_roles_active ON admin.tenant_user_roles(is_active);
-CREATE INDEX idx_tenant_user_roles_expires ON admin.tenant_user_roles(expires_at);
-
--- =========================================================================
--- TENANT USER PERMISSIONS (Direct permission grants to users within a tenant)
--- =========================================================================
-
-CREATE TABLE admin.tenant_user_permissions (
-    tenant_id UUID NOT NULL REFERENCES admin.tenants ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES admin.platform_users ON DELETE CASCADE,
-    permission_id INTEGER NOT NULL REFERENCES admin.platform_permissions ON DELETE CASCADE,
-    is_granted BOOLEAN DEFAULT true,
-    is_active BOOLEAN DEFAULT true,
-    granted_at TIMESTAMPTZ DEFAULT NOW(),
-    expires_at TIMESTAMPTZ,
-    granted_by UUID REFERENCES admin.platform_users,
-    granted_reason TEXT,
-    revoked_by UUID REFERENCES admin.platform_users,
-    revoked_reason TEXT,
-    PRIMARY KEY (tenant_id, user_id, permission_id)
-);
-
--- Indexes for tenant_user_permissions
-CREATE INDEX idx_tenant_user_permissions_tenant ON admin.tenant_user_permissions(tenant_id);
-CREATE INDEX idx_tenant_user_permissions_user ON admin.tenant_user_permissions(user_id);
-CREATE INDEX idx_tenant_user_permissions_permission ON admin.tenant_user_permissions(permission_id);
-CREATE INDEX idx_tenant_user_permissions_granted ON admin.tenant_user_permissions(is_granted);
-CREATE INDEX idx_tenant_user_permissions_active ON admin.tenant_user_permissions(is_active);
+-- 
+-- NOTE: The unified user_roles and user_permissions tables are now created in V1002
+-- to match the structure used in tenant schemas. This enables:
+-- 1. Dynamic, reusable code across admin and tenant schemas
+-- 2. Flexible scoping (global, tenant, team) in a single table
+-- 3. Consistent permission checking logic
+--
+-- The unified tables support:
+-- - Global assignments: scope_type='global', scope_id=NULL
+-- - Tenant assignments: scope_type='tenant', scope_id=tenant_uuid  
+-- - Team assignments: scope_type='team', scope_id=team_uuid
 
 -- ============================================================================
 -- TENANT QUOTAS (Resource quotas and usage tracking per tenant)
@@ -168,7 +87,7 @@ CREATE TABLE admin.tenant_settings (
     requires_admin BOOLEAN DEFAULT true,
     description TEXT,
     validation_schema JSONB,
-    updated_by UUID REFERENCES admin.platform_users,
+    updated_by UUID REFERENCES admin.users,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(tenant_id, setting_key)
@@ -187,11 +106,11 @@ CREATE INDEX idx_tenant_settings_public ON admin.tenant_settings(is_public);
 CREATE TABLE admin.tenant_access_grants (
     id UUID PRIMARY KEY DEFAULT platform_common.uuid_generate_v7(),
     tenant_id UUID NOT NULL REFERENCES admin.tenants ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES admin.platform_users,
+    user_id UUID NOT NULL REFERENCES admin.users,
     access_level VARCHAR(50) NOT NULL 
         CONSTRAINT valid_access_level CHECK (access_level IN ('read', 'write', 'admin', 'owner')),
     access_scope TEXT[],
-    granted_by UUID REFERENCES admin.platform_users,
+    granted_by UUID REFERENCES admin.users,
     granted_reason TEXT,
     grant_type VARCHAR(30) DEFAULT 'manual' 
         CONSTRAINT valid_grant_type CHECK (grant_type IN ('manual', 'auto', 'inherited', 'sso')),
@@ -235,109 +154,30 @@ CREATE TRIGGER update_tenant_access_grants_updated_at
 -- COMMENTS
 -- ============================================================================
 
-COMMENT ON TABLE admin.platform_user_roles IS 'Platform-level role assignments for users (not tenant-scoped)';
-COMMENT ON TABLE admin.platform_user_permissions IS 'Direct permission grants to users at platform level (not tenant-scoped)';
-COMMENT ON TABLE admin.tenant_user_roles IS 'Tenant-level role assignments for users within a specific tenant';
-COMMENT ON TABLE admin.tenant_user_permissions IS 'Direct permission grants to users scoped to a specific tenant';
+-- Comments for old tables removed - these tables are now unified in V1002
+-- admin.user_roles and admin.user_permissions now handle all scoping via scope_type/scope_id
 COMMENT ON TABLE admin.tenant_quotas IS 'Resource quotas and usage tracking for each tenant';
 COMMENT ON TABLE admin.tenant_settings IS 'Configuration settings and preferences per tenant';
 COMMENT ON TABLE admin.tenant_access_grants IS 'External access permissions and restrictions for tenant access';
 
 -- ==========================================================================
--- CONSTRAINT ENFORCEMENT TRIGGERS (ensure correct scoping)
+-- CONSTRAINT ENFORCEMENT TRIGGERS - REMOVED
 -- ==========================================================================
-
--- Enforce that only platform/system roles are used in platform_user_roles
-CREATE OR REPLACE FUNCTION admin.tf_enforce_platform_user_roles()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_role_level admin.platform_role_level;
-BEGIN
-    SELECT role_level INTO v_role_level FROM admin.platform_roles WHERE id = NEW.role_id;
-    IF v_role_level IS NULL THEN
-        RAISE EXCEPTION 'Role % does not exist', NEW.role_id;
-    END IF;
-    IF v_role_level NOT IN ('system', 'platform') THEN
-        RAISE EXCEPTION 'Role % has level %, which is not allowed for platform_user_roles', NEW.role_id, v_role_level;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_enforce_platform_user_roles
-    BEFORE INSERT OR UPDATE ON admin.platform_user_roles
-    FOR EACH ROW
-    EXECUTE FUNCTION admin.tf_enforce_platform_user_roles();
-
--- Enforce that only tenant-level roles are used in tenant_user_roles
-CREATE OR REPLACE FUNCTION admin.tf_enforce_tenant_user_roles()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_role_level admin.platform_role_level;
-BEGIN
-    SELECT role_level INTO v_role_level FROM admin.platform_roles WHERE id = NEW.role_id;
-    IF v_role_level IS NULL THEN
-        RAISE EXCEPTION 'Role % does not exist', NEW.role_id;
-    END IF;
-    IF v_role_level <> 'tenant' THEN
-        RAISE EXCEPTION 'Role % has level %, which is not allowed for tenant_user_roles', NEW.role_id, v_role_level;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_enforce_tenant_user_roles
-    BEFORE INSERT OR UPDATE ON admin.tenant_user_roles
-    FOR EACH ROW
-    EXECUTE FUNCTION admin.tf_enforce_tenant_user_roles();
-
--- Enforce permission scope for platform_user_permissions
-CREATE OR REPLACE FUNCTION admin.tf_enforce_platform_user_permissions()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_scope admin.permission_scope_level;
-BEGIN
-    SELECT scope_level INTO v_scope FROM admin.platform_permissions WHERE id = NEW.permission_id;
-    IF v_scope IS NULL THEN
-        RAISE EXCEPTION 'Permission % does not exist', NEW.permission_id;
-    END IF;
-    IF v_scope <> 'platform' THEN
-        RAISE EXCEPTION 'Permission % has scope %, which is not allowed for platform_user_permissions', NEW.permission_id, v_scope;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_enforce_platform_user_permissions
-    BEFORE INSERT OR UPDATE ON admin.platform_user_permissions
-    FOR EACH ROW
-    EXECUTE FUNCTION admin.tf_enforce_platform_user_permissions();
-
--- Enforce permission scope for tenant_user_permissions
-CREATE OR REPLACE FUNCTION admin.tf_enforce_tenant_user_permissions()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_scope admin.permission_scope_level;
-BEGIN
-    SELECT scope_level INTO v_scope FROM admin.platform_permissions WHERE id = NEW.permission_id;
-    IF v_scope IS NULL THEN
-        RAISE EXCEPTION 'Permission % does not exist', NEW.permission_id;
-    END IF;
-    IF v_scope <> 'tenant' THEN
-        RAISE EXCEPTION 'Permission % has scope %, which is not allowed for tenant_user_permissions', NEW.permission_id, v_scope;
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_enforce_tenant_user_permissions
-    BEFORE INSERT OR UPDATE ON admin.tenant_user_permissions
-    FOR EACH ROW
-    EXECUTE FUNCTION admin.tf_enforce_tenant_user_permissions();
+-- 
+-- Previous validation triggers for role and permission scoping have been removed
+-- because we now use a unified table structure with scope_type and scope_id columns.
+-- 
+-- The unified admin.user_roles and admin.user_permissions tables (created in V1002)
+-- use CHECK constraints and application-level validation instead of triggers.
+-- 
+-- This provides better performance and simpler maintenance while still ensuring
+-- data integrity through the flexible scoping mechanism.
+-- 
+-- For reference, the old separate tables that these triggers validated:
+-- - admin.platform_user_roles (now part of admin.user_roles with scope_type='global')
+-- - admin.tenant_user_roles (now part of admin.user_roles with scope_type='tenant')
+-- - admin.platform_user_permissions (now part of admin.user_permissions with scope_type='global')
+-- - admin.tenant_user_permissions (now part of admin.user_permissions with scope_type='tenant')
 
 -- Log migration completion
 SELECT 'V1005: Admin user roles and tenant management tables created' as migration_status;

@@ -248,7 +248,7 @@ docker-compose -f docker-compose.api.yml up -d  # Start migration API
 #### **Keycloak Configuration**
 
 **Multi-Realm Setup:**
-- `neo-admin` - Platform administration realm
+- `NeoAdmin` - Platform administration realm
 - `tenant-{slug}` - Dynamic tenant-specific realms
 - Custom themes and providers in `/keycloak/themes/`
 - SSL configuration and certificate management
@@ -331,7 +331,7 @@ tenant_template.invitations       # User invitations and onboarding
 **Multi-Realm Mode (Enterprise)**
 ```
 Keycloak
-├── neo-admin (realm for Neo Platform)
+├── NeoAdmin (realm for Neo Platform)
 ├── tenant-acme (realm for ACME Corp)
 ├── tenant-globex (realm for Globex Inc)
 ├── tenant-initech (realm for Initech Ltd)
@@ -501,16 +501,16 @@ REDIS_PASSWORD="redis"
 ```bash
 # Multi-Realm Mode (Default)
 KEYCLOAK_URL="http://localhost:8080"
-KEYCLOAK_ADMIN_REALM="neo-admin"        # Admin platform realm
+KEYCLOAK_REALM="NeoAdmin"        # Admin platform realm
 KEYCLOAK_REALM_PATTERN="{schema-name}"  # Dynamic realm per tenant use {schema-name} which cannot be changed.
 KEYCLOAK_MASTER_REALM="master"
-KEYCLOAK_ADMIN_USERNAME="admin"
-KEYCLOAK_ADMIN_PASSWORD="admin"
+KEYCLOAK_ADMIN="admin"
+KEYCLOAK_PASSWORD="admin"
 
 # Service-specific clients
-ADMIN_API_CLIENT_ID="neo-admin-api"
-TENANT_API_CLIENT_ID="neo-tenant-api"
-ADMIN_UI_CLIENT_ID="neo-admin-ui"
+ADMIN_API_CLIENT_ID="NeoAdminApi"
+TENANT_API_CLIENT_ID="NeoTenantApi"
+ADMIN_UI_CLIENT_ID="NeoAdmin-ui"
 TENANT_UI_CLIENT_ID="neo-tenant-ui"
 ```
 
@@ -1392,7 +1392,7 @@ REDIS_URL="redis://:password@prod-redis:6379/0"
 
 # Keycloak (HTTPS)
 KEYCLOAK_URL="https://auth.example.com"
-KEYCLOAK_ADMIN_REALM="neo-admin"
+KEYCLOAK_REALM="NeoAdmin"
 ```
 
 ### Infrastructure Requirements

@@ -10,20 +10,8 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- ADMIN ENUM TYPES
 -- ============================================================================
 
--- Auth provider types (admin-specific, can differ from platform_common)
-CREATE TYPE admin.auth_provider AS ENUM (
-    'keycloak', 'auth0', 'authelia', 'authentik', 'azure', 'google', 'custom'
-);
-
--- Platform role levels (system-wide roles)
-CREATE TYPE admin.platform_role_level AS ENUM (
-    'system', 'platform', 'tenant'
-);
-
--- Permission scope levels (where permissions can be applied)
-CREATE TYPE admin.permission_scope_level AS ENUM (
-    'platform', 'tenant', 'user'
-);
+-- Auth and permission enums moved to platform_common for unified approach
+-- Using platform_common.auth_provider, platform_common.role_level, and platform_common.permission_scope
 
 -- Contact types for tenant management
 CREATE TYPE admin.contact_type AS ENUM (

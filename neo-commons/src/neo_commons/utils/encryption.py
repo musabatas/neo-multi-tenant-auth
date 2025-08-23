@@ -1,28 +1,7 @@
-"""
-Password encryption/decryption utilities.
+"""Password encryption utilities for neo-commons.
 
-Provides enterprise-grade encryption/decryption capabilities using PBKDF2 + Fernet
-for secure password storage and sensitive data protection. This module implements
-the NeoMultiTenant platform encryption standard for consistent security across services.
-
-Key Features:
-- PBKDF2 key derivation with SHA256 (100,000 iterations)
-- Fernet symmetric encryption (AES 128 in CBC mode with HMAC SHA256)
-- Configurable encryption keys with environment variable support
-- Safe decryption with fallback for plaintext values
-- Thread-safe singleton pattern for performance
-
-Security Properties:
-- Cryptographically secure random salt
-- High iteration count for key stretching
-- Authenticated encryption prevents tampering
-- Base64 encoding for safe text storage
-
-Usage:
-    >>> from neo_commons.utils.encryption import encrypt_password, decrypt_password
-    >>> encrypted = encrypt_password("secret123")
-    >>> decrypted = decrypt_password(encrypted)
-    >>> assert decrypted == "secret123"
+This module provides encryption/decryption functionality compatible with 
+NeoInfrastructure's encryption system. Uses Fernet symmetric encryption.
 """
 
 import os
@@ -34,51 +13,37 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 
 class PasswordEncryption:
-    """Handle encryption and decryption of passwords and sensitive data.
-    
-    This class provides a secure encryption/decryption service using Fernet
-    symmetric encryption with PBKDF2 key derivation. It's designed to be
-    consistent across the NeoMultiTenant platform.
-    
-    Example:
-        >>> enc = PasswordEncryption("my-secret-key")
-        >>> encrypted = enc.encrypt_password("secret")
-        >>> decrypted = enc.decrypt_password(encrypted)
-        >>> assert decrypted == "secret"
-    """
+    """Handle encryption and decryption of database passwords."""
     
     def __init__(self, encryption_key: Optional[str] = None):
-        """Initialize encryption with the provided key or from environment.
+        """
+        Initialize encryption with the provided key or from environment.
         
         Args:
             encryption_key: The encryption key to use. If not provided, 
-                          uses APP_ENCRYPTION_KEY from environment, falling back
-                          to 'dev-encryption-key' for development.
-                          
-        Note:
-            In production, always provide a strong encryption key through
-            environment variables or secure configuration management.
+                          uses DB_ENCRYPTION_KEY from environment (neo-commons standard).
         """
-        self.key_string = encryption_key or os.environ.get('APP_ENCRYPTION_KEY', 'dev-encryption-key')
+        # Support both DB_ENCRYPTION_KEY (neo-commons) and APP_ENCRYPTION_KEY (NeoInfrastructure)
+        self.key_string = (
+            encryption_key or 
+            os.environ.get('DB_ENCRYPTION_KEY') or 
+            os.environ.get('APP_ENCRYPTION_KEY')
+        )
+        
+        if not self.key_string:
+            raise ValueError("DB_ENCRYPTION_KEY or APP_ENCRYPTION_KEY not found in environment variables")
         
         # Derive a proper Fernet key from the string key
         self.cipher = self._get_cipher()
     
     def _get_cipher(self) -> Fernet:
-        """Create a Fernet cipher from the encryption key string.
-        
-        Uses PBKDF2 to derive a proper encryption key from the string.
-        The salt is fixed for consistency across service instances.
-        
-        Returns:
-            Configured Fernet cipher instance
-            
-        Security Note:
-            Uses 100,000 iterations for key stretching to prevent
-            brute force attacks on the encryption key.
         """
-        # Use a fixed salt for consistency across platform services
-        salt = b'NeoMultiTenantSalt'
+        Create a Fernet cipher from the encryption key string.
+        Uses PBKDF2 to derive a proper key from the string.
+        Compatible with NeoInfrastructure encryption.
+        """
+        # Use the same fixed salt as NeoInfrastructure for compatibility
+        salt = b'NeoMultiTenant2024'
         
         # Derive a 32-byte key from the password string
         kdf = PBKDF2HMAC(
@@ -95,21 +60,14 @@ class PasswordEncryption:
         return Fernet(derived_key)
     
     def encrypt_password(self, password: str) -> str:
-        """Encrypt a password string.
+        """
+        Encrypt a password string.
         
         Args:
-            password: The plaintext password to encrypt
+            password: The plaintext password to encrypt.
             
         Returns:
-            The encrypted password as a base64-encoded string
-            
-        Example:
-            >>> enc = PasswordEncryption()
-            >>> encrypted = enc.encrypt_password("secret123")
-            >>> len(encrypted) > 0
-            True
-            >>> encrypted.startswith('gAAAAA')
-            True
+            The encrypted password as a base64-encoded string.
         """
         if not password:
             return ""
@@ -118,26 +76,14 @@ class PasswordEncryption:
         return encrypted_bytes.decode('utf-8')
     
     def decrypt_password(self, encrypted_password: str) -> str:
-        """Decrypt an encrypted password.
+        """
+        Decrypt an encrypted password.
         
         Args:
-            encrypted_password: The encrypted password as a base64-encoded string
+            encrypted_password: The encrypted password as a base64-encoded string.
             
         Returns:
-            The decrypted plaintext password
-            
-        Note:
-            If decryption fails (e.g., value is not encrypted), returns the
-            original value. This provides safe migration from plaintext to
-            encrypted passwords.
-            
-        Example:
-            >>> enc = PasswordEncryption()
-            >>> original = "secret123"
-            >>> encrypted = enc.encrypt_password(original)
-            >>> decrypted = enc.decrypt_password(encrypted)
-            >>> decrypted == original
-            True
+            The decrypted plaintext password.
         """
         if not encrypted_password:
             return ""
@@ -145,134 +91,87 @@ class PasswordEncryption:
         try:
             decrypted_bytes = self.cipher.decrypt(encrypted_password.encode('utf-8'))
             return decrypted_bytes.decode('utf-8')
-        except Exception:
-            # If decryption fails, return the original value (might be plaintext)
-            return encrypted_password
+        except Exception as e:
+            raise ValueError(f"Failed to decrypt password: {e}")
     
     def is_encrypted(self, value: str) -> bool:
-        """Check if a value appears to be encrypted.
+        """
+        Check if a value appears to be encrypted.
         
         Args:
-            value: The value to check
+            value: The value to check.
             
         Returns:
-            True if the value appears to be encrypted, False otherwise
-            
-        Note:
-            Fernet tokens always start with 'gAAAAA' when base64 encoded.
-            This provides a reliable way to detect encrypted values.
-            
-        Example:
-            >>> enc = PasswordEncryption()
-            >>> enc.is_encrypted("plaintext")
-            False
-            >>> encrypted = enc.encrypt_password("secret")
-            >>> enc.is_encrypted(encrypted)
-            True
+            True if the value appears to be encrypted, False otherwise.
         """
         if not value:
             return False
         
-        # Fernet tokens start with 'gAAAAA' when base64 encoded
+        # Fernet tokens start with 'gAAAAA'
         return value.startswith('gAAAAA')
 
 
-# Thread-safe singleton instance for use across the application
+# Singleton instance for use across the application
 _encryption_instance: Optional[PasswordEncryption] = None
 
 
-def get_encryption(encryption_key: Optional[str] = None) -> PasswordEncryption:
-    """Get the singleton encryption instance.
+def get_encryption() -> PasswordEncryption:
+    """
+    Get the singleton encryption instance.
     
-    Args:
-        encryption_key: Optional encryption key. If provided on first call,
-                       will be used to initialize the singleton instance.
-                       
     Returns:
-        The PasswordEncryption singleton instance
-        
-    Note:
-        This function is thread-safe and ensures only one encryption
-        instance is created per application lifecycle.
-        
-    Example:
-        >>> enc1 = get_encryption()
-        >>> enc2 = get_encryption()
-        >>> enc1 is enc2
-        True
+        The PasswordEncryption instance.
     """
     global _encryption_instance
     if _encryption_instance is None:
-        _encryption_instance = PasswordEncryption(encryption_key)
+        _encryption_instance = PasswordEncryption()
     return _encryption_instance
 
 
 def encrypt_password(password: str) -> str:
-    """Convenience function to encrypt a password.
+    """
+    Convenience function to encrypt a password.
     
     Args:
-        password: The plaintext password
+        password: The plaintext password.
         
     Returns:
-        The encrypted password
-        
-    Example:
-        >>> encrypted = encrypt_password("secret123")
-        >>> len(encrypted) > 0
-        True
-        >>> is_encrypted(encrypted)
-        True
+        The encrypted password.
     """
     return get_encryption().encrypt_password(password)
 
 
 def decrypt_password(encrypted_password: str) -> str:
-    """Convenience function to decrypt a password.
+    """
+    Convenience function to decrypt a password.
     
     Args:
-        encrypted_password: The encrypted password
+        encrypted_password: The encrypted password.
         
     Returns:
-        The plaintext password
-        
-    Example:
-        >>> original = "secret123"
-        >>> encrypted = encrypt_password(original)
-        >>> decrypted = decrypt_password(encrypted)
-        >>> decrypted == original
-        True
+        The plaintext password.
     """
     return get_encryption().decrypt_password(encrypted_password)
 
 
 def is_encrypted(value: str) -> bool:
-    """Convenience function to check if a value is encrypted.
+    """
+    Convenience function to check if a value is encrypted.
     
     Args:
-        value: The value to check
+        value: The value to check.
         
     Returns:
-        True if encrypted, False otherwise
-        
-    Example:
-        >>> is_encrypted("plaintext")
-        False
-        >>> encrypted = encrypt_password("secret")
-        >>> is_encrypted(encrypted)
-        True
+        True if encrypted, False otherwise.
     """
     return get_encryption().is_encrypted(value)
 
 
 def reset_encryption_instance() -> None:
-    """Reset the singleton encryption instance.
+    """
+    Reset the singleton encryption instance.
     
-    This function is primarily useful for testing scenarios where
-    you need to reinitialize the encryption with different parameters.
-    
-    Warning:
-        Use with caution in production environments as this will
-        affect all subsequent encryption/decryption operations.
+    This function is primarily useful for testing scenarios.
     """
     global _encryption_instance
     _encryption_instance = None

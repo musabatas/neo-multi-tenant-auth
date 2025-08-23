@@ -42,7 +42,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro  # For Docker commands
       
     networks:
-      - neo-infrastructure
+      - NeoInfrastructure
       
     # External services from NeoInfrastructure - should be running separately
     # depends_on:
@@ -67,10 +67,10 @@ services:
     ports:
       - "${DOCS_PORT:-8001}:8080"
     networks:
-      - neo-infrastructure
+      - NeoInfrastructure
     profiles:
       - docs
 
 networks:
-  neo-infrastructure:
+  NeoInfrastructure:
     external: true

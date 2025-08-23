@@ -1,7 +1,10 @@
-"""
-Common service patterns and base classes.
+"""Common services for NeoAdminApi.
+
+Custom dependencies factory has been removed in favor of using
+neo-commons services directly. This module is preserved for
+any future service implementations.
 """
 
-from .base import BaseService
+# Dependencies factory removed - use neo-commons services directly
 
-__all__ = ["BaseService"]
+__all__ = []

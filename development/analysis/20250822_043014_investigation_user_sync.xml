@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<investigation timestamp="2025-08-22 04:30:14" requirement="Investigate user synchronization functionality in neo-commons">
+  <codebase_findings>
+    <files>
+      <file path="neo-commons/src/neo_commons/features/users/entities/user.py" relevance="high">
+        <purpose>Comprehensive User domain entity with unified schema support for both admin and tenant contexts</purpose>
+        <key_components>User class with schema_name property, permission/role management, activity tracking</key_components>
+        <dependencies>Uses core value objects (UserId, TenantId), AuthProvider, UserStatus enums</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/auth/repositories/user_mapping_repository.py" relevance="high">
+        <purpose>Repository for Keycloak-to-Platform user ID mapping with in-memory storage (TODO: needs database implementation)</purpose>
+        <key_components>UserMappingRepository with create_mapping, get_by_keycloak_id, get_by_platform_id methods</key_components>
+        <dependencies>Placeholder implementation using in-memory dictionaries, needs database_service integration</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/auth/services/user_mapper.py" relevance="high">
+        <purpose>Service layer for user mapping between Keycloak and platform identities</purpose>
+        <key_components>UserMapper class implementing UserMapperProtocol with mapping, profile sync, bulk operations</key_components>
+        <dependencies>Uses UserMappingRepository, proper error handling and logging</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/auth/services/user_registration_service.py" relevance="high">
+        <purpose>User registration service with Keycloak integration and user mapping</purpose>
+        <key_components>UserRegistrationService with register_user, email verification, availability checks</key_components>
+        <dependencies>Uses KeycloakAdminAdapter, UserMapperProtocol for complete registration flow</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/auth/entities/protocols.py" relevance="high">
+        <purpose>Protocol interfaces for auth feature including UserMapperProtocol</purpose>
+        <key_components>UserMapperProtocol, KeycloakClientProtocol, AuthServiceProtocol definitions</key_components>
+        <dependencies>Defines contracts for dependency injection and testing</dependencies>
+      </file>
+      <file path="NeoAdminApi/src/features/auth/services/auth_service.py" relevance="medium">
+        <purpose>Admin API auth service with direct user sync implementation (_sync_admin_user method)</purpose>
+        <key_components>_sync_admin_user method that directly handles admin.users table operations</key_components>
+        <dependencies>Direct database operations rather than using neo-commons patterns</dependencies>
+      </file>
+    </files>
+    <patterns>
+      <pattern name="User Entity Schema Awareness" location="neo-commons/features/users/entities/user.py">
+        <description>User entity supports both admin and tenant schemas with schema_name property and tenant_id-based schema determination</description>
+        <usage>Enables unified user model across admin.users and tenant_template.users tables</usage>
+      </pattern>
+      <pattern name="Protocol-Based User Mapping" location="neo-commons/features/auth/entities/protocols.py">
+        <description>UserMapperProtocol defines contract for user ID mapping between Keycloak and platform</description>
+        <usage>Allows dependency injection and multiple implementations of user mapping</usage>
+      </pattern>
+      <pattern name="In-Memory Repository Placeholder" location="neo-commons/features/auth/repositories/user_mapping_repository.py">
+        <description>Repository uses in-memory dictionaries with TODO comments for database implementation</description>
+        <usage>Functional for testing but needs actual database persistence</usage>
+      </pattern>
+      <pattern name="Direct Database Sync in Admin API" location="NeoAdminApi/src/features/auth/services/auth_service.py">
+        <description>_sync_admin_user method directly queries/inserts into admin.users table</description>
+        <usage>Bypasses neo-commons patterns, should be migrated to use neo-commons user services</usage>
+      </pattern>
+    </patterns>
+  </codebase_findings>
+  
+  <database_findings>
+    <schemas>
+      <schema name="admin">
+        <tables>
+          <table name="users" relevance="high">
+            <columns>Core identity (id, email, username, external_user_id), external auth (provider, metadata), profile info, status, preferences, activity tracking, audit fields</columns>
+            <relationships>self-referential manager_id, references to user_roles and user_permissions</relationships>
+            <indexes>email, username, external_user_id, status, tags (GIN), deleted_at</indexes>
+          </table>
+          <table name="user_roles" relevance="high">
+            <columns>user_id, role_id, scope_type, scope_id, granted_by, granted_at, expires_at, is_active</columns>
+            <relationships>References admin.users(id) and admin.roles</relationships>
+            <indexes>Standard foreign key indexes</indexes>
+          </table>
+          <table name="user_permissions" relevance="high">
+            <columns>user_id, permission_id, is_granted, scope_type, scope_id, granted_by, granted_reason, granted_at, revoked_by, expires_at</columns>
+            <relationships>References admin.users(id) and admin.permissions</relationships>
+            <indexes>Standard foreign key indexes</indexes>
+          </table>
+        </tables>
+        <procedures>No stored procedures found for user sync operations</procedures>
+      </schema>
+      <schema name="tenant_template">
+        <tables>
+          <table name="users" relevance="high">
+            <columns>Identical structure to admin.users - unified schema design</columns>
+            <relationships>self-referential manager_id within tenant scope</relationships>
+            <indexes>Same index structure as admin.users</indexes>
+          </table>
+        </tables>
+        <procedures>No stored procedures found for user sync operations</procedures>
+      </schema>
+    </schemas>
+  </database_findings>
+  
+  <framework_documentation>
+    <framework name="neo-commons" version="current">
+      <relevant_features>
+        - User entity with schema-aware design (admin vs tenant contexts)
+        - UserMapperProtocol for dependency injection
+        - User registration service with Keycloak integration
+        - Authentication services with user mapping
+      </relevant_features>
+      <best_practices>
+        - Protocol-based dependency injection for testability
+        - Schema-aware entities supporting both admin and tenant users
+        - Unified user structure across admin.users and tenant_template.users
+        - UUIDv7 generation for time-ordered identifiers
+      </best_practices>
+      <examples>
+        - User entity automatically sets schema_name based on tenant_id
+        - UserMapper service handles Keycloak-to-platform ID mapping
+        - UserRegistrationService includes profile sync functionality
+      </examples>
+    </framework>
+  </framework_documentation>
+  
+  <recommendations>
+    <recommendation priority="high">
+      <description>Implement database persistence in UserMappingRepository</description>
+      <rationale>Current in-memory implementation is placeholder only, real user mapping needs database persistence</rationale>
+      <implementation_notes>
+        - Replace in-memory dictionaries with database operations using DatabaseService
+        - Implement proper SQL queries for CRUD operations
+        - Add connection management and error handling
+        - Consider adding migration for user_mappings table if needed
+      </implementation_notes>
+    </recommendation>
+    <recommendation priority="high">
+      <description>Create UserRepository in neo-commons for database operations</description>
+      <rationale>NeoAdminApi currently implements direct database operations that should be abstracted</rationale>
+      <implementation_notes>
+        - Create neo-commons/features/users/repositories/user_repository.py
+        - Implement schema-aware queries for both admin.users and tenant schemas
+        - Add CRUD operations following neo-commons patterns
+        - Include user sync functionality with proper error handling
+      </implementation_notes>
+    </recommendation>
+    <recommendation priority="medium">
+      <description>Migrate NeoAdminApi _sync_admin_user to use neo-commons</description>
+      <rationale>Admin API should use shared neo-commons patterns instead of direct database operations</rationale>
+      <implementation_notes>
+        - Replace _sync_admin_user method with UserRepository usage
+        - Use UserMapper service for Keycloak-to-platform mapping
+        - Maintain backward compatibility during migration
+        - Add proper dependency injection
+      </implementation_notes>
+    </recommendation>
+    <recommendation priority="medium">
+      <description>Add UserService in neo-commons for business logic orchestration</description>
+      <rationale>Need service layer to orchestrate user operations, mapping, and sync logic</rationale>
+      <implementation_notes>
+        - Create neo-commons/features/users/services/user_service.py
+        - Implement user sync, profile updates, role/permission management
+        - Integrate with UserMapper and UserRepository
+        - Add proper error handling and logging
+      </implementation_notes>
+    </recommendation>
+    <recommendation priority="low">
+      <description>Consider user mapping cache strategy</description>
+      <rationale>User ID mappings could benefit from caching for performance</rationale>
+      <implementation_notes>
+        - Evaluate Redis caching for frequently accessed mappings
+        - Implement cache invalidation on user updates
+        - Consider TTL for mapping cache entries
+        - Add metrics for cache hit rates
+      </implementation_notes>
+    </recommendation>
+  </recommendations>
+  
+  <summary>
+    <key_findings>
+      - Neo-commons has comprehensive auth infrastructure with UserMapper, UserRegistrationService, and protocols
+      - User entity supports unified schema design for both admin and tenant contexts
+      - Database schemas (admin.users, tenant_template.users) are identical and well-structured
+      - UserMappingRepository exists but uses in-memory storage (placeholder implementation)
+      - NeoAdminApi implements direct database sync instead of using neo-commons patterns
+    </key_findings>
+    <existing_implementations>
+      - User domain entity with schema awareness and comprehensive field support
+      - UserMapperProtocol defining contracts for user ID mapping
+      - UserMapper service with mapping, profile sync, and bulk operations
+      - UserRegistrationService with Keycloak integration and email verification
+      - Admin.users and tenant_template.users database tables with unified structure
+      - User roles and permissions tables for RBAC implementation
+    </existing_implementations>
+    <gaps>
+      - UserMappingRepository needs database implementation (currently in-memory only)
+      - No UserRepository in neo-commons for database operations
+      - No UserService for business logic orchestration
+      - NeoAdminApi bypasses neo-commons patterns with direct database operations
+      - No caching strategy for user mappings
+      - Missing user sync database table/mechanism for Keycloak mappings
+    </gaps>
+    <risks>
+      - Data loss risk with in-memory UserMappingRepository in production
+      - Inconsistent patterns between NeoAdminApi and neo-commons approach
+      - No proper user mapping persistence could cause authentication issues
+      - Direct database operations in Admin API bypass shared validation and business logic
+      - Potential performance issues without user mapping caching
+    </risks>
+  </summary>
+</investigation>

@@ -14,7 +14,7 @@ NeoTenantApi is the tenant-specific API service that handles all business logic 
 - **Authentication**: Keycloak integration via python-keycloak
 - **Validation**: Pydantic v2
 - **Testing**: pytest, pytest-asyncio, pytest-cov
-- **Documentation**: OpenAPI/Swagger (auto-generated)
+- **Documentation**: OpenAPI/Scalar (auto-generated)
 
 ### Key Libraries
 - **asyncpg**: Direct PostgreSQL access for performance

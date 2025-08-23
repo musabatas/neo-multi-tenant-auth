@@ -11,12 +11,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Authentication**: Keycloak (external IAM) with automatic user ID mapping
 - **Database**: PostgreSQL 17+ with asyncpg
 - **Caching**: Redis with automatic invalidation
-- **RBAC**: Custom PostgreSQL-based with intelligent caching
+- **RBAC + Permissions**: Custom PostgreSQL-based with intelligent caching. Permission-Based Access Control (PBAC)
 
 ### Essential Practices
 1. **Always use neo-commons first** - Check shared library before creating new functionality
 2. **Protocol-based dependency injection** - Use @runtime_checkable Protocol interfaces
-3. **Follow Clean Architecture** - Domain/Application/Infrastructure/Interface layer separation
+3. **Follow Feature-First + Clean Core** - Feature modules with Clean Core containing only value objects, exceptions, and shared contracts
 4. **Use asyncpg** for database operations, never use ORMs for performance paths
 5. **Configure schemas dynamically** - Never hardcode database schema names
 6. **Use UUIDv7** for all UUID generation (time-ordered)
@@ -257,80 +257,197 @@ The platform uses Flyway for enterprise-grade migration management with Python o
 
 ## Neo-Commons Shared Library
 
-**neo-commons** is the enterprise-grade shared library providing unified authentication, caching, and utilities across all services. **NeoAdminApi is fully integrated** with automatic Keycloak-to-platform user ID mapping.
+**neo-commons** is the enterprise-grade shared library providing unified database, authentication, and utilities. **NeoAdminApi is fully integrated** with automatic connection management and password encryption.
 
-### Key Integration Features
+### Current Integration Status
 
-- ✅ **Automatic User ID Mapping**: Seamless bridge between Keycloak and platform identities
-- ✅ **Multi-layer Fallback**: Works with both Keycloak and platform user IDs  
-- ✅ **Sub-millisecond Performance**: Intelligent caching with tenant isolation
-- ✅ **Protocol-Based Design**: @runtime_checkable interfaces for flexibility
-- ✅ **FastAPI Integration**: Direct dependency injection for route protection
+- ✅ **Database Service**: Auto-loads connections from admin.database_connections table on startup
+- ✅ **Connection Management**: Centralized registry with health monitoring and failover
+- ✅ **Password Encryption**: Automatic Fernet encryption/decryption for database passwords
+- ✅ **Protocol-Based Design**: @runtime_checkable interfaces for dependency injection
+- ⚠️ **Authentication**: Available but not yet integrated (auth disabled in AdminAPI)
 
-### Library Structure
+### Library Structure (Feature-First + Clean Core Architecture)
 
 ```
 neo-commons/
-├── domain/                  # Enterprise business rules
-│   ├── entities/           # Core business objects (User, Tenant, Permission)
-│   ├── value_objects/      # Immutable value types (UserId, TenantId)
-│   └── protocols/          # Domain contracts and interfaces
-├── application/            # Application business rules
-│   ├── services/           # Use cases and workflows
-│   ├── commands/           # Command handlers (CQRS pattern)
-│   └── queries/            # Query handlers (CQRS pattern)  
-├── infrastructure/         # External concerns
-│   ├── database/           # AsyncPG repository implementations
-│   ├── cache/              # Redis caching with tenant isolation
-│   ├── external/           # Keycloak and third-party integrations
-│   └── messaging/          # Event and messaging systems
-└── interfaces/             # Interface adapters
-    ├── api/                # FastAPI dependency injection
-    ├── cli/                # Command-line interfaces
-    └── web/                # Web-specific adapters
+├── core/                    # Clean Core - Only value objects, exceptions & shared contracts
+│   ├── value_objects/      # Immutable types (UserId, TenantId, PermissionCode)
+│   ├── exceptions/         # Domain exceptions and HTTP mapping
+│   └── shared/             # Cross-cutting domain objects (RequestContext)
+├── features/               # Feature-First - Business capabilities
+│   ├── cache/              # Cache management feature
+│   │   ├── entities/       # Cache domain entities and protocols
+│   │   ├── services/       # Cache business logic
+│   │   └── adapters/       # Redis/Memory cache implementations
+│   ├── database/           # Database management feature  
+│   │   ├── entities/       # Connection entities and protocols
+│   │   ├── services/       # Database orchestration
+│   │   └── repositories/   # AsyncPG implementations
+│   ├── permissions/        # RBAC permission system
+│   │   ├── entities/       # Permission/Role domain entities
+│   │   ├── services/       # Permission checking logic
+│   │   └── repositories/   # Permission data access
+│   ├── users/              # User management
+│   ├── organizations/      # Organization management
+│   ├── tenants/            # Tenant management  
+│   └── teams/              # Team management
+├── infrastructure/         # Infrastructure-level concerns
+│   ├── configuration/      # Application configuration management
+│   ├── middleware/         # FastAPI middleware for cross-cutting concerns
+│   ├── database/           # Low-level database utilities
+│   └── protocols/          # Infrastructure contracts
+├── config/                 # Configuration management (legacy - being phased out)
+└── utils/                  # Utility functions (UUIDv7, etc.)
 ```
 
-### Implementation Examples
+### Architecture Design Principles
 
-#### User ID Mapping Architecture
+#### Feature-First Organization
+- **Feature Modules**: Each business capability (cache, database, permissions) is self-contained
+- **Clean Boundaries**: Features communicate through well-defined protocols and shared value objects
+- **Domain-Driven**: Features follow DDD patterns with entities, services, and repositories
+
+#### Clean Core Pattern
+- **Minimal Core**: Core contains only essential value objects, exceptions, and shared contracts
+- **No Business Logic**: Core has no feature-specific logic or external dependencies  
+- **Dependency Direction**: Features depend on core, never the reverse
+
+#### Protocol-Based Integration
+- **@runtime_checkable Protocols**: Enable flexible dependency injection and testing
+- **Contract Separation**: Domain protocols in entities, infrastructure protocols in infrastructure
+- **Implementation Independence**: Swap implementations without changing business logic
+
+### Database Usage (Current Implementation)
+
+#### Get Database Service
 ```python
-# Automatic Keycloak-to-platform user ID mapping
-class NeoAdminPermissionChecker:
-    async def _resolve_user_id(self, user_id: str) -> str:
-        # Try platform user ID first
-        try:
-            await self.auth_repo.get_user_by_id(user_id)
-            return user_id
-        except:
-            # Map from Keycloak ID
-            platform_user = await self.auth_repo.get_user_by_external_id(
-                provider="keycloak", external_id=user_id
-            )
-            return platform_user['id']
+from ....common.dependencies import get_database_service
+
+@router.get("/data")
+async def get_data(db_service = Depends(get_database_service)):
+    # Database service is auto-configured with all connections
+    connections = await db_service.connection_registry.get_all_connections()
+    return {"total_connections": len(connections)}
 ```
 
-#### FastAPI Route Protection
+#### Execute Database Queries
 ```python
-from src.features.auth.dependencies import CheckPermission
+# Get specific connection and execute queries
+async with db_service.get_connection("admin") as conn:
+    result = await conn.fetchrow("SELECT * FROM admin.organizations WHERE id = $1", org_id)
+    return dict(result) if result else None
 
-@router.get("/users")
-async def list_users(
-    current_user: dict = Depends(CheckPermission(["users:list"]))
-):
-    # Automatic user ID resolution and permission checking
-    return await user_service.list_users()
+# Use connection manager for multiple operations
+connection_manager = db_service.connection_manager
+results = await connection_manager.execute_query("admin", "SELECT COUNT(*) FROM admin.tenants")
 ```
 
-### Current Issues & Next Steps
+#### Environment Configuration
+```bash
+# .env file - SSL disabled for development
+ADMIN_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/neofast_admin?sslmode=disable"
+DB_ENCRYPTION_KEY="your-32-char-encryption-key"
+```
 
-#### Critical Issues to Fix
-- ❌ **Repository Layer**: 100+ hardcoded schema references need dynamic configuration
-- ❌ **Config Module**: Service-specific values need to be removed
+#### Available Connections
+- **admin**: Main admin database (auto-loaded from environment)
+- **neofast-admin-primary**: Docker admin database  
+- **neofast-shared-us-primary**: US region shared database
+- **neofast-shared-eu-primary**: EU region shared database
+- **neofast-analytics-us**: US analytics database
+- **neofast-analytics-eu**: EU analytics database
 
-#### Integration Status
-- ✅ **NeoAdminApi**: Fully integrated with user ID mapping
-- 📋 **NeoTenantApi**: Pending integration
-- 📋 **Performance**: Sub-millisecond targets validated
+### Current Service Architecture
+
+**NeoAdminApi Services**:
+- **Database Service**: Singleton pattern with auto-loading, health monitoring, connection pooling
+- **Organization Service**: Uses database dependency injection with repository pattern  
+- **System Service**: Health checks, connection management, cache operations
+
+**Implementation Pattern**:
+```python
+# Service with dependency injection
+async def get_organization_service():
+    database_service = await get_database_service()
+    repository = OrganizationRepository(database_service)
+    return OrganizationService(repository)
+```
+
+### Neo-Commons Development Patterns
+
+#### Creating New Features
+```python
+# 1. Create feature directory structure
+features/
+├── my_feature/
+│   ├── entities/          # Domain objects and protocols
+│   ├── services/          # Business logic
+│   ├── repositories/      # Data access (if needed)
+│   └── __init__.py        # Export public interface
+
+# 2. Define domain entities with protocols
+@dataclass
+class MyEntity:
+    id: EntityId
+    name: str
+
+@runtime_checkable  
+class MyEntityRepository(Protocol):
+    async def save(self, entity: MyEntity) -> MyEntity: ...
+
+# 3. Implement service with dependency injection
+class MyFeatureService:
+    def __init__(self, repository: MyEntityRepository):
+        self._repository = repository
+```
+
+#### Adding to Existing Features
+```python
+# Always check existing feature structure first
+from neo_commons.features.permissions.entities import Permission
+from neo_commons.features.permissions.services import PermissionService
+
+# Extend existing services, don't duplicate
+class ExtendedPermissionService(PermissionService):
+    async def advanced_check(self, ...): ...
+```
+
+#### Core Value Objects
+```python
+# Use existing value objects from core
+from neo_commons.core.value_objects import (
+    UserId, TenantId, OrganizationId, 
+    PermissionCode, RoleCode
+)
+
+# Create new value objects only in core/value_objects/
+@dataclass(frozen=True)
+class NewValueObject:
+    value: str
+    
+    def __post_init__(self):
+        if not self.value:
+            raise ValueError("Value cannot be empty")
+```
+
+### Architecture Implementation Status
+
+#### ✅ Completed (Clean Core + Feature-First)
+- **Core Architecture**: Clean Core with value objects, exceptions, shared contracts
+- **Feature Organization**: 6 feature modules (cache, database, permissions, users, organizations, teams)
+- **Protocol-Based Design**: @runtime_checkable protocols for dependency injection
+- **Import Structure**: Validated import paths and circular dependency prevention
+
+#### 🔄 In Progress  
+- **Configuration Migration**: Moving from legacy config/ to infrastructure/configuration/
+- **Repository Modernization**: Updating hardcoded schema references to dynamic configuration
+- **Service Integration**: Full feature service integration across all APIs
+
+#### 📋 Next Steps
+- **NeoTenantApi Integration**: Implement feature-based architecture
+- **Performance Validation**: Sub-millisecond permission check targets
+- **Legacy Cleanup**: Remove deprecated config patterns
 
 
 ## Important Implementation Notes
@@ -382,21 +499,83 @@ The system uses a **two-phase migration approach**:
 
 ## Development Best Practices
 
+### Neo-Commons Architecture Rules
 1. **Always use neo-commons first** - Check shared library before creating new functionality
-2. **Use Protocol interfaces** - Depend on contracts, not implementations
-3. **Configure schemas dynamically** - Never hardcode database schema names
-4. **Follow Clean Architecture** - Respect domain/application/infrastructure/interface boundaries
-5. **Use UUIDv7** for all UUID generation (time-ordered)
-6. **Follow async patterns** throughout the codebase
-7. **Implement comprehensive error handling** with appropriate status codes
-8. **Add structured logging** with tenant_id, user_id, request_id context
-9. **Write tests** for all new functionality using protocol mocks
-10. **Update migrations** using Flyway naming conventions (V{number}__{description}.sql)
-11. **Validate inputs** using Pydantic models
-12. **Cache aggressively** but implement proper invalidation
-13. **Document API endpoints** with OpenAPI/Swagger
-14. **Enforce file size limits** - Split files exceeding 400 lines using SOLID principles
-15. **Validate performance requirements** - Monitor sub-millisecond permission check targets
+2. **Follow Feature-First organization** - Business logic belongs in feature modules, not core
+3. **Use Protocol interfaces** - Depend on @runtime_checkable contracts, not implementations  
+4. **Respect Clean Core boundaries** - Core only contains value objects, exceptions, shared contracts
+5. **Import from features** - Import entities and services from feature modules, not core
+6. **Use infrastructure middleware** - FastAPI apps should use pre-built middleware stack
+
+### Technical Standards
+6. **Configure schemas dynamically** - Never hardcode database schema names
+7. **Use UUIDv7** for all UUID generation (time-ordered)
+8. **Follow async patterns** throughout the codebase
+9. **Implement comprehensive error handling** with appropriate status codes
+10. **Add structured logging** with tenant_id, user_id, request_id context
+11. **Write tests** for all new functionality using protocol mocks
+12. **Update migrations** using Flyway naming conventions (V{number}__{description}.sql)
+13. **Validate inputs** using Pydantic models
+14. **Cache aggressively** but implement proper invalidation
+15. **Document API endpoints** with OpenAPI/Scalar following tag naming conventions
+16. **Use consistent OpenAPI tag naming** - Follow standardized tag organization and naming
+17. **Enforce file size limits** - Split files exceeding 400 lines using SOLID principles
+18. **Validate performance requirements** - Monitor sub-millisecond permission check targets
+
+### Feature Development Guidelines
+19. **Feature Isolation** - Features should be self-contained with minimal cross-feature dependencies
+20. **Protocol Contracts** - Define protocols in entities/ for domain contracts, infrastructure/ for technical contracts  
+21. **Service Orchestration** - Complex workflows belong in feature services, not repositories
+22. **Repository Focus** - Repositories handle only data access, no business logic
+23. **Entity Validation** - Domain validation belongs in entities, technical validation in infrastructure
+
+### OpenAPI Tag Naming & Organization Standards
+
+**Tag Naming Convention:**
+- **First letter capitalized** for all tags (e.g., "System", "Database", "Authentication")
+- **Use singular form** unless referring to collections (e.g., "User" not "Users", but "Organizations" for multiple orgs)
+- **Be descriptive and specific** (e.g., "Database Management" not just "DB")
+- **Follow domain-driven naming** aligned with feature boundaries
+
+**Tag Organization Hierarchy:**
+```yaml
+# Core Platform Tags (Administrative)
+- System           # Health, info, maintenance endpoints
+- Database         # Connection management, stats
+- Cache            # Cache management and operations  
+- Authentication   # Auth, tokens, session management
+- Authorization    # Permissions, roles, RBAC
+
+# Business Domain Tags  
+- Organizations    # Organization management
+- Tenants         # Tenant administration and operations
+- Users           # User management (platform and tenant)
+- Teams           # Team structures and hierarchies
+- Subscriptions   # Billing, plans, quotas
+
+# Integration Tags
+- Webhooks        # Webhook management and delivery
+- Notifications   # Email, SMS, push notifications
+- Reports         # Analytics and reporting
+- Audit           # Audit logs and compliance
+```
+
+**Tag Grouping with x-tag-groups Extension:**
+```yaml
+x-tag-groups:
+  - name: "Platform Administration"
+    tags: ["System", "Database", "Cache", "Authentication", "Authorization"]
+  - name: "Business Operations" 
+    tags: ["Organizations", "Tenants", "Users", "Teams", "Subscriptions"]
+  - name: "Integrations & Monitoring"
+    tags: ["Webhooks", "Notifications", "Reports", "Audit"]
+```
+
+**Implementation Rules:**
+- Router files define tags using `tags=["TagName"]` parameter
+- Main API includes `x-tag-groups` in OpenAPI configuration
+- Tag descriptions should be clear and concise
+- Related endpoints grouped under same tag for logical organization
 
 ## Quick Troubleshooting
 
@@ -473,7 +652,7 @@ REDIS_PASSWORD=redis
 # Keycloak
 KEYCLOAK_PORT=8080
 KEYCLOAK_ADMIN=admin
-KEYCLOAK_ADMIN_PASSWORD=admin
+KEYCLOAK_PASSWORD=admin
 
 # API Services (when deployed)
 ADMIN_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neofast_admin
@@ -535,6 +714,75 @@ ADMIN_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neofast_admin
 - NEVER proactively create documentation files (*.md)
 - Never save working files to the root folder
 - Always check neo-commons first before implementing new functionality
+
+### Neo-Commons Architecture Reminders
+- **Feature-First**: Business logic goes in feature modules (cache, database, permissions, etc.)
+- **Clean Core**: Core only contains value objects, exceptions, and shared contracts
+- **Protocol-Based**: Use @runtime_checkable protocols for dependency injection
+- **Import Validation**: Import from features, not core (except value objects and exceptions)
+- **Configuration**: Use infrastructure/configuration, not legacy config/ module
+
+## AI Agent Guidelines
+
+### Pre-Task Verification (MANDATORY)
+**Before starting any implementation task, AI agents MUST:**
+
+1. **Use codebase-db-investigator agent** to analyze existing code patterns and understand current implementation
+2. **Verify neo-commons availability** - Check if functionality already exists in shared library before creating new code
+3. **Understand database structures** - Review relevant schema files, migrations, and table relationships
+4. **Check related imports and dependencies** - Ensure compatibility with existing codebase patterns
+5. **Validate file structure** - Understand where new code should be placed following Feature-First + Clean Core architecture
+
+### Post-Task Verification (MANDATORY)
+**After completing any implementation, AI agents MUST:**
+
+1. **Verify integration works** - Check that new code integrates properly with existing systems
+2. **Validate imports and dependencies** - Ensure all imports resolve correctly and follow project patterns
+3. **Test database connectivity** - If database operations were added, verify connections work correctly
+4. **Check file organization** - Ensure code is placed in correct feature modules and follows architecture
+5. **Validate critical functionality** - Run basic tests to ensure implementation works as expected
+
+### Using codebase-db-investigator Agent
+
+**When to use:**
+- Before implementing any new feature or service
+- When modifying existing database operations
+- When adding new routes or API endpoints
+- When refactoring or changing architecture patterns
+- When uncertain about existing implementations
+
+**Example usage:**
+```bash
+# Before implementing user management feature
+Task: "Use codebase-db-investigator to analyze existing user-related code in neo-commons and NeoAdminApi. Find all user entities, services, repositories, and database schemas. Identify what's already implemented and what needs to be created."
+
+# Before adding new database connection
+Task: "Use codebase-db-investigator to analyze how database connections are currently managed in neo-commons. Show me the connection management patterns, encryption handling, and repository implementations."
+```
+
+### Critical Implementation Rules
+
+1. **Never duplicate existing functionality** - Always check neo-commons first
+2. **Implement generic/reusable functionality in neo-commons** - If requested task is generic or reusable across services, implement it in neo-commons and use it in the service
+3. **Follow existing patterns** - Use codebase-db-investigator to understand current implementation patterns
+4. **Respect architecture boundaries** - Features in feature modules, core only for value objects/exceptions
+5. **Validate database operations** - Ensure schema names are dynamic, use UUIDv7, follow asyncpg patterns
+6. **Update CLAUDE.md only for critical findings** - Add important architectural decisions or patterns that will guide future development
+
+### Knowledge Documentation Rules
+
+**Update CLAUDE.md when discovering:**
+- Critical architectural patterns that must be followed
+- Important security considerations or constraints
+- Database schema relationships that affect multiple features
+- Neo-commons integration patterns that weren't documented
+- Performance requirements or optimization patterns
+
+**Do NOT update CLAUDE.md for:**
+- Routine implementation details
+- Temporary workarounds or fixes
+- Personal preferences or opinions
+- Non-critical code organization choices
 
  # Using Gemini CLI for Large Codebase Analysis
 
@@ -636,98 +884,4 @@ gemini -p "@src/payment/ @tests/ Is the payment processing module fully tested? 
 - The CLI will include file contents directly in the context
 - No need for --yolo flag for read-only analysis
 - Gemini's context window can handle entire codebases that would overflow Claude's context
-- When checking implementations, be specific about what you're looking for to get accurate results # Using Gemini CLI for Large Codebase Analysis
-
-
-When analyzing large codebases or multiple files that might exceed context limits, use the Gemini CLI with its massive context window. Use `gemini -p` to leverage Google Gemini's large context capacity.
-
-
-  ## File and Directory Inclusion Syntax
-
-
-  Use the `@` syntax to include files and directories in your Gemini prompts. The paths should be relative to WHERE you run the
-   gemini command:
-
-
-  ### Examples:
-
-
-  **Single file analysis:**
-  ```bash
-  gemini -p "@src/main.py Explain this file's purpose and structure"
-
-
-  Multiple files:
-  gemini -p "@package.json @src/index.js Analyze the dependencies used in the code"
-
-
-  Entire directory:
-  gemini -p "@src/ Summarize the architecture of this codebase"
-
-
-  Multiple directories:
-  gemini -p "@src/ @tests/ Analyze test coverage for the source code"
-
-
-  Current directory and subdirectories:
-  gemini -p "@./ Give me an overview of this entire project"
-  # Or use --all_files flag:
-  gemini --all_files -p "Analyze the project structure and dependencies"
-
-
-  Implementation Verification Examples
-
-
-  Check if a feature is implemented:
-  gemini -p "@src/ @lib/ Has dark mode been implemented in this codebase? Show me the relevant files and functions"
-
-
-  Verify authentication implementation:
-  gemini -p "@src/ @middleware/ Is JWT authentication implemented? List all auth-related endpoints and middleware"
-
-
-  Check for specific patterns:
-  gemini -p "@src/ Are there any React hooks that handle WebSocket connections? List them with file paths"
-
-
-  Verify error handling:
-  gemini -p "@src/ @api/ Is proper error handling implemented for all API endpoints? Show examples of try-catch blocks"
-
-
-  Check for rate limiting:
-  gemini -p "@backend/ @middleware/ Is rate limiting implemented for the API? Show the implementation details"
-
-
-  Verify caching strategy:
-  gemini -p "@src/ @lib/ @services/ Is Redis caching implemented? List all cache-related functions and their usage"
-
-
-  Check for specific security measures:
-  gemini -p "@src/ @api/ Are SQL injection protections implemented? Show how user inputs are sanitized"
-
-
-  Verify test coverage for features:
-  gemini -p "@src/payment/ @tests/ Is the payment processing module fully tested? List all test cases"
-
-
-  When to Use Gemini CLI
-
-
-  Use gemini -p when:
-  - Analyzing entire codebases or large directories
-  - Comparing multiple large files
-  - Need to understand project-wide patterns or architecture
-  - Current context window is insufficient for the task
-  - Working with files totaling more than 100KB
-  - Verifying if specific features, patterns, or security measures are implemented
-  - Checking for the presence of certain coding patterns across the entire codebase
-
-
-  Important Notes
-
-
-  - Paths in @ syntax are relative to your current working directory when invoking gemini
-  - The CLI will include file contents directly in the context
-  - No need for --yolo flag for read-only analysis
-  - Gemini's context window can handle entire codebases that would overflow Claude's context
-  - When checking implementations, be specific about what you're looking for to get accurate results
+- When checking implementations, be specific about what you're looking for to get accurate results

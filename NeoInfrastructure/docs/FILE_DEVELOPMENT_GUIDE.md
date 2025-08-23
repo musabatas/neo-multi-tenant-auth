@@ -294,8 +294,8 @@ class Settings(BaseSettings):
     # Keycloak settings
     keycloak_url: str = Field(env="KEYCLOAK_URL")
     keycloak_admin_realm: str = Field(default="master", env="KEYCLOAK_ADMIN_REALM")
-    keycloak_admin_client_id: str = Field(env="KEYCLOAK_ADMIN_CLIENT_ID")
-    keycloak_admin_client_secret: str = Field(env="KEYCLOAK_ADMIN_CLIENT_SECRET")
+    keycloak_admin_client_id: str = Field(env="KEYCLOAK_CLIENT_ID")
+    keycloak_admin_client_secret: str = Field(env="KEYCLOAK_CLIENT_SECRET")
     
     # Infrastructure-specific settings
     migration_timeout: int = Field(default=300, env="MIGRATION_TIMEOUT")  # 5 minutes

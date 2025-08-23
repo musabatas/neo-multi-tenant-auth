@@ -1,11 +1,7 @@
-"""
-Authentication and permission services integrated with neo-commons.
-"""
+"""Auth services for business logic."""
+
 from .auth_service import AuthService
-from .permission_service import PermissionService, PermissionScope
 
 __all__ = [
     "AuthService",
-    "PermissionService", 
-    "PermissionScope"
 ]

@@ -1,25 +1,11 @@
-"""
-Organization models package.
-"""
+"""Organization models for request/response handling."""
 
-from .domain import Organization
-from .request import (
-    OrganizationCreate,
-    OrganizationUpdate,
-    OrganizationFilter
-)
-from .response import (
-    OrganizationResponse,
-    OrganizationListItem,
-    OrganizationListResponse
-)
+from .request import OrganizationCreateRequest, OrganizationUpdateRequest
+from .response import OrganizationResponse, OrganizationListResponse
 
 __all__ = [
-    "Organization",
-    "OrganizationCreate",
-    "OrganizationUpdate",
-    "OrganizationFilter",
+    "OrganizationCreateRequest",
+    "OrganizationUpdateRequest", 
     "OrganizationResponse",
-    "OrganizationListItem",
-    "OrganizationListResponse"
+    "OrganizationListResponse",
 ]

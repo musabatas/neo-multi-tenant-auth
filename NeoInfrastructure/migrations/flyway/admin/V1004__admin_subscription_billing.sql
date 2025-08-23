@@ -110,7 +110,7 @@ CREATE TABLE admin.tenant_subscriptions (
     suspended_at TIMESTAMPTZ,
     cancellation_reason VARCHAR(100),
     cancellation_feedback TEXT,
-    canceled_by UUID REFERENCES admin.platform_users,
+    canceled_by UUID REFERENCES admin.users,
     last_billing_at TIMESTAMPTZ,
     next_renewal_notification_sent_at TIMESTAMPTZ,
     metadata JSONB DEFAULT '{}',
@@ -306,7 +306,7 @@ CREATE TABLE admin.billing_alerts (
     related_subscription_id UUID REFERENCES admin.tenant_subscriptions,
     is_resolved BOOLEAN DEFAULT false,
     resolved_at TIMESTAMPTZ,
-    resolved_by UUID REFERENCES admin.platform_users,
+    resolved_by UUID REFERENCES admin.users,
     notification_sent BOOLEAN DEFAULT false,
     notification_sent_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()

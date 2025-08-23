@@ -1005,9 +1005,9 @@ class TestInfrastructureAuth:
 ```python
 # Environment variables for secure configuration
 KEYCLOAK_URL=https://keycloak.example.com
-KEYCLOAK_ADMIN_REALM=master
-KEYCLOAK_ADMIN_CLIENT_ID=infrastructure-api
-KEYCLOAK_ADMIN_CLIENT_SECRET=secure-client-secret
+KEYCLOAK_REALM=master
+KEYCLOAK_CLIENT_ID=infrastructure-api
+KEYCLOAK_CLIENT_SECRET=secure-client-secret
 
 # Redis for caching (optional)
 REDIS_URL=redis://redis:6379/1

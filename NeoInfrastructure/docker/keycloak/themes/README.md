@@ -6,7 +6,7 @@ Custom themes for NeoMultiTenant platform.
 
 ```
 themes/
-├── neo-admin/          # Theme for admin interfaces
+├── NeoAdmin/          # Theme for admin interfaces
 ├── neo-tenant/         # Theme for tenant interfaces  
 └── neo-marketing/      # Theme for marketing/public pages
 ```

@@ -20,116 +20,200 @@ GRANT USAGE ON SCHEMA tenant_template TO PUBLIC;
 -- ============================================================================
 
 CREATE TABLE tenant_template.users (
+    -- Core Identity (identical in both schemas)
     id UUID PRIMARY KEY DEFAULT platform_common.uuid_generate_v7(),
-    email VARCHAR(320) NOT NULL UNIQUE,
+    email VARCHAR(320) NOT NULL UNIQUE 
+        CONSTRAINT email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
     username VARCHAR(39) UNIQUE,
+    
+    -- External Auth (unified fields)
+    external_user_id VARCHAR(255) NOT NULL,
+    external_auth_provider platform_common.auth_provider NOT NULL DEFAULT 'keycloak',
+    external_auth_metadata JSONB DEFAULT '{}',
+    
+    -- Profile Information (identical)
     first_name VARCHAR(100),
     last_name VARCHAR(100),
     display_name VARCHAR(150),
     avatar_url VARCHAR(2048),
     phone VARCHAR(20),
+    job_title VARCHAR(150),
+    
+    -- Localization (identical)
     timezone VARCHAR(50) DEFAULT 'UTC',
     locale VARCHAR(10) DEFAULT 'en-US',
-    external_user_id VARCHAR(255) NOT NULL,
-    external_provider platform_common.auth_provider NOT NULL,
-    status platform_common.user_statuses DEFAULT 'active',
-    default_role platform_common.user_role_level DEFAULT 'member',
-    job_title VARCHAR(150),
-    departments VARCHAR(100)[],
-    manager_id UUID REFERENCES tenant_template.users,
+    
+    -- Status (unified - replaces both status and is_active)
+    status platform_common.user_status DEFAULT 'active',
+    
+    -- Organizational (conditional fields managed by configuration)
+    departments VARCHAR(255)[],
+    company VARCHAR(255),                    -- Used in admin schema for platform context
+    manager_id UUID REFERENCES tenant_template.users(id) ON DELETE SET NULL,
+    
+    -- Role and Access (managed by scope context)
+    default_role_level platform_common.role_level DEFAULT 'member',
+    is_system_user BOOLEAN DEFAULT false,   -- Replaces is_superadmin, broader usage
+    
+    -- Onboarding and Profile
     is_onboarding_completed BOOLEAN DEFAULT false,
     profile_completion_percentage SMALLINT DEFAULT 0 
         CONSTRAINT profile_completion_range CHECK (profile_completion_percentage >= 0 AND profile_completion_percentage <= 100),
+    
+    -- Preferences (identical)
     notification_preferences JSONB DEFAULT '{}',
     ui_preferences JSONB DEFAULT '{}',
-    feature_flags JSONB DEFAULT '{}',
-    tags VARCHAR(50)[],
-    custom_fields JSONB DEFAULT '{}',
+    feature_flags JSONB DEFAULT '{}',       -- Added to admin schema
+    
+    -- Tags and Custom Fields (unified)
+    tags VARCHAR(50)[],                     -- Added to admin schema
+    custom_fields JSONB DEFAULT '{}',       -- Added to admin schema
     metadata JSONB DEFAULT '{}',
-    invited_at TIMESTAMPTZ,
-    activated_at TIMESTAMPTZ,
+    
+    -- Activity Tracking (identical)
+    invited_at TIMESTAMPTZ,                 -- Added to admin schema
+    activated_at TIMESTAMPTZ,               -- Added to admin schema
     last_activity_at TIMESTAMPTZ,
     last_login_at TIMESTAMPTZ,
+    
+    -- Audit Fields (identical)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ
+    deleted_at TIMESTAMPTZ,
+    
+    -- Constraints (unified)
+    CONSTRAINT unique_external_user UNIQUE (external_user_id, external_auth_provider)
 );
 
--- Indexes for users
+-- Indexes for users (unified structure)
 CREATE INDEX idx_tenant_users_email ON tenant_template.users(email);
 CREATE INDEX idx_tenant_users_username ON tenant_template.users(username);
 CREATE INDEX idx_tenant_users_external_id ON tenant_template.users(external_user_id);
 CREATE INDEX idx_tenant_users_status ON tenant_template.users(status);
 CREATE INDEX idx_tenant_users_manager ON tenant_template.users(manager_id);
 CREATE INDEX idx_tenant_users_tags ON tenant_template.users USING GIN(tags);
+CREATE INDEX idx_tenant_users_deleted ON tenant_template.users(deleted_at);
 
 -- ============================================================================
 -- TENANT PERMISSIONS (Tenant-level permissions)
 -- ============================================================================
 
 CREATE TABLE tenant_template.permissions (
+    -- Core Identity (identical)
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
+    
+    -- Resource and Action (identical)
     resource VARCHAR(50) NOT NULL,
     action VARCHAR(50) NOT NULL,
-    scope platform_common.permission_scopes DEFAULT 'tenant',
+    
+    -- Scope (unified enum)
+    scope_level platform_common.permission_scope DEFAULT 'tenant',
+    
+    -- Security Flags (unified)
     is_dangerous BOOLEAN DEFAULT false,
+    requires_mfa BOOLEAN DEFAULT false,
     requires_approval BOOLEAN DEFAULT false,
+    
+    -- Configuration (unified field name)
     permission_config JSONB DEFAULT '{}',
+    
+    -- Audit Fields (identical)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
 
--- Indexes for permissions
+-- Indexes for permissions (unified structure)
 CREATE INDEX idx_tenant_permissions_code ON tenant_template.permissions(code);
 CREATE INDEX idx_tenant_permissions_resource ON tenant_template.permissions(resource);
 CREATE INDEX idx_tenant_permissions_action ON tenant_template.permissions(action);
-CREATE INDEX idx_tenant_permissions_scope ON tenant_template.permissions(scope);
+CREATE INDEX idx_tenant_permissions_scope ON tenant_template.permissions(scope_level);
+CREATE INDEX idx_tenant_permissions_dangerous ON tenant_template.permissions(is_dangerous);
 
 -- ============================================================================
 -- TENANT ROLES (Tenant-level roles)
 -- ============================================================================
 
 CREATE TABLE tenant_template.roles (
+    -- Core Identity (identical)
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL,
     description TEXT,
-    role_level platform_common.user_role_level NOT NULL,
+    
+    -- Display (unified)
+    display_name VARCHAR(200),
+    
+    -- Role Classification (unified enum)
+    role_level platform_common.role_level NOT NULL DEFAULT 'member',
+    
+    -- Behavioral Flags (unified)
     is_system BOOLEAN DEFAULT false,
     is_default BOOLEAN DEFAULT false,
-    team_scoped BOOLEAN DEFAULT false,
     requires_approval BOOLEAN DEFAULT false,
+    
+    -- Scoping (unified approach)
+    scope_type VARCHAR(20) DEFAULT 'tenant',
+    
+    -- Limits and Rules (unified)
+    priority INTEGER DEFAULT 100,
+    max_assignees INTEGER,
     auto_expire_days INTEGER,
+    
+    -- Configuration (identical)
     role_config JSONB DEFAULT '{}',
     metadata JSONB DEFAULT '{}',
+    
+    -- Permissions populated from role_permissions table. Update with trigger.
+    populated_permissions JSONB DEFAULT '{}',
+    
+    -- Audit Fields (identical)
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
-    deleted_at TIMESTAMPTZ
+    deleted_at TIMESTAMPTZ,
+    
+    -- Constraints
+    CONSTRAINT valid_tenant_scope_type CHECK (scope_type IN ('global', 'team', 'tenant')),
+    CONSTRAINT valid_tenant_priority CHECK (priority > 0),
+    CONSTRAINT valid_tenant_auto_expire CHECK (auto_expire_days IS NULL OR auto_expire_days > 0)
 );
 
--- Indexes for roles
+COMMENT ON COLUMN tenant_template.roles.populated_permissions IS 'Permissions populated from role_permissions table';
+
+-- Indexes for roles (unified structure)
 CREATE INDEX idx_tenant_roles_code ON tenant_template.roles(code);
 CREATE INDEX idx_tenant_roles_level ON tenant_template.roles(role_level);
 CREATE INDEX idx_tenant_roles_system ON tenant_template.roles(is_system);
 CREATE INDEX idx_tenant_roles_default ON tenant_template.roles(is_default);
+CREATE INDEX idx_tenant_roles_scope_type ON tenant_template.roles(scope_type);
 
 -- ============================================================================
 -- ROLE PERMISSIONS (Many-to-many relationship)
 -- ============================================================================
 
 CREATE TABLE tenant_template.role_permissions (
-    role_id INTEGER NOT NULL REFERENCES tenant_template.roles ON DELETE CASCADE,
-    permission_id INTEGER NOT NULL REFERENCES tenant_template.permissions ON DELETE CASCADE,
+    -- Core Relationship (identical)
+    role_id INTEGER NOT NULL,
+    permission_id INTEGER NOT NULL,
+    
+    -- Audit (identical)
     granted_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (role_id, permission_id)
+    granted_by UUID,
+    granted_reason TEXT,
+    
+    -- Constraints
+    PRIMARY KEY (role_id, permission_id),
+    FOREIGN KEY (role_id) REFERENCES tenant_template.roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES tenant_template.permissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES tenant_template.users(id) ON DELETE SET NULL
 );
 
--- Indexes for role_permissions
+-- Indexes for role_permissions (unified structure)
 CREATE INDEX idx_tenant_role_permissions_role ON tenant_template.role_permissions(role_id);
 CREATE INDEX idx_tenant_role_permissions_permission ON tenant_template.role_permissions(permission_id);
+CREATE INDEX idx_tenant_role_permissions_granted_by ON tenant_template.role_permissions(granted_by);
 
 -- ============================================================================
 -- TEAMS (Team/group management within tenant)
@@ -168,47 +252,101 @@ CREATE INDEX idx_tenant_teams_active ON tenant_template.teams(is_active);
 -- ============================================================================
 
 CREATE TABLE tenant_template.user_roles (
-    user_id UUID NOT NULL REFERENCES tenant_template.users ON DELETE CASCADE,
-    role_id INTEGER NOT NULL REFERENCES tenant_template.roles ON DELETE CASCADE,
-    granted_by UUID REFERENCES tenant_template.users,
+    -- Primary Key
+    id UUID PRIMARY KEY DEFAULT platform_common.uuid_generate_v7(),
+    
+    -- Core Relationship (unified)
+    user_id UUID NOT NULL,
+    role_id INTEGER NOT NULL,
+    
+    -- Scoping (flexible - can be NULL for global assignments)
+    scope_type VARCHAR(20) DEFAULT 'tenant',
+    scope_id UUID,
+    
+    -- Grant Information (unified)
+    granted_by UUID,
     granted_reason TEXT,
     granted_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Expiration and Status (unified)
     expires_at TIMESTAMPTZ,
     is_active BOOLEAN DEFAULT true,
-    team_id UUID NOT NULL REFERENCES tenant_template.teams,
-    PRIMARY KEY (user_id, role_id, team_id)
+    
+    -- Constraints
+    -- Use a unique constraint for the business key
+    CONSTRAINT tenant_user_roles_unique_assignment UNIQUE (user_id, role_id, scope_id),
+    FOREIGN KEY (user_id) REFERENCES tenant_template.users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES tenant_template.roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES tenant_template.users(id) ON DELETE SET NULL,
+    
+    CONSTRAINT valid_tenant_user_scope_type CHECK (scope_type IN ('global', 'team', 'tenant')),
+    CONSTRAINT valid_tenant_user_scope_combination CHECK (
+        (scope_type = 'tenant' AND scope_id IS NULL) OR
+        (scope_type != 'tenant' AND scope_id IS NOT NULL)
+    )
 );
 
--- Indexes for user_roles
+-- Indexes for user_roles (unified structure)
 CREATE INDEX idx_tenant_user_roles_user ON tenant_template.user_roles(user_id);
 CREATE INDEX idx_tenant_user_roles_role ON tenant_template.user_roles(role_id);
-CREATE INDEX idx_tenant_user_roles_team ON tenant_template.user_roles(team_id);
+CREATE INDEX idx_tenant_user_roles_scope ON tenant_template.user_roles(scope_type, scope_id);
+CREATE INDEX idx_tenant_user_roles_granted_by ON tenant_template.user_roles(granted_by);
 CREATE INDEX idx_tenant_user_roles_active ON tenant_template.user_roles(is_active);
+CREATE INDEX idx_tenant_user_roles_expires ON tenant_template.user_roles(expires_at);
 
 -- ============================================================================
 -- USER PERMISSIONS (Direct permission grants to users)
 -- ============================================================================
 
 CREATE TABLE tenant_template.user_permissions (
-    user_id UUID NOT NULL REFERENCES tenant_template.users ON DELETE CASCADE,
-    permission_id INTEGER NOT NULL REFERENCES tenant_template.permissions ON DELETE CASCADE,
+    -- Primary Key
+    id UUID PRIMARY KEY DEFAULT platform_common.uuid_generate_v7(),
+    
+    -- Core Relationship (unified)
+    user_id UUID NOT NULL,
+    permission_id INTEGER NOT NULL,
+    
+    -- Permission State (unified)
     is_granted BOOLEAN DEFAULT true,
     is_active BOOLEAN DEFAULT true,
-    granted_by UUID REFERENCES tenant_template.users,
+    
+    -- Scoping (flexible)
+    scope_type VARCHAR(20) DEFAULT 'tenant',
+    scope_id UUID,
+    
+    -- Grant Information (unified)
+    granted_by UUID,
     granted_reason TEXT,
-    revoked_by UUID REFERENCES tenant_template.users,
-    revoked_reason TEXT,
     granted_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Revocation Information (unified)
+    revoked_by UUID,
+    revoked_reason TEXT,
+    
+    -- Expiration (unified)
     expires_at TIMESTAMPTZ,
-    team_id UUID NOT NULL REFERENCES tenant_template.teams,
-    PRIMARY KEY (user_id, permission_id, team_id)
+    
+    -- Constraints
+    -- Use a unique constraint for the business key
+    CONSTRAINT tenant_user_permissions_unique_assignment UNIQUE (user_id, permission_id, scope_id),
+    FOREIGN KEY (user_id) REFERENCES tenant_template.users(id) ON DELETE CASCADE,
+    FOREIGN KEY (permission_id) REFERENCES tenant_template.permissions(id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES tenant_template.users(id) ON DELETE SET NULL,
+    FOREIGN KEY (revoked_by) REFERENCES tenant_template.users(id) ON DELETE SET NULL,
+    
+    CONSTRAINT valid_tenant_permission_scope_type CHECK (scope_type IN ('global', 'team', 'tenant')),
+    CONSTRAINT valid_tenant_permission_scope_combination CHECK (
+        (scope_type = 'tenant' AND scope_id IS NULL) OR
+        (scope_type != 'tenant' AND scope_id IS NOT NULL)
+    )
 );
 
--- Indexes for user_permissions
+-- Indexes for user_permissions (unified structure)
 CREATE INDEX idx_tenant_user_permissions_user ON tenant_template.user_permissions(user_id);
 CREATE INDEX idx_tenant_user_permissions_permission ON tenant_template.user_permissions(permission_id);
-CREATE INDEX idx_tenant_user_permissions_team ON tenant_template.user_permissions(team_id);
+CREATE INDEX idx_tenant_user_permissions_scope ON tenant_template.user_permissions(scope_type, scope_id);
 CREATE INDEX idx_tenant_user_permissions_granted ON tenant_template.user_permissions(is_granted);
+CREATE INDEX idx_tenant_user_permissions_active ON tenant_template.user_permissions(is_active);
 
 -- ============================================================================
 -- TEAM MEMBERS (Team membership tracking)
@@ -234,41 +372,13 @@ CREATE INDEX idx_tenant_team_members_user ON tenant_template.team_members(user_i
 CREATE INDEX idx_tenant_team_members_status ON tenant_template.team_members(status);
 
 -- ============================================================================
--- TENANT SETTINGS (Tenant-specific configuration)
--- ============================================================================
-
-CREATE TABLE tenant_template.settings (
-    id UUID PRIMARY KEY DEFAULT platform_common.uuid_generate_v7(),
-    key VARCHAR(100) NOT NULL UNIQUE,
-    value JSONB NOT NULL,
-    category VARCHAR(50) NOT NULL,
-    subcategory VARCHAR(50),
-    setting_type VARCHAR(20) DEFAULT 'json' 
-        CONSTRAINT valid_setting_type CHECK (setting_type IN ('string', 'number', 'boolean', 'json', 'encrypted')),
-    is_public BOOLEAN DEFAULT false,
-    is_readonly BOOLEAN DEFAULT false,
-    requires_restart BOOLEAN DEFAULT false,
-    description TEXT,
-    validation_schema JSONB,
-    default_value JSONB,
-    updated_by UUID REFERENCES tenant_template.users,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Indexes for settings
-CREATE INDEX idx_tenant_settings_key ON tenant_template.settings(key);
-CREATE INDEX idx_tenant_settings_category ON tenant_template.settings(category);
-CREATE INDEX idx_tenant_settings_public ON tenant_template.settings(is_public);
-
--- ============================================================================
 -- INVITATIONS (User invitations to tenant)
 -- ============================================================================
 
 CREATE TABLE tenant_template.invitations (
     id UUID PRIMARY KEY DEFAULT platform_common.uuid_generate_v7(),
     email VARCHAR(320) NOT NULL,
-    invited_role platform_common.user_role_level DEFAULT 'member',
+    invited_role platform_common.role_level DEFAULT 'member',
     invitation_token VARCHAR(255) NOT NULL UNIQUE,
     invited_by UUID NOT NULL REFERENCES tenant_template.users,
     invited_to_team_id UUID REFERENCES tenant_template.teams,
@@ -333,7 +443,7 @@ COMMENT ON TABLE tenant_template.invitations IS 'User invitations to join the te
 -- ============================================================================
 
 -- Insert default tenant permissions
-INSERT INTO tenant_template.permissions (code, description, resource, action, scope) VALUES
+INSERT INTO tenant_template.permissions (code, description, resource, action, scope_level) VALUES
 ('tenant.read', 'Read tenant data', 'tenant', 'read', 'tenant'),
 ('tenant.write', 'Modify tenant data', 'tenant', 'write', 'tenant'),
 ('users.read', 'View users', 'users', 'read', 'tenant'),

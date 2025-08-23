@@ -23,9 +23,9 @@ CREATE TABLE admin.system_alerts (
     resolution_steps TEXT,
     status VARCHAR(30) DEFAULT 'open' 
         CONSTRAINT valid_alert_status CHECK (status IN ('open', 'acknowledged', 'investigating', 'resolved', 'closed')),
-    acknowledged_by UUID REFERENCES admin.platform_users,
+    acknowledged_by UUID REFERENCES admin.users,
     acknowledged_at TIMESTAMPTZ,
-    resolved_by UUID REFERENCES admin.platform_users,
+    resolved_by UUID REFERENCES admin.users,
     resolved_at TIMESTAMPTZ,
     first_occurrence_at TIMESTAMPTZ DEFAULT NOW(),
     last_occurrence_at TIMESTAMPTZ DEFAULT NOW(),
@@ -33,7 +33,7 @@ CREATE TABLE admin.system_alerts (
     escalation_level INTEGER DEFAULT 1 
         CONSTRAINT valid_escalation_level CHECK (escalation_level >= 1 AND escalation_level <= 5),
     escalated_at TIMESTAMPTZ,
-    escalated_to UUID REFERENCES admin.platform_users,
+    escalated_to UUID REFERENCES admin.users,
     notifications_sent INTEGER DEFAULT 0,
     last_notification_sent_at TIMESTAMPTZ,
     suppress_notifications_until TIMESTAMPTZ,
@@ -77,7 +77,7 @@ CREATE TABLE admin.api_rate_limits (
     alert_threshold_percentage SMALLINT DEFAULT 90 
         CONSTRAINT valid_alert_threshold CHECK (alert_threshold_percentage >= 0 AND alert_threshold_percentage <= 100),
     description TEXT,
-    created_by UUID REFERENCES admin.platform_users,
+    created_by UUID REFERENCES admin.users,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT positive_limits CHECK (
@@ -130,8 +130,8 @@ INSERT INTO admin.api_rate_limits (limit_name, limit_type, requests_per_window, 
 ('user_default', 'user', 60, 60, 'Default user rate limit - 60 requests per minute'),
 ('api_key_default', 'api_key', 500, 60, 'Default API key rate limit - 500 requests per minute');
 
--- Insert default platform permissions
-INSERT INTO admin.platform_permissions (code, description, resource, action, scope_level) VALUES
+-- Insert default platform permissions (unified table structure)
+INSERT INTO admin.permissions (code, description, resource, action, scope_level) VALUES
 ('platform.admin.read', 'Read platform administration data', 'platform', 'read', 'platform'),
 ('platform.admin.write', 'Modify platform administration data', 'platform', 'write', 'platform'),
 ('platform.users.read', 'View platform users', 'users', 'read', 'platform'),
@@ -145,36 +145,36 @@ INSERT INTO admin.platform_permissions (code, description, resource, action, sco
 ('tenant.users.read', 'View tenant users', 'users', 'read', 'tenant'),
 ('tenant.users.write', 'Manage tenant users', 'users', 'write', 'tenant');
 
--- Insert default platform roles
-INSERT INTO admin.platform_roles (code, name, description, role_level, is_system) VALUES
+-- Insert default platform roles (unified table structure)
+INSERT INTO admin.roles (code, name, description, role_level, is_system) VALUES
 ('super_admin', 'Super Administrator', 'Full platform access with all permissions', 'system', true),
 ('platform_admin', 'Platform Administrator', 'Platform administration access', 'platform', true),
 ('tenant_admin', 'Tenant Administrator', 'Tenant-level administration access', 'tenant', true),
 ('tenant_user', 'Tenant User', 'Basic tenant user access', 'tenant', true);
 
--- Grant permissions to roles
+-- Grant permissions to roles (unified table structure)
 INSERT INTO admin.role_permissions (role_id, permission_id) 
 SELECT r.id, p.id 
-FROM admin.platform_roles r 
-CROSS JOIN admin.platform_permissions p 
+FROM admin.roles r 
+CROSS JOIN admin.permissions p 
 WHERE r.code = 'super_admin';
 
 INSERT INTO admin.role_permissions (role_id, permission_id) 
 SELECT r.id, p.id 
-FROM admin.platform_roles r 
-CROSS JOIN admin.platform_permissions p 
+FROM admin.roles r 
+CROSS JOIN admin.permissions p 
 WHERE r.code = 'platform_admin' AND p.code LIKE 'platform.%';
 
 INSERT INTO admin.role_permissions (role_id, permission_id) 
 SELECT r.id, p.id 
-FROM admin.platform_roles r 
-CROSS JOIN admin.platform_permissions p 
+FROM admin.roles r 
+CROSS JOIN admin.permissions p 
 WHERE r.code = 'tenant_admin' AND p.code LIKE 'tenant.%';
 
 INSERT INTO admin.role_permissions (role_id, permission_id) 
 SELECT r.id, p.id 
-FROM admin.platform_roles r 
-CROSS JOIN admin.platform_permissions p 
+FROM admin.roles r 
+CROSS JOIN admin.permissions p 
 WHERE r.code = 'tenant_user' AND p.code IN ('tenant.admin.read', 'tenant.users.read');
 
 -- Log migration completion

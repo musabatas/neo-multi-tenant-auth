@@ -45,7 +45,7 @@ services:
       - ./logs:/app/logs
       
     networks:
-      - neo-infrastructure
+      - NeoInfrastructure
       
     # depends_on:
     #   - neo-postgres-us-east  # External services from NeoInfrastructure
@@ -62,9 +62,9 @@ services:
 
 # External networks (connect to NeoInfrastructure)
 networks:
-  neo-infrastructure:
+  NeoInfrastructure:
     external: true
 
 # External services (should be running from NeoInfrastructure)
-# Connect via the external network 'neo-infrastructure'
+# Connect via the external network 'NeoInfrastructure'
 # Services: neo-postgres-us-east, neo-postgres-eu-west

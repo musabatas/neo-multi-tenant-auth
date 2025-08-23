@@ -136,11 +136,11 @@ echo -e "${BLUE}7. Network Connectivity${NC}"
 echo "-----------------------"
 
 # Check network
-if docker network ls | grep neo-infrastructure >/dev/null 2>&1; then
-    container_count=$(docker network inspect neo-infrastructure -f '{{len .Containers}}' 2>/dev/null || echo "0")
-    echo -e "${GREEN}✅ Network 'neo-infrastructure': ${container_count} containers${NC}"
+if docker network ls | grep NeoInfrastructure >/dev/null 2>&1; then
+    container_count=$(docker network inspect NeoInfrastructure -f '{{len .Containers}}' 2>/dev/null || echo "0")
+    echo -e "${GREEN}✅ Network 'NeoInfrastructure': ${container_count} containers${NC}"
 else
-    echo -e "${RED}❌ Network 'neo-infrastructure' not found${NC}"
+    echo -e "${RED}❌ Network 'NeoInfrastructure' not found${NC}"
 fi
 
 # Summary
@@ -156,7 +156,7 @@ docker exec neo-postgres-us-east pg_isready >/dev/null 2>&1 && ((HEALTH_SCORE++)
 docker exec neo-postgres-eu-west pg_isready >/dev/null 2>&1 && ((HEALTH_SCORE++))
 docker exec neo-redis redis-cli -a redis ping >/dev/null 2>&1 && ((HEALTH_SCORE++))
 curl -s http://localhost:${KEYCLOAK_PORT:-8080}/health >/dev/null 2>&1 && ((HEALTH_SCORE++))
-docker network ls | grep neo-infrastructure >/dev/null 2>&1 && ((HEALTH_SCORE++))
+docker network ls | grep NeoInfrastructure >/dev/null 2>&1 && ((HEALTH_SCORE++))
 [ -f "migrations/Dockerfile" ] && ((HEALTH_SCORE++))
 
 PERCENTAGE=$((HEALTH_SCORE * 100 / TOTAL_CHECKS))

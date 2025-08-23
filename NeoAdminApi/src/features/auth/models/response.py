@@ -1,176 +1,226 @@
-"""
-Authentication response models.
-"""
-from typing import Optional, List, Dict, Any, Union
+"""Auth response models."""
+
 from datetime import datetime
+from typing import List, Optional, Dict, Any
 from uuid import UUID
-from pydantic import Field
 
-from src.common.models.base import BaseSchema
+from pydantic import BaseModel, Field
 
-
-class PermissionDetail(BaseSchema):
-    """Permission detail model."""
-    code: str = Field(..., description="Permission code")
-    resource: str = Field(..., description="Resource name")
-    action: str = Field(..., description="Action name")
-    scope_level: Optional[str] = Field(None, description="Scope level")
-    is_dangerous: bool = Field(False, description="Is dangerous permission")
-    requires_mfa: bool = Field(False, description="Requires MFA")
-    requires_approval: bool = Field(False, description="Requires approval")
-    config: Dict[str, Any] = Field(default_factory=dict, description="Permission configuration")
-    source: Optional[str] = Field(None, description="Permission source")
-    priority: int = Field(0, description="Permission priority")
+from neo_commons.features.auth.entities.auth_context import AuthContext
 
 
-class KeycloakUserData(BaseSchema):
-    """Keycloak user data model."""
-    session_id: Optional[str] = Field(None, description="Keycloak session ID")
-    realm: Optional[str] = Field(None, description="Keycloak realm")
-    email_verified: bool = Field(False, description="Email verification status from Keycloak")
-    scopes: List[str] = Field(default_factory=list, description="OAuth scopes")
-    realm_roles: List[str] = Field(default_factory=list, description="Keycloak realm roles")
-    client_roles: Dict[str, List[str]] = Field(default_factory=dict, description="Keycloak client roles")
-    authorized_party: Optional[str] = Field(None, description="OAuth authorized party")
-    auth_context_class: Optional[str] = Field(None, description="Authentication Context Class Reference")
-    full_name: Optional[str] = Field(None, description="Full name from Keycloak")
-
-
-class TokenResponse(BaseSchema):
-    """Token response model."""
-    access_token: str = Field(..., description="JWT access token")
-    refresh_token: str = Field(..., description="Refresh token")
-    token_type: str = Field("Bearer", description="Token type")
-    expires_in: int = Field(..., description="Access token expiry in seconds")
-    refresh_expires_in: Optional[int] = Field(None, description="Refresh token expiry in seconds")
-    scope: Optional[str] = Field(None, description="Token scope")
-
-
-class UserProfile(BaseSchema):
-    """User profile model with complete onboarding and profile data."""
-    # Core identity fields
-    id: str = Field(..., description="User unique identifier")
-    username: str = Field(..., description="Username")
-    email: str = Field(..., description="Email address")
+class AdminUserResponse(BaseModel):
+    """Response model for admin user information with comprehensive user data."""
     
-    # Profile fields
+    # Core Identity
+    user_id: UUID = Field(..., description="User ID")
+    keycloak_user_id: UUID = Field(..., description="Keycloak user ID") 
+    email: str = Field(..., description="Email address")
+    username: str = Field(..., description="Username")
+    
+    # External Auth
+    external_user_id: str = Field(..., description="External user ID")
+    external_auth_provider: str = Field(..., description="External auth provider")
+    
+    # Profile Information
     first_name: Optional[str] = Field(None, description="First name")
     last_name: Optional[str] = Field(None, description="Last name")
     display_name: Optional[str] = Field(None, description="Display name")
-    full_name: Optional[str] = Field(None, description="Full name (computed)")
     avatar_url: Optional[str] = Field(None, description="Avatar URL")
     phone: Optional[str] = Field(None, description="Phone number")
-    
-    # Professional information
     job_title: Optional[str] = Field(None, description="Job title")
+    
+    # Localization
+    timezone: str = Field(default="UTC", description="User timezone")
+    locale: str = Field(default="en-US", description="User locale")
+    
+    # Status
+    status: str = Field(..., description="User status")
+    
+    # Organizational
+    departments: List[str] = Field(default_factory=list, description="User departments")
     company: Optional[str] = Field(None, description="Company name")
-    departments: Optional[List[str]] = Field(default_factory=list, description="Department memberships")
+    manager_id: Optional[UUID] = Field(None, description="Manager ID")
+    
+    # Role and Access
+    default_role_level: str = Field(default="member", description="Default role level")
+    is_system_user: bool = Field(default=False, description="Is system user")
+    
+    # Onboarding and Profile
+    is_onboarding_completed: bool = Field(default=False, description="Onboarding completed")
+    profile_completion_percentage: int = Field(default=0, description="Profile completion percentage")
     
     # Preferences
-    timezone: Optional[str] = Field("UTC", description="User timezone")
-    locale: Optional[str] = Field("en-US", description="User locale")
-    language: Optional[str] = Field("en", description="Preferred language (deprecated, use locale)")
-    notification_preferences: Dict[str, Any] = Field(default_factory=dict, description="Notification settings")
+    notification_preferences: Dict[str, Any] = Field(default_factory=dict, description="Notification preferences")
     ui_preferences: Dict[str, Any] = Field(default_factory=dict, description="UI preferences")
+    feature_flags: Dict[str, Any] = Field(default_factory=dict, description="Feature flags")
     
-    # Onboarding and profile completion
-    is_onboarding_completed: bool = Field(False, description="Whether onboarding is completed")
-    profile_completion_percentage: int = Field(0, description="Profile completion percentage (0-100)")
-    onboarding_steps: Optional[Dict[str, bool]] = Field(None, description="Onboarding steps completion status")
+    # Tags and Custom Fields
+    tags: List[str] = Field(default_factory=list, description="User tags")
+    custom_fields: Dict[str, Any] = Field(default_factory=dict, description="Custom fields")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="User metadata")
     
-    # Status fields
-    is_active: bool = Field(True, description="Whether user is active")
-    is_superadmin: bool = Field(False, description="Is platform superadmin")
-    
-    # Access control
-    roles: List[Dict[str, Any]] = Field(default_factory=list, description="User roles")
-    permissions: Union[List[str], List[PermissionDetail]] = Field(default_factory=list, description="User permissions")
-    tenants: List[Dict[str, Any]] = Field(default_factory=list, description="Accessible tenants")
-    tenant_memberships: Optional[List[Dict[str, Any]]] = Field(None, description="Detailed tenant memberships")
-    
-    # Timestamps
+    # Activity Tracking
+    invited_at: Optional[datetime] = Field(None, description="Invitation timestamp")
+    activated_at: Optional[datetime] = Field(None, description="Activation timestamp")
+    last_activity_at: Optional[datetime] = Field(None, description="Last activity timestamp")
     last_login_at: Optional[datetime] = Field(None, description="Last login timestamp")
-    created_at: Optional[datetime] = Field(None, description="Account creation timestamp")
-    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     
-    # Flattened Keycloak fields (moved from nested keycloak object)
-    session_id: Optional[str] = Field(None, description="Keycloak session ID")
-    realm: Optional[str] = Field(None, description="Keycloak realm")
-    email_verified: bool = Field(False, description="Email verification status from Keycloak")
-    authorized_party: Optional[str] = Field(None, description="OAuth authorized party")
+    # Audit Fields
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Update timestamp")
+    authenticated_at: datetime = Field(..., description="Authentication timestamp")
     
-    # External auth data
-    external_auth_provider: Optional[str] = Field(None, description="Authentication provider")
-    external_user_id: Optional[str] = Field(None, description="External provider user ID")
+    # RBAC Data
+    roles: List[str] = Field(default_factory=list, description="User roles")
+    permissions: List[Dict[str, Any]] = Field(default_factory=list, description="User permissions with metadata")
+    
+    @classmethod
+    def from_auth_context(cls, context: AuthContext) -> "AdminUserResponse":
+        """Create response from neo-commons auth context (simple permissions)."""
+        return cls(
+            user_id=UUID(context.user_id.value),
+            keycloak_user_id=UUID(context.keycloak_user_id.value),
+            email=context.email,
+            username=context.username,
+            external_user_id=context.keycloak_user_id.value,  # Use Keycloak ID as external ID
+            external_auth_provider="keycloak",  # Default provider
+            first_name=context.first_name,
+            last_name=context.last_name,
+            display_name=context.display_name,
+            status="active",  # Default status
+            roles=[role.value for role in context.roles],
+            permissions=[{'code': perm.value} for perm in context.permissions],
+            authenticated_at=context.authenticated_at,
+        )
+    
+    @classmethod
+    def from_auth_context_with_user_data(
+        cls, 
+        context: AuthContext, 
+        user_data: Dict[str, Any],
+        permissions_data: List[Dict[str, Any]]
+    ) -> "AdminUserResponse":
+        """Create response from auth context with comprehensive user data and permissions."""
+        return cls(
+            # Core Identity
+            user_id=UUID(context.user_id.value),
+            keycloak_user_id=UUID(context.keycloak_user_id.value),
+            email=user_data.get("email", context.email),
+            username=user_data.get("username", context.username),
+            
+            # External Auth
+            external_user_id=user_data.get("external_user_id", ""),
+            external_auth_provider=user_data.get("external_auth_provider", "keycloak"),
+            
+            # Profile Information
+            first_name=user_data.get("first_name", context.first_name),
+            last_name=user_data.get("last_name", context.last_name),
+            display_name=user_data.get("display_name", context.display_name),
+            avatar_url=user_data.get("avatar_url"),
+            phone=user_data.get("phone"),
+            job_title=user_data.get("job_title"),
+            
+            # Localization
+            timezone=user_data.get("timezone", "UTC"),
+            locale=user_data.get("locale", "en-US"),
+            
+            # Status
+            status=user_data.get("status", "active"),
+            
+            # Organizational
+            departments=user_data.get("departments", []),
+            company=user_data.get("company"),
+            manager_id=UUID(user_data["manager_id"]) if user_data.get("manager_id") else None,
+            
+            # Role and Access
+            default_role_level=user_data.get("default_role_level", "member"),
+            is_system_user=user_data.get("is_system_user", False),
+            
+            # Onboarding and Profile
+            is_onboarding_completed=user_data.get("is_onboarding_completed", False),
+            profile_completion_percentage=user_data.get("profile_completion_percentage", 0),
+            
+            # Preferences
+            notification_preferences=user_data.get("notification_preferences", {}),
+            ui_preferences=user_data.get("ui_preferences", {}),
+            feature_flags=user_data.get("feature_flags", {}),
+            
+            # Tags and Custom Fields
+            tags=user_data.get("tags", []),
+            custom_fields=user_data.get("custom_fields", {}),
+            metadata=user_data.get("metadata", {}),
+            
+            # Activity Tracking
+            invited_at=user_data.get("invited_at"),
+            activated_at=user_data.get("activated_at"),
+            last_activity_at=user_data.get("last_activity_at"),
+            last_login_at=user_data.get("last_login_at"),
+            
+            # Audit Fields
+            created_at=user_data.get("created_at"),
+            updated_at=user_data.get("updated_at"),
+            authenticated_at=context.authenticated_at,
+            
+            # RBAC Data
+            roles=[role.value for role in context.roles],
+            permissions=permissions_data,
+        )
 
 
-class LoginResponse(BaseSchema):
-    """Login response model with complete user profile."""
+class AdminTokenResponse(BaseModel):
+    """Response model for authentication tokens."""
+    
     access_token: str = Field(..., description="JWT access token")
-    refresh_token: str = Field(..., description="Refresh token")
-    token_type: str = Field("Bearer", description="Token type")
+    refresh_token: Optional[str] = Field(None, description="Refresh token")
+    token_type: str = Field("bearer", description="Token type")
     expires_in: int = Field(..., description="Access token expiry in seconds")
-    refresh_expires_in: Optional[int] = Field(None, description="Refresh token expiry in seconds")
-    session_id: str = Field(..., description="Session identifier")
-    user: UserProfile = Field(..., description="Complete user profile with onboarding status")
+    refresh_expires_in: Optional[int] = Field(None, description="Refresh token expiry")
 
 
-class SessionInfo(BaseSchema):
-    """Session information model."""
-    session_id: str = Field(..., description="Session identifier")
-    user_id: UUID = Field(..., description="User identifier")
-    created_at: datetime = Field(..., description="Session creation time")
-    expires_at: datetime = Field(..., description="Session expiry time")
-    ip_address: Optional[str] = Field(None, description="Client IP address")
-    user_agent: Optional[str] = Field(None, description="Client user agent")
-    is_active: bool = Field(True, description="Session active status")
+class AdminLoginResponse(BaseModel):
+    """Response model for admin login."""
+    
+    tokens: AdminTokenResponse = Field(..., description="Authentication tokens")
+    user: AdminUserResponse = Field(..., description="User information")
+    session_id: Optional[str] = Field(None, description="Session ID")
+    message: str = Field("Login successful", description="Success message")
 
 
-class AuthStatus(BaseSchema):
-    """Authentication status model."""
-    is_authenticated: bool = Field(..., description="Authentication status")
-    user: Optional[UserProfile] = Field(None, description="User profile if authenticated")
-    session: Optional[SessionInfo] = Field(None, description="Session information")
-    permissions: List[str] = Field(default_factory=list, description="Current permissions")
-    roles: List[str] = Field(default_factory=list, description="Current roles")
-
-
-class PasswordChangeResponse(BaseSchema):
-    """Password change response model."""
-    success: bool = Field(..., description="Operation success")
+class ForgotPasswordResponse(BaseModel):
+    """Response model for forgot password."""
+    
     message: str = Field(..., description="Response message")
-    requires_relogin: bool = Field(False, description="Whether user needs to login again")
+    success: bool = Field(..., description="Operation success status")
+    reset_token_sent: bool = Field(..., description="Whether reset token was sent")
+    expires_in: Optional[int] = Field(None, description="Token expiry in seconds")
 
 
-class PasswordResetResponse(BaseSchema):
-    """Password reset response model."""
-    success: bool = Field(..., description="Operation success")
+class EmailVerificationResponse(BaseModel):
+    """Response model for email verification."""
+    
     message: str = Field(..., description="Response message")
-    email_sent: bool = Field(False, description="Whether email was sent")
+    success: bool = Field(..., description="Operation success status")
 
 
-class EmailVerificationResponse(BaseSchema):
-    """Email verification response model."""
-    success: bool = Field(..., description="Operation success")
+class RequiredActionsResponse(BaseModel):
+    """Response model for required actions email."""
+    
     message: str = Field(..., description="Response message")
-    email_verified: bool = Field(False, description="Email verification status")
+    success: bool = Field(..., description="Operation success status")
+    actions: List[str] = Field(..., description="Actions that were sent")
 
 
-class LogoutResponse(BaseSchema):
-    """Logout response model."""
-    success: bool = Field(..., description="Operation success")
-    message: str = Field("Successfully logged out", description="Response message")
-    sessions_terminated: int = Field(1, description="Number of sessions terminated")
+class UserCredentialsResponse(BaseModel):
+    """Response model for user credentials information."""
+    
+    success: bool = Field(..., description="Operation success status")
+    user_id: str = Field(..., description="User ID")
+    credentials: List[Dict[str, Any]] = Field(..., description="User credentials information")
 
 
-class PermissionResponse(BaseSchema):
-    """Permission response model."""
-    id: int = Field(..., description="Permission ID")
-    code: str = Field(..., description="Permission code")
-    resource: str = Field(..., description="Resource name")
-    action: str = Field(..., description="Action name")
-    scope_level: str = Field(..., description="Scope level (platform/tenant)")
-    description: Optional[str] = Field(None, description="Permission description")
-    is_dangerous: bool = Field(False, description="Is dangerous permission")
-    requires_mfa: bool = Field(False, description="Requires MFA")
-    requires_approval: bool = Field(False, description="Requires approval")
+class RemoveTOTPResponse(BaseModel):
+    """Response model for removing TOTP."""
+    
+    message: str = Field(..., description="Response message")
+    success: bool = Field(..., description="Operation success status")

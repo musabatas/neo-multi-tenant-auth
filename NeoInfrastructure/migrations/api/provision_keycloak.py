@@ -119,7 +119,7 @@ async def provision_tenant(tenant_id: str) -> None:
         await pool.close()
 
 
-async def ensure_admin_realm(realm_name: str = "platform-admin", client_id: str = "neo-admin-api") -> None:
+async def ensure_admin_realm(realm_name: str = "platform-admin", client_id: str = "NeoAdminApi") -> None:
     kc = build_default_provisioner_from_env()
     ensured_realm, ensured_client_id, client_secret = await kc.ensure_realm_and_client(realm_name, client_id)
     # Print to stdout so operator can copy to service env vars

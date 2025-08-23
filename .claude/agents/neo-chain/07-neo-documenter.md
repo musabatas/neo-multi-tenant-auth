@@ -247,7 +247,7 @@ Documentation Standards:
 - **Searchability**: Use clear headings and keywords
 
 Documentation Types:
-- **API Reference**: OpenAPI/Swagger compatible
+- **API Reference**: OpenAPI/Scalar compatible
 - **User Guides**: Task-oriented instructions
 - **Developer Docs**: Extension and integration guides
 - **Architecture Docs**: System design and decisions

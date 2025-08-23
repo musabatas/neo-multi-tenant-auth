@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<investigation timestamp="2025-08-22 23:48:53" requirement="Analyze roles and permissions system in neo-commons for database-based RBAC implementation">
+  <codebase_findings>
+    <files>
+      <file path="neo-commons/src/neo_commons/features/permissions/" relevance="high">
+        <purpose>Complete RBAC permissions feature with entities, services, and repositories</purpose>
+        <key_components>Permission, PermissionCode, Role, RoleCode, PermissionService, AsyncPGPermissionRepository, AsyncPGRoleRepository</key_components>
+        <dependencies>asyncpg, core value objects, database protocols</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/permissions/entities/permission.py" relevance="high">
+        <purpose>Permission domain entity with resource:action structure, security controls, and validation</purpose>
+        <key_components>Permission class, PermissionCode value object, security flags (dangerous, MFA, approval)</key_components>
+        <dependencies>core exceptions, constants.PermissionScope</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/permissions/entities/role.py" relevance="high">
+        <purpose>Role domain entity with hierarchical levels, permission assignments, and runtime caching</purpose>
+        <key_components>Role class, RoleCode value object, permission runtime cache, hierarchy methods</key_components>
+        <dependencies>Permission entities, constants.RoleLevel</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/permissions/entities/protocols.py" relevance="high">
+        <purpose>Protocol interfaces for RBAC dependency injection (permission checking, repositories, user management)</purpose>
+        <key_components>PermissionChecker, PermissionRepository, RoleRepository, UserRoleManager, PermissionCache</key_components>
+        <dependencies>core value objects, Permission/Role entities</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/permissions/services/permission_service.py" relevance="high">
+        <purpose>Business logic orchestration for permission operations with caching and validation</purpose>
+        <key_components>PermissionService class with CRUD, assignment, checking, and cache management</key_components>
+        <dependencies>All permission protocols, core value objects</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/permissions/repositories/permission_repository.py" relevance="high">
+        <purpose>AsyncPG-based permission data access with dynamic schema support</purpose>
+        <key_components>AsyncPGPermissionRepository with CRUD operations, search functionality</key_components>
+        <dependencies>asyncpg, connection manager, Permission entities</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/permissions/repositories/role_repository.py" relevance="high">
+        <purpose>AsyncPG-based role data access with permission relationships and caching</purpose>
+        <key_components>AsyncPGRoleRepository with role-permission management, cache updates</key_components>
+        <dependencies>asyncpg, connection manager, Role/Permission entities</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/auth/dependencies.py" relevance="high">
+        <purpose>FastAPI authentication dependencies with permission-based authorization</purpose>
+        <key_components>AuthDependencies class, permission/role requirement decorators</key_components>
+        <dependencies>FastAPI Depends, auth protocols, core value objects</dependencies>
+      </file>
+      <file path="neo-commons/src/neo_commons/features/cache/" relevance="medium">
+        <purpose>Enterprise caching system with Redis, tenant-aware, and performance optimization</purpose>
+        <key_components>Cache protocols, Redis adapter, tenant-aware caching, metrics</key_components>
+        <dependencies>Redis, protocols for pluggable backends</dependencies>
+      </file>
+    </files>
+    <patterns>
+      <pattern name="Feature-First Architecture" location="neo-commons/src/neo_commons/features/">
+        <description>Clean architecture with feature modules containing entities, services, repositories</description>
+        <usage>Permissions feature follows this pattern with clear separation of concerns</usage>
+      </pattern>
+      <pattern name="Protocol-Based Dependency Injection" location="entities/protocols.py">
+        <description>@runtime_checkable Protocol interfaces for flexible implementations</description>
+        <usage>All major components defined as protocols for testability and swappability</usage>
+      </pattern>
+      <pattern name="AsyncPG Repository Pattern" location="repositories/">
+        <description>High-performance async repositories with dynamic schema support</description>
+        <usage>Both permission and role repositories use AsyncPG with connection managers</usage>
+      </pattern>
+      <pattern name="Runtime Permission Caching" location="entities/role.py">
+        <description>Roles cache their permissions in runtime for performance</description>
+        <usage>populated_permissions JSONB field cached in Role._permissions set</usage>
+      </pattern>
+      <pattern name="FastAPI Dependency Injection" location="auth/dependencies.py">
+        <description>Permission-based route protection using FastAPI Depends</description>
+        <usage>require_permission(), require_role(), require_any_permission() decorators</usage>
+      </pattern>
+      <pattern name="Multi-Schema Support" location="repositories/">
+        <description>Dynamic schema configuration for admin vs tenant databases</description>
+        <usage>All repository methods accept schema parameter for flexible deployment</usage>
+      </pattern>
+    </patterns>
+  </codebase_findings>
+  
+  <database_findings>
+    <schemas>
+      <schema name="admin">
+        <tables>
+          <table name="permissions" relevance="high">
+            <columns>id (IDENTITY), code (VARCHAR UNIQUE), description, resource, action, scope_level, is_dangerous, requires_mfa, requires_approval, permission_config (JSONB)</columns>
+            <relationships>Referenced by role_permissions and user_permissions</relationships>
+            <indexes>code, resource, action, scope_level, is_dangerous</indexes>
+          </table>
+          <table name="roles" relevance="high">
+            <columns>id (IDENTITY), code (VARCHAR UNIQUE), name, description, display_name, role_level, is_system, is_default, requires_approval, scope_type, priority, max_assignees, auto_expire_days, role_config (JSONB), metadata (JSONB), populated_permissions (JSONB)</columns>
+            <relationships>Referenced by role_permissions and user_roles</relationships>
+            <indexes>code, role_level, is_system, is_default, scope_type</indexes>
+          </table>
+          <table name="role_permissions" relevance="high">
+            <columns>role_id (FK), permission_id (FK), granted_at, granted_by (FK users), granted_reason</columns>
+            <relationships>Many-to-many between roles and permissions</relationships>
+            <indexes>role_id, permission_id, granted_by</indexes>
+          </table>
+          <table name="user_roles" relevance="high">
+            <columns>id (UUID), user_id (FK), role_id (FK), scope_type, scope_id, granted_by (FK), granted_reason, granted_at, expires_at, is_active</columns>
+            <relationships>Links users to roles with flexible scoping (global, team, tenant)</relationships>
+            <indexes>user_id, role_id, scope (type,id), granted_by, is_active, expires_at</indexes>
+          </table>
+          <table name="user_permissions" relevance="high">
+            <columns>id (UUID), user_id (FK), permission_id (FK), is_granted, is_active, scope_type, scope_id, granted_by (FK), granted_reason, granted_at, revoked_by (FK), revoked_reason, expires_at</columns>
+            <relationships>Direct permission grants to users with audit trail</relationships>
+            <indexes>user_id, permission_id, scope (type,id), is_granted, is_active</indexes>
+          </table>
+        </tables>
+        <procedures>None found - uses application-level logic</procedures>
+      </schema>
+      <schema name="tenant_template">
+        <tables>
+          <table name="permissions" relevance="high">
+            <columns>Same structure as admin.permissions but for tenant-level permissions</columns>
+            <relationships>Referenced by tenant role_permissions and user_permissions</relationships>
+            <indexes>Same as admin schema</indexes>
+          </table>
+          <table name="roles" relevance="high">
+            <columns>Same structure as admin.roles but for tenant-level roles</columns>
+            <relationships>Referenced by tenant role_permissions and user_roles</relationships>
+            <indexes>Same as admin schema</indexes>
+          </table>
+          <table name="role_permissions" relevance="high">
+            <columns>Same structure as admin schema for tenant role-permission mappings</columns>
+            <relationships>Many-to-many between tenant roles and permissions</relationships>
+            <indexes>Same as admin schema</indexes>
+          </table>
+          <table name="user_roles" relevance="high">
+            <columns>Same structure as admin schema but for tenant user-role assignments</columns>
+            <relationships>Links tenant users to tenant roles</relationships>
+            <indexes>Same as admin schema</indexes>
+          </table>
+          <table name="user_permissions" relevance="high">
+            <columns>Same structure as admin schema for tenant direct permissions</columns>
+            <relationships>Direct permission grants within tenant context</relationships>
+            <indexes>Same as admin schema</indexes>
+          </table>
+        </tables>
+        <procedures>None found - uses application-level logic</procedures>
+      </schema>
+    </schemas>
+  </database_findings>
+  
+  <framework_documentation>
+    <framework name="FastAPI" version="latest">
+      <relevant_features>Depends() dependency injection, HTTPBearer security, HTTPException handling</relevant_features>
+      <best_practices>Protocol-based dependencies, JWT token validation, permission decorators</best_practices>
+      <examples>AuthDependencies class with require_permission(), require_role() methods</examples>
+    </framework>
+    <framework name="AsyncPG" version="latest">
+      <relevant_features>High-performance async PostgreSQL driver, connection pooling</relevant_features>
+      <best_practices>Dynamic schema queries, parameterized statements, transaction support</best_practices>
+      <examples>Repository pattern with schema-aware queries, bulk operations</examples>
+    </framework>
+    <framework name="Redis" version="latest">
+      <relevant_features>Key-value caching, TTL support, pattern-based operations</relevant_features>
+      <best_practices>Tenant-aware keys, permission caching, cache invalidation strategies</best_practices>
+      <examples>PermissionCache protocol for sub-millisecond permission checks</examples>
+    </framework>
+  </framework_documentation>
+  
+  <recommendations>
+    <recommendation priority="high">
+      <description>Implement missing PermissionChecker concrete implementation</description>
+      <rationale>Protocol exists but no concrete implementation found for actual permission checking</rationale>
+      <implementation_notes>Create AsyncPGPermissionChecker that queries user_roles, role_permissions, and user_permissions tables with caching</implementation_notes>
+    </recommendation>
+    <recommendation priority="high">
+      <description>Implement UserRoleManager concrete implementation</description>
+      <rationale>Protocol exists but no concrete implementation for user role assignment operations</rationale>
+      <implementation_notes>Create AsyncPGUserRoleManager for role assignment, revocation, and direct permission grants</implementation_notes>
+    </recommendation>
+    <recommendation priority="high">
+      <description>Implement PermissionCache concrete implementation</description>
+      <rationale>Redis-based caching is essential for sub-millisecond permission checks</rationale>
+      <implementation_notes>Create RedisPermissionCache using tenant-aware keys, TTL-based invalidation</implementation_notes>
+    </recommendation>
+    <recommendation priority="medium">
+      <description>Add comprehensive tests for permission checking logic</description>
+      <rationale>Complex RBAC logic requires extensive testing of edge cases and performance</rationale>
+      <implementation_notes>Test role inheritance, permission aggregation, scope-based access, cache behavior</implementation_notes>
+    </recommendation>
+    <recommendation priority="medium">
+      <description>Add permission migration utilities</description>
+      <rationale>Need tooling to migrate from Keycloak roles to database-based RBAC</rationale>
+      <implementation_notes>Create migration scripts to export Keycloak roles/permissions to database schema</implementation_notes>
+    </recommendation>
+    <recommendation priority="low">
+      <description>Add audit logging for permission changes</description>
+      <rationale>Enterprise compliance requires tracking of permission modifications</rationale>
+      <implementation_notes>Extend repositories to log permission grants/revocations with user context</implementation_notes>
+    </recommendation>
+  </recommendations>
+  
+  <summary>
+    <key_findings>
+      <finding>Complete RBAC domain model exists with Permission, Role entities and sophisticated validation</finding>
+      <finding>Protocol-based architecture enables flexible dependency injection and testing</finding>
+      <finding>Database schemas support both admin (platform) and tenant-level permissions with flexible scoping</finding>
+      <finding>AsyncPG repositories provide high-performance data access with dynamic schema support</finding>
+      <finding>FastAPI integration exists with permission-based route protection decorators</finding>
+      <finding>Comprehensive caching protocols designed for sub-millisecond performance targets</finding>
+      <finding>Role hierarchy and permission aggregation logic implemented in domain entities</finding>
+    </key_findings>
+    <existing_implementations>
+      <implementation>Permission and Role domain entities with full validation and business logic</implementation>
+      <implementation>AsyncPG-based repositories for permissions and roles with CRUD operations</implementation>
+      <implementation>PermissionService orchestration layer with caching integration</implementation>
+      <implementation>FastAPI AuthDependencies with permission/role requirement decorators</implementation>
+      <implementation>Database schemas with proper indexes for performance (admin + tenant_template)</implementation>
+      <implementation>Protocol interfaces for all major components enabling dependency injection</implementation>
+    </existing_implementations>
+    <gaps>
+      <gap>No concrete PermissionChecker implementation for actual permission validation</gap>
+      <gap>No UserRoleManager implementation for role assignment operations</gap>
+      <gap>No PermissionCache implementation for Redis-based caching</gap>
+      <gap>Missing integration between auth system and permission checking</gap>
+      <gap>No migration utilities to move from Keycloak to database-based RBAC</gap>
+      <gap>Limited audit logging for permission modifications</gap>
+    </gaps>
+    <risks>
+      <risk>Performance risk if permission checking not properly cached (sub-millisecond target)</risk>
+      <risk>Data consistency risk without proper transaction handling in role assignments</risk>
+      <risk>Security risk if permission checks bypass caching and hit database directly</risk>
+      <risk>Complexity risk in managing dual admin/tenant permission systems</risk>
+    </risks>
+  </summary>
+</investigation>

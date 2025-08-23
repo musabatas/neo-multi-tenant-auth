@@ -18,19 +18,27 @@ CREATE TYPE platform_common.auth_provider AS ENUM (
     'keycloak', 'auth0', 'authentik', 'authelia', 'azure', 'google', 'custom'
 );
 
--- User role levels for tenant-specific roles
-CREATE TYPE platform_common.user_role_level AS ENUM (
-    'owner', 'admin', 'manager', 'member', 'viewer', 'guest'
+-- Unified role levels (merge platform and user role levels)
+CREATE TYPE platform_common.role_level AS ENUM (
+    'system',     -- System-wide (super admin)
+    'platform',   -- Platform-wide (platform admin)
+    'tenant',     -- Tenant-wide (tenant admin)
+    'owner',      -- Tenant owner
+    'admin',      -- Tenant administrator
+    'manager',    -- Team manager
+    'member',     -- Standard member
+    'viewer',     -- Read-only access
+    'guest'       -- Limited guest access
 );
 
--- User status types
-CREATE TYPE platform_common.user_statuses AS ENUM (
+-- Unified user status
+CREATE TYPE platform_common.user_status AS ENUM (
     'active', 'inactive', 'pending', 'suspended', 'archived'
 );
 
--- Permission scopes for tenant-level permissions
-CREATE TYPE platform_common.permission_scopes AS ENUM (
-    'tenant', 'team', 'user'
+-- Unified permission scope levels  
+CREATE TYPE platform_common.permission_scope AS ENUM (
+    'platform', 'tenant', 'team', 'user'
 );
 
 -- Team types

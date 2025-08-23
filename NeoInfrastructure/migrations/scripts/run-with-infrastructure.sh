@@ -5,9 +5,9 @@ set -e
 echo "🚀 Starting NeoMigrations with Infrastructure Integration"
 
 # Check if infrastructure is running
-if ! docker network ls | grep -q neo-infrastructure; then
-    echo "Creating neo-infrastructure network..."
-    docker network create neo-infrastructure
+if ! docker network ls | grep -q NeoInfrastructure; then
+    echo "Creating NeoInfrastructure network..."
+    docker network create NeoInfrastructure
 fi
 
 # Check if infrastructure containers are running
