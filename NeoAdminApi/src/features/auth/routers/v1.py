@@ -3,7 +3,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from neo_commons.core.exceptions.auth import (
@@ -42,24 +42,23 @@ security = HTTPBearer()
 async def get_current_admin_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]
 ) -> AuthContext:
-    """Simple admin auth dependency that validates JWT without tenant requirements."""
+    """Admin auth dependency that validates JWT against Keycloak public key."""
     try:
-        import jwt
-        
-        # For now, decode token without validation (development mode)
-        # In production, this should validate against Keycloak public key
-        token_payload = jwt.decode(credentials.credentials, options={"verify_signature": False})
-        
-        # Extract user info from token
-        keycloak_user_id = token_payload.get("sub", "")
-        username = token_payload.get("preferred_username", "")
-        email = token_payload.get("email", "")
-        first_name = token_payload.get("given_name", "")
-        last_name = token_payload.get("family_name", "")
-        
-        # For admin users, sync and get platform user ID
+        # Get auth service to validate token properly
         from ....common.dependencies import get_auth_service
         auth_service = await get_auth_service()
+        
+        # Validate token using Keycloak's public key and check expiration
+        token_data = await auth_service.validate_token(credentials.credentials)
+        
+        # Extract user info from validated token
+        keycloak_user_id = token_data.get("sub", "")
+        username = token_data.get("preferred_username", "")
+        email = token_data.get("email", "")
+        first_name = token_data.get("given_name", "")
+        last_name = token_data.get("family_name", "")
+        
+        # For admin users, sync and get platform user ID
         platform_user_id = await auth_service._sync_admin_user(
             keycloak_user_id=keycloak_user_id,
             username=username,
@@ -68,7 +67,7 @@ async def get_current_admin_user(
             last_name=last_name
         )
         
-        # Create a simple auth context for admin users
+        # Create auth context for admin users
         from neo_commons.core.value_objects.identifiers import UserId, KeycloakUserId, RealmId
         from datetime import datetime, timezone
         
@@ -83,18 +82,24 @@ async def get_current_admin_user(
             last_name=last_name,
             roles=set(),  # Will be loaded by service
             permissions=set(),  # Will be loaded by service
-            session_id=token_payload.get("sid", ""),
-            expires_at=datetime.fromtimestamp(token_payload.get("exp", 0), tz=timezone.utc) if token_payload.get("exp") else None,
+            session_id=token_data.get("sid", ""),
+            expires_at=datetime.fromtimestamp(token_data.get("exp", 0), tz=timezone.utc) if token_data.get("exp") else None,
             authenticated_at=datetime.now(timezone.utc),
         )
         
         return auth_context
         
+    except InvalidTokenError as e:
+        logger.warning(f"Invalid token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
     except Exception as e:
         logger.error(f"Admin auth failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token"
+            detail="Authentication failed"
         )
 
 
@@ -164,11 +169,26 @@ async def refresh_token(
     description="Get current authenticated admin user information"
 )
 async def get_current_user(
+    response: Response,
     current_user: Annotated[AuthContext, Depends(get_current_admin_user)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ) -> AdminUserResponse:
-    """Get current user endpoint."""
-    return await auth_service.get_current_user_info(current_user)
+    """Get current user endpoint.
+    
+    Returns user information and sets X-Cache-Status header to indicate
+    whether the response was served from cache ('HIT') or database ('MISS').
+    """
+    result = await auth_service.get_current_user_info(current_user)
+    
+    # Check if result is a tuple (data, cache_hit)
+    if isinstance(result, tuple):
+        user_data, cache_hit = result
+        response.headers["X-Cache-Status"] = "HIT" if cache_hit else "MISS"
+        return user_data
+    else:
+        # Backward compatibility if service doesn't return cache status
+        response.headers["X-Cache-Status"] = "UNKNOWN"
+        return result
 
 
 @router.post(

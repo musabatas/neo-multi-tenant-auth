@@ -37,7 +37,7 @@ class KeycloakOpenIDAdapter:
         
         if server_url.endswith('/auth'):
             server_url = server_url[:-5]  # Remove '/auth'
-            logger.info(f"Removed /auth suffix for Keycloak v18+ compatibility: {server_url}")
+            logger.debug(f"Removed /auth suffix for Keycloak v18+ compatibility: {server_url}")
         
         # Create new config with normalized server URL
         return KeycloakConfig(
@@ -79,7 +79,7 @@ class KeycloakOpenIDAdapter:
                     verify=self.config.require_https,
                 )
                 
-                logger.info(f"Initialized OpenID client for realm: {self.config.realm_name}")
+                logger.debug(f"Initialized OpenID client for realm: {self.config.realm_name}")
                 
             except Exception as e:
                 logger.error(f"Failed to initialize Keycloak OpenID client: {e}")
@@ -90,9 +90,10 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            token_response = self._openid_client.token(username, password)
+            # Use native async method from python-keycloak
+            token_response = await self._openid_client.a_token(username, password)
             
-            logger.info(f"Successfully authenticated user: {username}")
+            logger.debug(f"Successfully authenticated user: {username}")
             return JWTToken.from_keycloak_response(token_response)
         
         except KeycloakAuthenticationError as e:
@@ -108,9 +109,10 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            token_response = self._openid_client.refresh_token(refresh_token)
+            # Use native async method from python-keycloak
+            token_response = await self._openid_client.a_refresh_token(refresh_token)
             
-            logger.info("Successfully refreshed access token")
+            logger.debug("Successfully refreshed access token")
             return JWTToken.from_keycloak_response(token_response)
         
         except KeycloakAuthenticationError as e:
@@ -128,8 +130,9 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            self._openid_client.logout(refresh_token)
-            logger.info("Successfully logged out user")
+            # Use native async method from python-keycloak
+            await self._openid_client.a_logout(refresh_token)
+            logger.debug("Successfully logged out user")
         
         except KeycloakError as e:
             # Don't fail logout on token errors - token might already be invalid
@@ -140,7 +143,8 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            user_info = self._openid_client.userinfo(access_token)
+            # Use native async method from python-keycloak
+            user_info = await self._openid_client.a_userinfo(access_token)
             logger.debug("Successfully retrieved user info")
             return user_info
         
@@ -161,7 +165,8 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            introspection = self._openid_client.introspect(token)
+            # Use native async method from python-keycloak
+            introspection = await self._openid_client.a_introspect(token)
             logger.debug("Successfully introspected token")
             return introspection
         
@@ -179,26 +184,9 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            options = {
-                "verify_signature": validate and self.config.verify_signature,
-                "verify_aud": validate and self.config.verify_audience,
-                "verify_exp": validate and self.config.verify_exp,
-                "verify_nbf": validate and self.config.verify_nbf,
-                "verify_iat": validate and self.config.verify_iat,
-            }
-            
-            # Get public key for validation
-            public_key = None
-            if validate and self.config.verify_signature:
-                public_key = self._openid_client.public_key()
-            
-            claims = self._openid_client.decode_token(
-                token,
-                key=public_key,
-                options=options,
-                audience=audience or self.config.audience,
-                algorithms=self.config.algorithms,
-            )
+            # Use native async method from python-keycloak
+            # According to documentation, a_decode_token takes token and validate parameters
+            claims = await self._openid_client.a_decode_token(token, validate=validate)
             
             logger.debug("Successfully decoded token")
             return claims
@@ -216,7 +204,8 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            public_key = self._openid_client.public_key()
+            # Use native async method from python-keycloak
+            public_key = await self._openid_client.a_public_key()
             logger.debug(f"Retrieved public key for realm: {self.config.realm_name}")
             return public_key
         
@@ -229,7 +218,8 @@ class KeycloakOpenIDAdapter:
         await self._ensure_connected()
         
         try:
-            config = self._openid_client.well_known()
+            # Use native async method from python-keycloak
+            config = await self._openid_client.a_well_known()
             logger.debug(f"Retrieved well-known config for realm: {self.config.realm_name}")
             return config
         
@@ -240,20 +230,31 @@ class KeycloakOpenIDAdapter:
     async def exchange_token(
         self,
         token: str,
+        client_id: str,
         audience: str,
-        subject_token_type: str = "urn:ietf:params:oauth:token-type:access_token",
+        subject: Optional[str] = None,
     ) -> JWTToken:
-        """Exchange token for another token (token exchange flow)."""
+        """Exchange token for another token (token exchange flow).
+        
+        Args:
+            token: The access token to exchange
+            client_id: The client ID of the target client
+            audience: The intended audience for the new token
+            subject: Optional subject (user) for the new token
+        """
         await self._ensure_connected()
         
         try:
-            token_response = self._openid_client.exchange_token(
-                token=token,
-                audience=audience,
-                subject_token_type=subject_token_type,
+            # Use native async method from python-keycloak
+            # According to documentation: a_exchange_token(access_token, client_id, audience, subject)
+            token_response = await self._openid_client.a_exchange_token(
+                token,
+                client_id, 
+                audience,
+                subject
             )
             
-            logger.info(f"Successfully exchanged token for audience: {audience}")
+            logger.debug(f"Successfully exchanged token for audience: {audience}")
             return JWTToken.from_keycloak_response(token_response)
         
         except KeycloakError as e:

@@ -48,25 +48,52 @@ async def get_organization_service():
 
 async def get_auth_service():
     """Get auth service with neo-commons auth factory."""
-    import os
     from ..features.auth.services.auth_service import AuthService
     from neo_commons.features.auth import AuthServiceFactory
+    from neo_commons.config.manager import get_env_config
     
     # Get database service
     database_service = await get_database_service()
     
+    # Get centralized configuration
+    env_config = get_env_config()
+    
     # Create auth factory using neo-commons with database service
     auth_factory = AuthServiceFactory(
-        keycloak_server_url=os.getenv("KEYCLOAK_SERVER_URL", "http://localhost:8080"),
-        keycloak_admin_username=os.getenv("KEYCLOAK_ADMIN", "admin"),
-        keycloak_admin_password=os.getenv("KEYCLOAK_PASSWORD", "admin"),
-        redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
-        redis_password=os.getenv("REDIS_PASSWORD", "redis"),
+        keycloak_server_url=env_config.keycloak_server_url,
+        keycloak_admin_username=env_config.keycloak_admin or "admin",
+        keycloak_admin_password=env_config.keycloak_password or "admin",
+        redis_url=env_config.redis_url,
+        redis_password=env_config.redis_password,
         database_service=database_service,
     )
     
     # Create and return auth service
     return AuthService(auth_factory)
+
+async def get_cache_service():
+    """Get cache service for cache management endpoints."""
+    from neo_commons.features.auth import AuthServiceFactory
+    from neo_commons.config.manager import get_env_config
+    
+    # Get database service
+    database_service = await get_database_service()
+    
+    # Get centralized configuration
+    env_config = get_env_config()
+    
+    # Create auth factory to get cache service
+    auth_factory = AuthServiceFactory(
+        keycloak_server_url=env_config.keycloak_server_url,
+        keycloak_admin_username=env_config.keycloak_admin or "admin",
+        keycloak_admin_password=env_config.keycloak_password or "admin",
+        redis_url=env_config.redis_url,
+        redis_password=env_config.redis_password,
+        database_service=database_service,
+    )
+    
+    # Return the cache service
+    return await auth_factory.get_cache_service()
 
 # Request Context Dependencies
 

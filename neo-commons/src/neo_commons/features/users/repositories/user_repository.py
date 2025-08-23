@@ -64,7 +64,7 @@ class UserRepository:
                         """,
                         external_user_id, username, email, first_name, last_name
                     )
-                    logger.info(f"Updated existing user: {username} in {safe_schema}")
+                    logger.debug(f"Updated existing user: {username} in {safe_schema}")
                     return UserId(str(existing_user['id']))
                 else:
                     # Create new user

@@ -170,7 +170,11 @@ class KeycloakService(KeycloakClientProtocol):
         adapter = await self._get_adapter(realm_id)
         
         async with adapter:
-            new_token = await adapter.exchange_token(token, audience)
+            # exchange_token needs client_id, audience, and optionally subject
+            # Using the realm's configured client_id as the target client
+            realm = await self.realm_manager.get_realm_by_id(realm_id)
+            client_id = realm.config.client_id if realm and realm.config else "account"
+            new_token = await adapter.exchange_token(token, client_id, audience, None)
         
         logger.info("Successfully exchanged token")
         return new_token

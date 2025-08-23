@@ -1,12 +1,14 @@
 """Auth service for admin authentication using neo-commons."""
 
 import logging
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Dict, Tuple, Union
 
 from neo_commons.core.exceptions.auth import (
     AuthenticationError,
     InvalidCredentialsError,
     InvalidTokenError,
+    TokenExpiredError,
 )
 from neo_commons.core.value_objects.identifiers import RealmId, UserId, KeycloakUserId
 from neo_commons.core.value_objects import RoleCode, PermissionCode
@@ -45,6 +47,22 @@ class AuthService:
     def __init__(self, auth_factory):
         """Initialize with neo-commons auth factory."""
         self.auth_factory = auth_factory
+        self.auth_cache_service = None
+        self._cache_initialized = False
+    
+    async def _ensure_cache_initialized(self):
+        """Ensure cache service is initialized once."""
+        if not self._cache_initialized:
+            try:
+                if hasattr(self.auth_factory, 'get_auth_cache_service'):
+                    self.auth_cache_service = await self.auth_factory.get_auth_cache_service()
+                    logger.info("Auth cache service initialized successfully")
+                else:
+                    logger.debug("Auth factory does not have cache service")
+            except Exception as e:
+                logger.warning(f"Could not initialize auth cache service: {e}")
+            finally:
+                self._cache_initialized = True
     
     async def login(self, login_request: AdminLoginRequest) -> AdminLoginResponse:
         """Authenticate admin user and return tokens."""
@@ -130,7 +148,7 @@ class AuthService:
                     authenticated_at=datetime.now(timezone.utc),
                 )
                 
-                logger.info(f"Admin user {username} authenticated and mapped to platform user ID: {platform_user_id.value}")
+                logger.debug(f"Admin user {username} authenticated and mapped to platform user ID: {platform_user_id.value}")
                 
                 # Create response
                 token_response = AdminTokenResponse(
@@ -155,7 +173,7 @@ class AuthService:
                     auth_context, complete_user_data or {}, user_auth_context['permissions']
                 )
                 
-                logger.info(f"Admin user {login_request.username} logged in successfully")
+                logger.info(f"User {login_request.username} logged in successfully")
                 
                 return AdminLoginResponse(
                     tokens=token_response,
@@ -198,7 +216,7 @@ class AuthService:
             # For admin logout, we just invalidate in Keycloak
             # No need for complex token cache invalidation for admin users
             
-            logger.info(f"Admin user {current_user.user_id.value} logged out successfully")
+            logger.debug(f"User {current_user.user_id.value} logged out successfully")
             
             return {
                 "message": "Admin logout successful",
@@ -213,10 +231,70 @@ class AuthService:
                 "success": True,
             }
     
-    async def get_current_user_info(self, current_user: AuthContext) -> AdminUserResponse:
-        """Get current admin user information with fresh permissions."""
+    async def get_current_user_info(self, current_user: AuthContext) -> Tuple[AdminUserResponse, bool]:
+        """Get current admin user information with cached permissions.
+        
+        Returns:
+            Tuple of (AdminUserResponse, cache_hit: bool)
+            cache_hit is True if data was served from cache, False if from database
+        """
         try:
-            # Load fresh permissions from database
+            # Ensure cache is initialized
+            await self._ensure_cache_initialized()
+            
+            from neo_commons.core.value_objects.identifiers import TenantId
+            
+            # For admin users without tenant, use a special admin tenant ID for caching
+            admin_tenant_id = TenantId("00000000-0000-0000-0000-000000000000")
+            
+            # Try to get cached user data first
+            cached_user_data = None
+            if self.auth_cache_service:
+                cached_user_data = await self.auth_cache_service.get_user_data(
+                    current_user.user_id, admin_tenant_id
+                )
+            
+            # If we have cached data, use it
+            if cached_user_data:
+                logger.info(f"Cache HIT for user {current_user.user_id.value}")
+                
+                # Extract roles and permissions from cached data
+                db_roles = {RoleCode(role_code) for role_code in cached_user_data.get('roles', [])}
+                
+                # Get full permission objects from cache
+                cached_permissions = cached_user_data.get('permissions', [])
+                # Extract permission codes for AuthContext
+                db_permissions = {PermissionCode(perm.get('code', perm) if isinstance(perm, dict) else perm) 
+                                for perm in cached_permissions}
+                
+                # Create auth context with cached data
+                updated_context = AuthContext(
+                    user_id=current_user.user_id,
+                    keycloak_user_id=current_user.keycloak_user_id,
+                    tenant_id=current_user.tenant_id,
+                    realm_id=current_user.realm_id,
+                    username=current_user.username,
+                    email=current_user.email,
+                    first_name=current_user.first_name,
+                    last_name=current_user.last_name,
+                    roles=db_roles,
+                    permissions=db_permissions,
+                    session_id=current_user.session_id,
+                    expires_at=current_user.expires_at,
+                    authenticated_at=current_user.authenticated_at,
+                )
+                
+                return (
+                    AdminUserResponse.from_auth_context_with_user_data(
+                        updated_context, 
+                        cached_user_data.get('complete_user_data', {}), 
+                        cached_permissions  # Pass full permission objects
+                    ),
+                    True  # Cache HIT
+                )
+            
+            # No cache or cache miss - load fresh from database
+            logger.info(f"Cache MISS for user {current_user.user_id.value} - loading from database")
             from ....common.dependencies import get_database_service
             from neo_commons.features.users import UserPermissionService
             
@@ -254,14 +332,92 @@ class AuthService:
                 current_user.user_id, schema_name="admin"
             )
             
-            return AdminUserResponse.from_auth_context_with_user_data(
-                updated_context, complete_user_data or {}, user_auth_context['permissions']
+            # Cache the fresh user data for future requests
+            if self.auth_cache_service:
+                # Prepare data for caching
+                user_data_to_cache = {
+                    'user_id': str(current_user.user_id.value),
+                    'keycloak_user_id': str(current_user.keycloak_user_id.value),
+                    'username': current_user.username,
+                    'email': current_user.email,
+                    'first_name': current_user.first_name,
+                    'last_name': current_user.last_name,
+                    'roles': list(user_auth_context['roles']['codes']),
+                    'permissions': user_auth_context['permissions'],  # Store full permission objects
+                    'complete_user_data': complete_user_data or {},
+                    'cached_at': datetime.now(timezone.utc).isoformat()
+                }
+                
+                # Cache with appropriate TTL
+                await self.auth_cache_service.set_user_data(
+                    current_user.user_id,
+                    admin_tenant_id,
+                    user_data_to_cache
+                )
+                
+                logger.info(f"Cached fresh user data for {current_user.user_id.value}")
+            
+            return (
+                AdminUserResponse.from_auth_context_with_user_data(
+                    updated_context, complete_user_data or {}, user_auth_context['permissions']
+                ),
+                False  # Cache MISS
             )
             
         except Exception as e:
             logger.error(f"Failed to get fresh user info for {current_user.user_id.value}: {e}")
             # Fallback to cached context
-            return AdminUserResponse.from_auth_context(current_user)
+            return (
+                AdminUserResponse.from_auth_context(current_user),
+                False  # Error case, no cache
+            )
+    
+    async def validate_token(self, token: str) -> Dict:
+        """Validate JWT token using Keycloak's public key.
+        
+        This properly validates:
+        - Token signature using Keycloak's public key
+        - Token expiration
+        - Token audience and issuer
+        
+        Returns:
+            Dict: The validated token claims
+            
+        Raises:
+            InvalidTokenError: If token is invalid or expired
+        """
+        try:
+            # Use centralized configuration
+            from neo_commons.config.manager import get_env_config
+            env_config = get_env_config()
+            
+            keycloak_config = KeycloakConfig(
+                server_url=env_config.keycloak_server_url,
+                realm_name=env_config.keycloak_realm,
+                client_id=env_config.keycloak_client_id,
+                client_secret=env_config.keycloak_client_secret,
+                require_https=False,  # Disable HTTPS requirement for development
+                verify_signature=True,  # Enable signature verification
+                verify_exp=True,  # Enable expiration check
+                verify_audience=True,  # Enable audience verification
+                audience=env_config.keycloak_client_id,  # Set expected audience
+            )
+            
+            # Validate token using Keycloak adapter
+            from neo_commons.features.auth.adapters.keycloak_openid import KeycloakOpenIDAdapter
+            async with KeycloakOpenIDAdapter(keycloak_config) as adapter:
+                # Validate token with all security checks enabled
+                claims = await adapter.decode_token(
+                    token=token,
+                    validate=True,  # Enable all validation
+                    audience=keycloak_config.audience
+                )
+                return claims
+        except TokenExpiredError:
+            raise InvalidTokenError("Token has expired")
+        except Exception as e:
+            logger.warning(f"Token validation failed: {e}")
+            raise InvalidTokenError("Invalid token")
     
     async def _sync_admin_user(
         self,
@@ -293,7 +449,7 @@ class AuthService:
                 schema_name="admin"
             )
             
-            logger.info(f"Successfully synced admin user {username} with ID: {user_id.value}")
+            logger.debug(f"Successfully synced admin user {username} with ID: {user_id.value}")
             return user_id
                     
         except Exception as e:
@@ -305,13 +461,15 @@ class AuthService:
     async def refresh_token(self, refresh_token: str) -> AdminTokenResponse:
         """Refresh admin user access token."""
         try:
-            import os
-            # Create Keycloak config directly from environment variables for admin realm
+            # Use centralized configuration
+            from neo_commons.config.manager import get_env_config
+            env_config = get_env_config()
+            
             keycloak_config = KeycloakConfig(
-                server_url=os.getenv("KEYCLOAK_URL", "http://localhost:8080"),
-                realm_name=os.getenv("KEYCLOAK_ADMIN_REALM", "platform-admin"),
-                client_id=os.getenv("KEYCLOAK_CLIENT_ID", "neo-admin-api"),
-                client_secret=os.getenv("KEYCLOAK_CLIENT_SECRET", ""),
+                server_url=env_config.keycloak_server_url,
+                realm_name=env_config.keycloak_realm,
+                client_id=env_config.keycloak_client_id,
+                client_secret=env_config.keycloak_client_secret,
                 require_https=False,  # Disable HTTPS requirement for development
             )
             
@@ -337,12 +495,14 @@ class AuthService:
     
     async def _get_keycloak_config(self):
         """Get Keycloak configuration for admin realm."""
-        import os
+        from neo_commons.config.manager import get_env_config
+        env_config = get_env_config()
+        
         return KeycloakConfig(
-            server_url=os.getenv("KEYCLOAK_URL", "http://localhost:8080"),
-            realm_name=os.getenv("KEYCLOAK_ADMIN_REALM", "platform-admin"),
-            client_id=os.getenv("KEYCLOAK_CLIENT_ID", "neo-admin-api"),
-            client_secret=os.getenv("KEYCLOAK_CLIENT_SECRET", ""),
+            server_url=env_config.keycloak_server_url,
+            realm_name=env_config.keycloak_realm,
+            client_id=env_config.keycloak_client_id,
+            client_secret=env_config.keycloak_client_secret,
             require_https=False,  # Disable HTTPS requirement for development
         )
     
@@ -350,39 +510,37 @@ class AuthService:
         """Get password reset service with Keycloak admin adapter.
         
         Supports two authentication methods:
-        1. Client credentials (preferred): Uses KEYCLOAK_CLIENT_ID + KEYCLOAK_CLIENT_SECRET
-        2. Admin credentials (fallback): Uses KEYCLOAK_ADMIN + KEYCLOAK_PASSWORD
+        1. Admin credentials (preferred for admin operations): Uses KEYCLOAK_ADMIN + KEYCLOAK_PASSWORD
+        2. Client credentials (when service account is enabled): Uses KEYCLOAK_CLIENT_ID + KEYCLOAK_CLIENT_SECRET
+        
+        Note: Client credentials require "Service Accounts Enabled" in Keycloak client configuration.
         """
-        import os
+        from neo_commons.config.manager import get_env_config
+        env_config = get_env_config()
         
-        server_url = os.getenv("KEYCLOAK_URL", "http://localhost:8080")
-        
-        # Try client credentials first (preferred method)
-        client_id = os.getenv("KEYCLOAK_CLIENT_ID")
-        client_secret = os.getenv("KEYCLOAK_CLIENT_SECRET")
-        admin_realm = os.getenv("KEYCLOAK_ADMIN_REALM", "master")
-        
-        if client_id and client_secret:
-            # Use client credentials authentication
+        # Use admin credentials for admin operations (password reset, user management)
+        # This is more reliable as it doesn't require special client configuration
+        if env_config.keycloak_admin and env_config.keycloak_password:
             keycloak_admin = KeycloakAdminAdapter(
-                server_url=server_url,
-                realm_name=admin_realm,
-                client_id=client_id,
-                client_secret=client_secret,
+                server_url=env_config.keycloak_server_url,
+                realm_name=env_config.keycloak_realm,
+                username=env_config.keycloak_admin,
+                password=env_config.keycloak_password,
+                client_id="admin-cli",  # Use default admin client
+                verify=False,  # Disable SSL verification for development
+            )
+        elif env_config.keycloak_client_secret:
+            # Fallback to client credentials if admin creds not available
+            # Note: This requires "Service Accounts Enabled" in Keycloak
+            keycloak_admin = KeycloakAdminAdapter(
+                server_url=env_config.keycloak_server_url,
+                realm_name=env_config.keycloak_realm,
+                client_id=env_config.keycloak_client_id,
+                client_secret=env_config.keycloak_client_secret,
                 verify=False,  # Disable SSL verification for development
             )
         else:
-            # Fallback to admin username/password
-            admin_username = os.getenv("KEYCLOAK_ADMIN", "admin")
-            admin_password = os.getenv("KEYCLOAK_PASSWORD", "admin")
-            
-            keycloak_admin = KeycloakAdminAdapter(
-                server_url=server_url,
-                realm_name=admin_realm,
-                username=admin_username,
-                password=admin_password,
-                verify=False,  # Disable SSL verification for development
-            )
+            raise AuthenticationError("No valid Keycloak admin credentials configured")
         
         return PasswordResetService(keycloak_admin)
     
@@ -405,7 +563,7 @@ class AuthService:
                 realm_name=keycloak_config.realm_name,
             )
             
-            logger.info(f"Password reset initiated for admin email: {request.email}")
+            logger.debug(f"Password reset initiated for email: {request.email}")
             
             return ForgotPasswordResponse(
                 message=result.message,

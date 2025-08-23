@@ -54,7 +54,9 @@ class CacheService:
         """Get value from cache."""
         if not self._initialized:
             await self.initialize()
-        return await self.default_cache.get(key, default)
+        # RedisAdapter doesn't support default parameter
+        result = await self.default_cache.get(key)
+        return result if result is not None else default
     
     async def set(self, 
                  key: str, 
@@ -64,7 +66,8 @@ class CacheService:
         """Set value in cache."""
         if not self._initialized:
             await self.initialize()
-        await self.default_cache.set(key, value, ttl, tags)
+        # RedisAdapter doesn't support tags, so we ignore them for now
+        await self.default_cache.set(key, value, ttl)
     
     async def delete(self, key: str) -> bool:
         """Delete value from cache."""

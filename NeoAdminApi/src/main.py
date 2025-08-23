@@ -5,19 +5,14 @@ import sys
 import os
 
 import uvicorn
+from neo_commons.config.logging_config import LoggingConfig
+
+# Configure logging based on environment
+LoggingConfig.configure()
 
 from .app import create_app
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-logger = logging.getLogger(__name__)
+logger = LoggingConfig.get_logger(__name__)
 
 # Create the FastAPI application
 app = create_app()

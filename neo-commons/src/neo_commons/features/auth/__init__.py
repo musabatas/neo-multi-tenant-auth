@@ -75,6 +75,7 @@ from .entities.cache_protocols import (
 
 # Service implementations  
 from .services.auth_service import AuthService
+from .services.auth_cache_service import AuthCacheService
 from .services.jwt_validator import JWTValidator
 from .services.keycloak_service import KeycloakService
 from .services.realm_manager import RealmManager
@@ -166,6 +167,7 @@ __all__ = [
     
     # Service implementations
     "AuthService",
+    "AuthCacheService",
     "JWTValidator",
     "KeycloakService",
     "RealmManager", 
@@ -257,6 +259,8 @@ class AuthServiceFactory:
         
         # Lazy-initialized services
         self._auth_cache = None
+        self._cache_service = None
+        self._auth_cache_service = None
         self._realm_repository = None
         self._user_mapping_repository = None
         self._keycloak_service = None
@@ -276,6 +280,83 @@ class AuthServiceFactory:
             )
             await self._auth_cache.connect()
         return self._auth_cache
+    
+    async def get_cache_service(self):
+        """Get or create cache service."""
+        if not self._cache_service:
+            from ..cache.services.cache_service import CacheService
+            from ..cache.adapters.redis_adapter import RedisAdapter
+            from ..cache.entities.config import CacheSettings, CacheBackendConfig
+            from ..cache.entities.protocols import CacheBackend
+            
+            # Parse Redis URL to get host, port, db
+            # Format: redis://[password@]host:port[/db]
+            import re
+            from urllib.parse import urlparse
+            
+            parsed = urlparse(self.redis_url)
+            host = parsed.hostname or 'localhost'
+            port = parsed.port or 6379
+            
+            # Get db from path (e.g., /0 -> 0)
+            db = 0
+            if parsed.path and parsed.path != '/':
+                try:
+                    db = int(parsed.path.lstrip('/'))
+                except ValueError:
+                    db = 0
+            
+            # Password from URL or env
+            password = parsed.password or self.redis_password
+            
+            # Create Redis backend configuration
+            redis_config = CacheBackendConfig(
+                name="redis_auth_cache",
+                backend_type=CacheBackend.REDIS,
+                host=host,
+                port=port,
+                database=db,
+                password=password,
+            )
+            
+            # Create Redis adapter
+            redis_adapter = RedisAdapter(redis_config)
+            
+            # Create cache settings
+            settings = CacheSettings()
+            
+            # Create cache service
+            self._cache_service = CacheService(
+                default_cache=redis_adapter,
+                settings=settings
+            )
+            
+            # Initialize cache service
+            await self._cache_service.initialize()
+        
+        return self._cache_service
+    
+    async def get_auth_cache_service(self) -> AuthCacheService:
+        """Get or create auth cache service with TTL configuration."""
+        if not self._auth_cache_service:
+            # Get cache service
+            cache_service = await self.get_cache_service()
+            
+            # Create auth cache service
+            self._auth_cache_service = AuthCacheService(cache_service)
+            
+            # Configure TTL from environment
+            from ...config.manager import get_env_config
+            env_config = get_env_config()
+            
+            self._auth_cache_service.configure_ttl(
+                default_ttl=env_config.cache_default_ttl,
+                permissions_ttl=env_config.cache_permissions_ttl,
+                roles_ttl=env_config.cache_roles_ttl,
+                user_data_ttl=env_config.cache_user_data_ttl
+            )
+            
+        return self._auth_cache_service
     
     def get_realm_repository(self) -> RealmRepository:
         """Get or create realm repository."""
@@ -367,6 +448,7 @@ class AuthServiceFactory:
             user_mapper = await self.get_user_mapper()
             token_service = await self.get_token_service()
             realm_manager = await self.get_realm_manager()
+            auth_cache_service = await self.get_auth_cache_service()
             
             self._auth_service = AuthService(
                 keycloak_service=keycloak_service,
@@ -374,6 +456,7 @@ class AuthServiceFactory:
                 user_mapper=user_mapper,
                 token_service=token_service,
                 realm_manager=realm_manager,
+                auth_cache_service=auth_cache_service,
             )
         return self._auth_service
     

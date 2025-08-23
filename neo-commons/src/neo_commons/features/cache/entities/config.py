@@ -163,7 +163,6 @@ class CacheBackendConfig:
             "port": self.port,
             "db": self.database,
             "password": self.password,
-            "ssl": self.ssl,
             "socket_timeout": self.command_timeout,
             "socket_connect_timeout": self.connection_timeout,
             "retry_on_timeout": True,
@@ -171,14 +170,14 @@ class CacheBackendConfig:
             "health_check_interval": self.health_check_interval,
         }
         
+        # Only add ssl if it's True (Redis asyncio doesn't like ssl=False)
+        if self.ssl:
+            kwargs["ssl"] = self.ssl
+        
         # Add pool settings for Redis
         if self.backend_type in (CacheBackend.REDIS, CacheBackend.REDIS_CLUSTER):
             kwargs.update({
-                "max_connections": self.max_connections,
-                "connection_pool_class_kwargs": {
-                    "retry_on_timeout": True,
-                    "retry_on_error": [ConnectionError],
-                }
+                "max_connections": self.max_connections
             })
         
         return kwargs

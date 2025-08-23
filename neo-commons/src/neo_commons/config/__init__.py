@@ -21,6 +21,14 @@ from .manager import (
     is_development,
 )
 
+# Logging configuration
+from .logging_config import (
+    setup_logging,
+    LogVerbosity,
+    LogFormat,
+    LoggingConfig,
+)
+
 # Re-export infrastructure configuration for advanced use
 from ..infrastructure.configuration import (
     ConfigKey, ConfigValue, ConfigScope, ConfigType, ConfigSource,
@@ -81,4 +89,10 @@ __all__ = [
     "ConfigType",
     "ConfigSource",
     "ConfigurationService",
+    
+    # Logging configuration
+    "setup_logging",
+    "LogVerbosity",
+    "LogFormat",
+    "LoggingConfig",
 ]

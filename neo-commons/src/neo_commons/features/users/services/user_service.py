@@ -27,7 +27,7 @@ class UserService:
         schema_name: str = "admin"
     ) -> UserId:
         """Sync a Keycloak user to the database."""
-        logger.info(f"Syncing Keycloak user {username} to {schema_name} schema")
+        logger.debug(f"Syncing Keycloak user {username} to {schema_name} schema")
         
         user_id = await self.user_repository.sync_user_from_keycloak(
             external_user_id=external_user_id,
@@ -41,7 +41,7 @@ class UserService:
         # Update last login timestamp
         await self.user_repository.update_last_login(user_id, schema_name)
         
-        logger.info(f"Successfully synced user {username} with ID {user_id.value}")
+        logger.debug(f"Successfully synced user {username} with ID {user_id.value}")
         return user_id
     
     async def get_user_by_id(self, user_id: UserId, schema_name: str = "admin") -> Optional[User]:

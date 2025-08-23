@@ -4,6 +4,10 @@ This library provides unified authentication, database connection management,
 caching, and common utilities for the NeoMultiTenant ecosystem.
 """
 
+# Initialize logging configuration on import
+from .config.logging_config import setup_logging
+setup_logging()
+
 # Modern configuration management
 from .config import (
     get_env_config,

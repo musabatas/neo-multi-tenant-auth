@@ -68,6 +68,7 @@ class KeycloakAdminAdapter:
         
         self._admin_client: Optional[KeycloakAdmin] = None
         self._http_client: Optional[httpx.AsyncClient] = None
+        self.target_realm = realm_name  # The realm we want to manage (different from auth realm)
     
     def _normalize_server_url(self, server_url: str) -> str:
         """Normalize server URL for Keycloak v18+ compatibility.
@@ -110,19 +111,27 @@ class KeycloakAdminAdapter:
                     self._admin_client = KeycloakAdmin(connection=connection)
                     logger.info(f"Connected to Keycloak admin API using client credentials for realm: {self.realm_name}")
                     
+                    # Store the target realm for operations
+                    self.target_realm = self.realm_name  # Client credentials usually work in the same realm
+                    
                 else:
                     # Use admin username/password authentication
+                    # Admin users authenticate against master realm, then manage other realms
                     self._admin_client = KeycloakAdmin(
                         server_url=self.server_url,
                         username=self.username,
                         password=self.password,
-                        realm_name=self.realm_name,
-                        client_id=self.client_id,
+                        realm_name="master",  # Admin users ALWAYS authenticate in master realm
+                        client_id=self.client_id if self.client_id else "admin-cli",
                         verify=self.verify,
                     )
-                    logger.info(f"Connected to Keycloak admin API using admin credentials for realm: {self.realm_name}")
+                    logger.info(f"Connected to Keycloak admin API using admin credentials, will manage realm: {self.realm_name}")
+                    
+                    # Store the target realm for operations
+                    # Admin stays authenticated in master but operates on target realm
+                    self.target_realm = self.realm_name
                 
-                # Test connection
+                # Test connection (uses master realm for admin auth)
                 await self._test_connection()
                 
             except Exception as e:
@@ -138,8 +147,10 @@ class KeycloakAdminAdapter:
     async def _test_connection(self) -> None:
         """Test connection to Keycloak."""
         try:
-            # Simple test - get server info
-            self._admin_client.get_server_info()
+            # Simple test - try to get realms which uses the admin's permissions
+            # Note: get_server_info doesn't have an async version, so we use a different test
+            # We'll try to count users in the current realm as a connection test
+            await self._admin_client.a_users_count()
             logger.info("Successfully connected to Keycloak admin API")
         except KeycloakError as e:
             raise KeycloakConnectionError(f"Keycloak connection test failed: {e}") from e
@@ -379,11 +390,12 @@ class KeycloakAdminAdapter:
         await self._ensure_connected()
         
         # Switch to target realm
-        original_realm = self._admin_client.realm_name
-        self._admin_client.realm_name = realm_name
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
         
         try:
-            user_id = self._admin_client.create_user(user_data)
+            # Use native async method from python-keycloak for user operations
+            user_id = await self._admin_client.a_create_user(user_data)
             logger.info(f"Created user {user_data.get('username')} in realm {realm_name}")
             return user_id
         
@@ -393,16 +405,23 @@ class KeycloakAdminAdapter:
         
         finally:
             # Restore original realm
-            self._admin_client.realm_name = original_realm
+            self._admin_client.connection.realm_name = original_realm
     
     async def get_user_by_username(self, realm_name: str, username: str) -> Optional[Dict]:
         """Get user by username."""
         await self._ensure_connected()
         
         try:
-            # Create a separate admin client for the target realm
-            target_admin = self._create_realm_admin(realm_name)
-            users = target_admin.get_users({"username": username})
+            # Switch to target realm for this operation
+            original_realm = self._admin_client.connection.realm_name
+            self._admin_client.connection.realm_name = realm_name
+            
+            # Use async method to get users by username
+            users = await self._admin_client.a_get_users({"username": username})
+            
+            # Restore original realm
+            self._admin_client.connection.realm_name = original_realm
+            
             if users:
                 return users[0]  # Username should be unique
             return None
@@ -416,9 +435,16 @@ class KeycloakAdminAdapter:
         await self._ensure_connected()
         
         try:
-            # Create a separate admin client for the target realm
-            target_admin = self._create_realm_admin(realm_name)
-            users = target_admin.get_users({"email": email})
+            # Switch to target realm for this operation
+            original_realm = self._admin_client.connection.realm_name
+            self._admin_client.connection.realm_name = realm_name
+            
+            # Use async method to get users by email
+            users = await self._admin_client.a_get_users({"email": email})
+            
+            # Restore original realm
+            self._admin_client.connection.realm_name = original_realm
+            
             if users:
                 return users[0]  # Email should be unique
             return None
@@ -432,11 +458,12 @@ class KeycloakAdminAdapter:
         await self._ensure_connected()
         
         # Switch to target realm
-        original_realm = self._admin_client.realm_name
-        self._admin_client.realm_name = realm_name
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
         
         try:
-            self._admin_client.update_user(user_id, user_data)
+            # Use native async method from python-keycloak for user operations
+            await self._admin_client.a_update_user(user_id, user_data)
             logger.info(f"Updated user {user_id} in realm {realm_name}")
         
         except KeycloakError as e:
@@ -445,7 +472,7 @@ class KeycloakAdminAdapter:
         
         finally:
             # Restore original realm
-            self._admin_client.realm_name = original_realm
+            self._admin_client.connection.realm_name = original_realm
     
     async def set_user_password(
         self,
@@ -458,11 +485,12 @@ class KeycloakAdminAdapter:
         await self._ensure_connected()
         
         # Switch to target realm
-        original_realm = self._admin_client.realm_name
-        self._admin_client.realm_name = realm_name
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
         
         try:
-            self._admin_client.set_user_password(user_id, password, temporary)
+            # Use native async method from python-keycloak for user operations
+            await self._admin_client.a_set_user_password(user_id, password, temporary)
             logger.info(f"Set password for user {user_id} in realm {realm_name}")
         
         except KeycloakError as e:
@@ -471,18 +499,19 @@ class KeycloakAdminAdapter:
         
         finally:
             # Restore original realm
-            self._admin_client.realm_name = original_realm
+            self._admin_client.connection.realm_name = original_realm
     
     async def send_user_email_verification(self, realm_name: str, user_id: str) -> None:
         """Send email verification to user."""
         await self._ensure_connected()
         
         # Switch to target realm
-        original_realm = self._admin_client.realm_name
-        self._admin_client.realm_name = realm_name
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
         
         try:
-            self._admin_client.send_verify_email(user_id)
+            # Use native async method from python-keycloak for user operations
+            await self._admin_client.a_send_verify_email(user_id)
             logger.info(f"Sent email verification to user {user_id}")
         
         except KeycloakError as e:
@@ -491,29 +520,22 @@ class KeycloakAdminAdapter:
         
         finally:
             # Restore original realm
-            self._admin_client.realm_name = original_realm
+            self._admin_client.connection.realm_name = original_realm
     
     async def send_user_password_reset(self, realm_name: str, user_id: str) -> None:
         """Send password reset email to user."""
         await self._ensure_connected()
         
         try:
-            # For password reset, we need to create a separate admin client for the target realm
-            # or use the current client if it's already in the correct realm
-            if realm_name != self.realm_name:
-                # Create a temporary admin client for the target realm
-                target_admin = KeycloakAdmin(
-                    server_url=self.server_url,
-                    username=self.username,
-                    password=self.password,
-                    realm_name=realm_name,
-                    client_id=self.client_id,
-                    verify=self.verify,
-                )
-                target_admin.send_update_account(user_id, ["UPDATE_PASSWORD"])
-            else:
-                # Use current client if already in correct realm
-                self._admin_client.send_update_account(user_id, ["UPDATE_PASSWORD"])
+            # Switch to target realm for this operation
+            original_realm = self._admin_client.connection.realm_name
+            self._admin_client.connection.realm_name = realm_name
+            
+            # Use native async method from python-keycloak for user operations
+            await self._admin_client.a_send_update_account(user_id, ["UPDATE_PASSWORD"])
+            
+            # Restore original realm
+            self._admin_client.connection.realm_name = original_realm
                 
             logger.info(f"Sent password reset to user {user_id} in realm {realm_name}")
         
@@ -526,11 +548,12 @@ class KeycloakAdminAdapter:
         await self._ensure_connected()
         
         # Switch to target realm
-        original_realm = self._admin_client.realm_name
-        self._admin_client.realm_name = realm_name
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
         
         try:
-            self._admin_client.delete_user(user_id)
+            # Use native async method from python-keycloak for user operations  
+            await self._admin_client.a_delete_user(user_id)
             logger.info(f"Deleted user {user_id} from realm {realm_name}")
         
         except KeycloakError as e:
@@ -539,4 +562,115 @@ class KeycloakAdminAdapter:
         
         finally:
             # Restore original realm
+            self._admin_client.connection.realm_name = original_realm    
+    async def send_verify_email(self, realm_name: str, user_id: str) -> None:
+        """Send email verification to user (alias for send_user_email_verification)."""
+        await self.send_user_email_verification(realm_name, user_id)
+    
+    async def send_user_action_email(
+        self, 
+        realm_name: str, 
+        user_id: str,
+        actions: List[str],
+        lifespan: int = 3600
+    ) -> None:
+        """Send user action email with specified actions."""
+        await self._ensure_connected()
+        
+        # Switch to target realm
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
+        
+        try:
+            # Use native async method from python-keycloak for user operations
+            await self._admin_client.a_send_update_account(
+                user_id=user_id,
+                payload=actions,
+                lifespan=lifespan
+            )
+            logger.info(f"Sent action email to user {user_id} with actions: {actions}")
+        
+        except KeycloakError as e:
+            logger.error(f"Failed to send action email: {e}")
+            raise RealmConfigurationError(f"Cannot send action email: {e}") from e
+        
+        finally:
+            self._admin_client.realm_name = original_realm
+    
+    async def get_user_credentials(self, realm_name: str, user_id: str) -> List[Dict]:
+        """Get user credentials."""
+        await self._ensure_connected()
+        
+        # Switch to target realm
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
+        
+        try:
+            # Use native async method from python-keycloak
+            credentials = await self._admin_client.a_get_credentials(user_id=user_id)
+            return credentials
+        
+        except KeycloakError as e:
+            logger.error(f"Failed to get user credentials: {e}")
+            raise RealmConfigurationError(f"Cannot get user credentials: {e}") from e
+        
+        finally:
+            self._admin_client.realm_name = original_realm
+    
+    async def remove_user_totp(self, realm_name: str, user_id: str) -> None:
+        """Remove TOTP from user."""
+        await self._ensure_connected()
+        
+        # Get all credentials and remove TOTP ones
+        credentials = await self.get_user_credentials(realm_name, user_id)
+        
+        for credential in credentials:
+            if credential.get("type") == "otp":
+                await self.delete_user_credential(realm_name, user_id, credential["id"])
+                logger.info(f"Removed TOTP credential {credential['id']} from user {user_id}")
+    
+    async def delete_user_credential(self, realm_name: str, user_id: str, credential_id: str) -> None:
+        """Delete a specific user credential."""
+        await self._ensure_connected()
+        
+        # Switch to target realm
+        original_realm = self._admin_client.connection.realm_name
+        self._admin_client.connection.realm_name = realm_name
+        
+        try:
+            # Use native async method from python-keycloak
+            await self._admin_client.a_delete_credential(user_id=user_id, credential_id=credential_id)
+            logger.info(f"Deleted credential {credential_id} from user {user_id}")
+        
+        except KeycloakError as e:
+            logger.error(f"Failed to delete credential: {e}")
+            raise RealmConfigurationError(f"Cannot delete credential: {e}") from e
+        
+        finally:
+            self._admin_client.realm_name = original_realm
+    
+    async def logout_user(self, realm_name: str, user_id: str) -> None:
+        """Logout all user sessions."""
+        await self._ensure_connected()
+        
+        # Switch to target realm  
+        original_realm = self._admin_client.realm_name
+        self._admin_client.realm_name = realm_name
+        
+        try:
+            # Get user sessions and logout each one
+            sessions = await self._admin_client.a_get_sessions(user_id=user_id)
+            
+            for session in sessions:
+                # Logout each session - this needs to be sync as there's no async version
+                self._admin_client.delete_user_session(user_id=user_id, session_id=session["id"])
+                logger.debug(f"Logged out session {session['id']} for user {user_id}")
+            
+            logger.info(f"Logged out all sessions for user {user_id}")
+        
+        except KeycloakError as e:
+            logger.error(f"Failed to logout user: {e}")
+            raise RealmConfigurationError(f"Cannot logout user: {e}") from e
+        
+        finally:
             self._admin_client.realm_name = original_realm

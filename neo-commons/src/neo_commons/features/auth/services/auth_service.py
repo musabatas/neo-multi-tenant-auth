@@ -1,14 +1,14 @@
 """Main authentication service - orchestrates all auth operations."""
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Set
 
 from ....core.exceptions.auth import (
     AuthenticationError,
     InvalidCredentialsError,
     InvalidTokenError,
 )
-from ....core.value_objects.identifiers import RealmId, UserId
+from ....core.value_objects.identifiers import RealmId, UserId, TenantId, PermissionCode, RoleCode
 from ..entities.auth_context import AuthContext
 from ..entities.jwt_token import JWTToken
 from .jwt_validator import JWTValidator
@@ -30,6 +30,7 @@ class AuthService:
         user_mapper: UserMapper,
         token_service: TokenService,
         realm_manager: RealmManager,
+        auth_cache_service: Optional['AuthCacheService'] = None,
     ):
         """Initialize auth service with dependencies."""
         self.keycloak_service = keycloak_service
@@ -37,6 +38,7 @@ class AuthService:
         self.user_mapper = user_mapper
         self.token_service = token_service
         self.realm_manager = realm_manager
+        self.auth_cache_service = auth_cache_service
     
     async def authenticate(
         self, username: str, password: str, realm_id: RealmId
@@ -98,6 +100,99 @@ class AuthService:
         except Exception as e:
             logger.error(f"Logout error for user {user_id.value}: {e}")
             # Don't fail logout on errors - security best practice
+    
+    async def get_user_permissions(
+        self, user_id: UserId, tenant_id: TenantId
+    ) -> Set[PermissionCode]:
+        """Get user permissions with caching.
+        
+        First tries to get from cache, falls back to database if not cached.
+        """
+        # Try to get from cache if auth_cache_service is available
+        if self.auth_cache_service:
+            cached_permissions = await self.auth_cache_service.get_user_permissions(
+                user_id, tenant_id
+            )
+            if cached_permissions is not None:
+                logger.debug(f"Retrieved {len(cached_permissions)} permissions from cache for user {user_id.value}")
+                return cached_permissions
+        
+        # TODO: Load from database here
+        # For now, return empty set - this should be implemented to load from DB
+        logger.info(f"Loading permissions from database for user {user_id.value}")
+        permissions = set()  # This should load from database
+        
+        # Cache the permissions if auth_cache_service is available
+        if self.auth_cache_service and permissions:
+            await self.auth_cache_service.set_user_permissions(
+                user_id, tenant_id, permissions
+            )
+        
+        return permissions
+    
+    async def get_user_roles(
+        self, user_id: UserId, tenant_id: TenantId
+    ) -> Set[RoleCode]:
+        """Get user roles with caching.
+        
+        First tries to get from cache, falls back to database if not cached.
+        """
+        # Try to get from cache if auth_cache_service is available
+        if self.auth_cache_service:
+            cached_roles = await self.auth_cache_service.get_user_roles(
+                user_id, tenant_id
+            )
+            if cached_roles is not None:
+                logger.debug(f"Retrieved {len(cached_roles)} roles from cache for user {user_id.value}")
+                return cached_roles
+        
+        # TODO: Load from database here
+        # For now, return empty set - this should be implemented to load from DB
+        logger.info(f"Loading roles from database for user {user_id.value}")
+        roles = set()  # This should load from database
+        
+        # Cache the roles if auth_cache_service is available
+        if self.auth_cache_service and roles:
+            await self.auth_cache_service.set_user_roles(
+                user_id, tenant_id, roles
+            )
+        
+        return roles
+    
+    async def invalidate_user_cache(
+        self, user_id: UserId, tenant_id: TenantId
+    ) -> None:
+        """Invalidate all cached data for a user.
+        
+        This should be called when user data changes (roles, permissions, etc).
+        """
+        if self.auth_cache_service:
+            count = await self.auth_cache_service.invalidate_user(user_id, tenant_id)
+            logger.info(f"Invalidated {count} cache entries for user {user_id.value}")
+    
+    async def invalidate_user_permissions(
+        self, user_id: UserId, tenant_id: TenantId
+    ) -> None:
+        """Invalidate cached permissions for a user.
+        
+        This should be called when user permissions change.
+        """
+        if self.auth_cache_service:
+            result = await self.auth_cache_service.invalidate_user_permissions(user_id, tenant_id)
+            if result:
+                logger.info(f"Invalidated permissions cache for user {user_id.value}")
+    
+    async def invalidate_user_roles(
+        self, user_id: UserId, tenant_id: TenantId
+    ) -> None:
+        """Invalidate cached roles for a user.
+        
+        This should be called when user roles change.
+        """
+        if self.auth_cache_service:
+            result = await self.auth_cache_service.invalidate_user_roles(user_id, tenant_id)
+            if result:
+                logger.info(f"Invalidated roles cache for user {user_id.value}")
     
     async def validate_token(
         self, token: str, realm_id: RealmId

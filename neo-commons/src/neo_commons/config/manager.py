@@ -126,6 +126,13 @@ class EnvironmentConfig(BaseModel):
     feature_metrics: bool = Field(default=True, description="Enable metrics")
     feature_audit_logging: bool = Field(default=True, description="Enable audit logs")
     
+    # Cache TTL Configuration
+    cache_default_ttl: int = Field(default=3600, description="Default cache TTL in seconds")
+    cache_permissions_ttl: int = Field(default=1800, description="Permissions cache TTL")
+    cache_roles_ttl: int = Field(default=3600, description="Roles cache TTL")
+    cache_user_data_ttl: int = Field(default=600, description="User data cache TTL")
+    cache_auth_context_ttl: int = Field(default=900, description="Auth context cache TTL")
+    
     @property
     def is_production(self) -> bool:
         """Check if running in production."""
@@ -190,6 +197,13 @@ def get_env_config() -> EnvironmentConfig:
             feature_caching=os.getenv("FEATURE_CACHING", "true").lower() == "true",
             feature_metrics=os.getenv("FEATURE_METRICS", "true").lower() == "true",
             feature_audit_logging=os.getenv("FEATURE_AUDIT_LOGGING", "true").lower() == "true",
+            
+            # Cache TTL Configuration
+            cache_default_ttl=int(os.getenv("CACHE_DEFAULT_TTL", "3600")),
+            cache_permissions_ttl=int(os.getenv("CACHE_PERMISSIONS_TTL", "1800")),
+            cache_roles_ttl=int(os.getenv("CACHE_ROLES_TTL", "3600")),
+            cache_user_data_ttl=int(os.getenv("CACHE_USER_DATA_TTL", "600")),
+            cache_auth_context_ttl=int(os.getenv("CACHE_AUTH_CONTEXT_TTL", "900")),
         )
     except Exception as e:
         raise ConfigurationError(f"Failed to load environment configuration: {e}")

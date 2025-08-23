@@ -508,6 +508,34 @@ class RedisAdapter(CacheBackendAdapter[str, bytes]):
             raise CacheError(f"Redis delete error for key {key}: {e}")
         except Exception as e:
             raise CacheError(f"Unexpected error deleting key {key}: {e}")
+
+    async def delete_pattern(self, pattern: str) -> int:
+        """Delete keys matching pattern.
+        
+        Args:
+            pattern: Redis key pattern (e.g., "auth:*", "tenant:123:*")
+            
+        Returns:
+            Number of keys deleted
+        """
+        await self._ensure_connected()
+        
+        try:
+            # Get all keys matching the pattern
+            keys = await self.redis_client.keys(pattern)
+            
+            if not keys:
+                return 0
+            
+            # Delete all matching keys
+            deleted_count = await self.redis_client.delete(*keys)
+            
+            return deleted_count
+            
+        except RedisError as e:
+            raise CacheError(f"Redis delete pattern error: {e}")
+        except Exception as e:
+            raise CacheError(f"Unexpected error deleting keys by pattern: {e}")
     
     async def exists(self, key: str) -> bool:
         """Check if key exists."""

@@ -660,6 +660,7 @@ ADMIN_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neofast_admin
 
 ## Security Checklist
 
+- [ ] **CRITICAL: NEVER use `jwt.decode()` with `verify_signature=False`** - always validate JWT tokens using auth service's `validate_token()` method which checks signature, expiration, and audience against Keycloak
 - [ ] Validate all inputs with Pydantic; enforce strict constraints
 - [ ] Use parameterized queries only; never format SQL with user input
 - [ ] Enforce authorization at repository/service boundary
