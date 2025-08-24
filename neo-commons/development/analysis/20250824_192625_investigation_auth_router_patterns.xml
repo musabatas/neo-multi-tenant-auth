@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<investigation timestamp="2025-08-24 19:26:25" requirement="Analyze auth feature router patterns for implementing reusable core routers">
+  <codebase_findings>
+    <files>
+      <file path="/features/auth/routers/auth_router.py" relevance="high">
+        <purpose>Core authentication router with dependency injection patterns</purpose>
+        <key_components>
+          <component>router: APIRouter with prefix="/auth" and tags=["Authentication"]</component>
+          <component>get_database_service: Async function returning DatabaseManager.get_instance()</component>
+          <component>get_auth_dependencies: Placeholder function to be overridden by applications</component>
+          <component>extract_tenant_id: Tenant extraction logic from headers/subdomain</component>
+          <component>8 main endpoints: login, register, refresh, logout, forgot-password, /me, /session, validation endpoints</component>
+        </key_components>
+        <dependencies>FastAPI, auth services via dependency injection, database service</dependencies>
+      </file>
+      
+      <file path="/features/auth/dependencies.py" relevance="high">
+        <purpose>FastAPI authentication dependencies with protocol-based injection</purpose>
+        <key_components>
+          <component>AuthDependencies class: Main dependency container with protocol interfaces</component>
+          <component>get_current_user: JWT validation and auth context extraction</component>
+          <component>require_permission/role functions: Permission-based route protection</component>
+          <component>Global convenience functions: init_auth_dependencies, get_auth_dependencies</component>
+        </key_components>
+        <dependencies>Protocol interfaces, JWT validation, auth context management</dependencies>
+      </file>
+      
+      <file path="/features/auth/__init__.py" relevance="high">
+        <purpose>Feature-level exports and AuthServiceFactory implementation</purpose>
+        <key_components>
+          <component>AuthServiceFactory: Complete service orchestration with dependency injection</component>
+          <component>create_auth_service_factory: Factory function for service creation</component>
+          <component>Comprehensive exports: All auth services, routers, dependencies</component>
+        </key_components>
+        <dependencies>All auth feature components, cache services, database services</dependencies>
+      </file>
+      
+      <file path="/examples/complete_auth_integration.py" relevance="high">
+        <purpose>Complete integration example showing router override patterns</purpose>
+        <key_components>
+          <component>Router dependency overrides via auth_router.dependency_overrides</component>
+          <component>Service factory integration with FastAPI lifecycle</component>
+          <component>Protected route examples with permission decorators</component>
+        </key_components>
+        <dependencies>Auth service factory, FastAPI application, middleware configuration</dependencies>
+      </file>
+      
+      <file path="/features/tenants/services/tenant_service.py" relevance="medium">
+        <purpose>Existing tenant service with protocol-based dependency injection</purpose>
+        <key_components>
+          <component>TenantService: Business logic orchestration with injected dependencies</component>
+          <component>Protocol interfaces: TenantRepository, TenantCache, TenantConfigResolver</component>
+          <component>CRUD operations: create, get, update, delete with caching</component>
+          <component>Business methods: provision, activate, suspend tenants</component>
+        </key_components>
+        <dependencies>Repository protocols, cache protocols, config resolver protocols</dependencies>
+      </file>
+      
+      <file path="/infrastructure/fastapi/factory.py" relevance="medium">
+        <purpose>FastAPI application factory with standardized middleware and service injection</purpose>
+        <key_components>
+          <component>FastAPIFactory: Application factory with service dependency injection</component>
+          <component>Service-specific factories: create_admin_api, create_tenant_api</component>
+          <component>Middleware integration: _setup_service_middleware with MiddlewareFactory</component>
+          <component>Health endpoints: /health, /health/ready, /health/live</component>
+        </key_components>
+        <dependencies>User service, cache service, tenant service, database service</dependencies>
+      </file>
+    </files>
+    
+    <patterns>
+      <pattern name="Router Dependency Injection" location="/features/auth/routers/auth_router.py">
+        <description>Router defines placeholder functions (get_auth_dependencies, get_user_registration_service) that raise HTTPException. Applications override these via router.dependency_overrides dictionary to inject configured services</description>
+        <usage>Enables reusable routers across different service implementations while maintaining clean separation</usage>
+      </pattern>
+      
+      <pattern name="Protocol-Based Service Architecture" location="/features/auth/dependencies.py">
+        <description>AuthDependencies class accepts protocol interfaces (AuthServiceProtocol, JWTValidatorProtocol, etc.) enabling flexible implementations while maintaining strict contracts</description>
+        <usage>Allows different implementations (Redis, Memory, Database) to be injected without changing business logic</usage>
+      </pattern>
+      
+      <pattern name="Database Connection via Singleton" location="/features/auth/routers/auth_router.py:52-54">
+        <description>Database service accessed via DatabaseManager.get_instance() singleton pattern, automatically configured with connection registry</description>
+        <usage>Centralized database connection management with automatic failover and health monitoring</usage>
+      </pattern>
+      
+      <pattern name="Schema-Aware Database Operations" location="/features/auth/routers/auth_router.py:168">
+        <description>Database schema extracted from request.state.database_schema with 'admin' default, enabling multi-schema operations</description>
+        <usage>Supports tenant isolation and schema-based multi-tenancy patterns</usage>
+      </pattern>
+      
+      <pattern name="FastAPI Router Override Pattern" location="/examples/complete_auth_integration.py:102-106">
+        <description>Router dependencies overridden using auth_router.dependency_overrides = {"function_name": override_function} pattern</description>
+        <usage>Clean way to inject service implementations into reusable routers without modifying router code</usage>
+      </pattern>
+      
+      <pattern name="Service Factory with Lazy Initialization" location="/features/auth/__init__.py:240-530">
+        <description>AuthServiceFactory lazily initializes services with proper dependency ordering and cleanup handling</description>
+        <usage>Manages complex service dependencies and provides configured services to applications</usage>
+      </pattern>
+      
+      <pattern name="Tenant Context Extraction" location="/features/auth/dependencies.py:316-342">
+        <description>Multi-strategy tenant ID extraction: x-tenant-id header, subdomain, path parameter, query parameter with optional handling</description>
+        <usage>Flexible tenant identification supporting different deployment models and routing strategies</usage>
+      </pattern>
+      
+      <pattern name="Feature Module Organization" location="/features/auth/, /features/tenants/">
+        <description>Feature-First + Clean Core architecture: entities/ (domain + protocols), services/ (business logic), repositories/ (data access), routers/ (API endpoints), adapters/ (external integrations)</description>
+        <usage>Clear separation of concerns with protocol-based boundaries enabling testability and flexibility</usage>
+      </pattern>
+    </patterns>
+  </codebase_findings>
+  
+  <framework_documentation>
+    <framework name="FastAPI" version="latest">
+      <relevant_features>
+        <feature>APIRouter with dependency injection via Depends()</feature>
+        <feature>Router dependency overrides for service injection</feature>
+        <feature>HTTPBearer security schemes for JWT authentication</feature>
+        <feature>Request object for extracting headers, state, and context</feature>
+        <feature>HTTPException for standardized error responses</feature>
+      </relevant_features>
+      <best_practices>
+        <practice>Use dependency_overrides for injecting services into reusable routers</practice>
+        <practice>Define placeholder dependency functions that raise HTTPException as default</practice>
+        <practice>Store database schema and tenant context in request.state</practice>
+        <practice>Use protocol interfaces for dependency injection contracts</practice>
+      </best_practices>
+    </framework>
+    
+    <framework name="Neo-Commons Architecture" version="current">
+      <relevant_features>
+        <feature>Feature-First + Clean Core architecture patterns</feature>
+        <feature>Protocol-based dependency injection with @runtime_checkable</feature>
+        <feature>DatabaseManager singleton with connection registry</feature>
+        <feature>Service factories with lazy initialization</feature>
+        <feature>Multi-tenant schema resolution patterns</feature>
+      </relevant_features>
+      <best_practices>
+        <practice>Business logic in feature services/, data access in repositories/</practice>
+        <practice>Protocol interfaces in entities/ for contracts</practice>
+        <practice>Router dependency injection via placeholder functions + overrides</practice>
+        <practice>Lazy service initialization with proper cleanup</practice>
+      </best_practices>
+    </framework>
+  </framework_documentation>
+  
+  <recommendations>
+    <recommendation priority="high">
+      <description>Create tenants/routers/ directory with tenant_router.py following auth router patterns</description>
+      <rationale>Enables consistent API patterns and reusable tenant management endpoints across services</rationale>
+      <implementation_notes>
+        - Define APIRouter with prefix="/tenants" and tags=["Tenants"]
+        - Create placeholder functions: get_tenant_service(), get_tenant_dependencies()
+        - Implement CRUD endpoints: GET /tenants/, POST /tenants, GET /tenants/{id}, PUT /tenants/{id}, DELETE /tenants/{id}
+        - Add tenant-specific endpoints: POST /tenants/{id}/provision, POST /tenants/{id}/activate, POST /tenants/{id}/suspend
+        - Use database_service dependency and schema resolution from request.state
+      </implementation_notes>
+    </recommendation>
+    
+    <recommendation priority="high">
+      <description>Implement TenantDependencies class similar to AuthDependencies</description>
+      <rationale>Provides consistent dependency injection patterns and permission checking for tenant operations</rationale>
+      <implementation_notes>
+        - Create TenantDependencies class accepting TenantService and related protocols
+        - Implement tenant context validation and permission checking
+        - Add convenience functions: get_current_tenant(), require_tenant_admin(), require_organization_access()
+        - Support multi-tenancy patterns with tenant isolation validation
+      </implementation_notes>
+    </recommendation>
+    
+    <recommendation priority="medium">
+      <description>Create tenant request/response models in tenants/models/</description>
+      <rationale>Standardizes API contracts and enables proper validation for tenant operations</rationale>
+      <implementation_notes>
+        - CreateTenantRequest, UpdateTenantRequest, TenantResponse models
+        - TenantListResponse with pagination
+        - StatusChangeRequest for provision/activate/suspend operations
+        - Use existing Tenant entity as basis for response models
+      </implementation_notes>
+    </recommendation>
+    
+    <recommendation priority="medium">
+      <description>Add tenant router to tenants/__init__.py exports</description>
+      <rationale>Maintains consistency with auth feature exports and enables easy integration</rationale>
+      <implementation_notes>
+        - Export tenant_router from routers module
+        - Add to __all__ list alongside existing exports
+        - Ensure proper import path structure
+      </implementation_notes>
+    </recommendation>
+    
+    <recommendation priority="low">
+      <description>Create example integration file for tenant routers</description>
+      <rationale>Provides clear usage patterns for implementing services using tenant routers</rationale>
+      <implementation_notes>
+        - Follow examples/complete_auth_integration.py structure
+        - Show router dependency override patterns for tenant service
+        - Demonstrate FastAPI app integration with middleware
+        - Include protected route examples with tenant permissions
+      </implementation_notes>
+    </recommendation>
+  </recommendations>
+  
+  <summary>
+    <key_findings>
+      • Auth router uses placeholder dependency functions that applications override via router.dependency_overrides
+      • AuthDependencies class provides protocol-based service injection with runtime_checkable interfaces
+      • Database connections handled via DatabaseManager singleton with automatic schema resolution from request.state
+      • Multi-strategy tenant context extraction (header, subdomain, path, query) with optional handling
+      • Feature-First architecture separates concerns: entities/, services/, repositories/, routers/, adapters/
+      • Service factories provide lazy initialization with proper dependency ordering and cleanup
+      • Router dependency overrides enable clean service injection without modifying router code
+    </key_findings>
+    <existing_implementations>
+      • Complete auth router with 8 endpoints (login, register, refresh, logout, forgot-password, /me, /session, validation)
+      • AuthDependencies class with permission/role-based route protection
+      • AuthServiceFactory with full service orchestration and dependency management
+      • Tenant service with protocol-based dependency injection and business logic
+      • FastAPI factory with service injection and middleware configuration
+      • Integration examples showing router override patterns
+    </existing_implementations>
+    <gaps>
+      • No tenant router implementation in tenants/routers/ directory
+      • Missing TenantDependencies class for consistent dependency injection
+      • No tenant API request/response models defined
+      • No tenant router integration examples
+      • Tenant feature missing from main exports in tenants/__init__.py
+    </gaps>
+    <risks>
+      • Tenant operations currently require manual service instantiation and dependency management
+      • No standardized API patterns for tenant management across different services
+      • Lack of tenant-specific permission checking and context validation
+      • Potential inconsistency in tenant API implementations without reusable router patterns
+    </risks>
+  </summary>
+</investigation>

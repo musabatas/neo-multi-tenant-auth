@@ -162,7 +162,15 @@ from .infrastructure import (
     MigrationRollbackError,
 )
 
-from .http_mapping import HTTP_STATUS_MAP
+from .http_mapping import (
+    HTTP_STATUS_MAP,
+    HttpStatusMapper,
+    set_configuration_provider,
+    clear_mapping_cache,
+    get_mapping_statistics,
+    # Backward compatibility aliases
+    ConfigurableHttpStatusMapper,
+)
 
 __all__ = [
     # Base
@@ -314,4 +322,10 @@ __all__ = [
     
     # HTTP Status Mapping
     "HTTP_STATUS_MAP",
+    "HttpStatusMapper",
+    "set_configuration_provider",
+    "clear_mapping_cache",
+    "get_mapping_statistics",
+    # Backward compatibility aliases
+    "ConfigurableHttpStatusMapper",
 ]

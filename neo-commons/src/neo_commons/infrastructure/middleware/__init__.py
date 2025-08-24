@@ -4,7 +4,8 @@ Provides cross-cutting concerns like authentication, tenant context, logging,
 security, and performance monitoring following Feature-First + Clean Core architecture.
 """
 
-# from .auth_middleware import AuthenticationMiddleware, OptionalAuthenticationMiddleware  # TODO: Enable when UserService is implemented
+# Auth middleware moved to features/auth/middleware.py for better Feature-First organization
+# from ...features.auth.middleware import AuthMiddleware, TenantIsolationMiddleware  # TODO: Enable when UserService is implemented
 # from .tenant_middleware import TenantContextMiddleware, MultiTenantDatabaseMiddleware  # TODO: Enable when TenantService is implemented  
 from .logging_middleware import StructuredLoggingMiddleware, RequestContextLoggerAdapter
 from .security_middleware import SecurityMiddleware, CORSMiddleware, RateLimitMiddleware
@@ -33,8 +34,9 @@ from .factory import MiddlewareFactory, create_middleware_factory
 
 __all__ = [
     # Middleware classes
-    # "AuthenticationMiddleware",  # TODO: Enable when UserService is implemented
-    # "OptionalAuthenticationMiddleware",  # TODO: Enable when UserService is implemented
+    # Auth middleware moved to features/auth/middleware.py
+    # "AuthMiddleware",  # TODO: Enable when UserService is implemented
+    # "TenantIsolationMiddleware",  # TODO: Enable when UserService is implemented
     # "TenantContextMiddleware",  # TODO: Enable when TenantService is implemented
     # "MultiTenantDatabaseMiddleware",  # TODO: Enable when TenantService is implemented
     "StructuredLoggingMiddleware",

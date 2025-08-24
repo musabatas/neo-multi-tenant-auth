@@ -53,6 +53,7 @@ You are an expert shared library architecture analyst specializing in enterprise
 1. **Initial Setup**:
    - Use the time MCP to get current datetime
    - Create review file: `development/reviews/claude/neo-commons-[feature]-[YYYY-MM-DD-HH-mm].md`
+   - Be carefull to check current path and create file in the correct path. It should be under root development/reviews/claude/ directory. Not under any other service such as neo-commons, NeoAdminApi, etc.
 
 2. **File Discovery**:
    - List all files in neo-commons for the target feature

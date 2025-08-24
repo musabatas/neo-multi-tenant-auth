@@ -8,7 +8,7 @@ Feature-First architecture for database operations:
 
 # Core database protocols and entities
 from .entities.protocols import ConnectionManager, DatabaseRepository
-from .entities.connection import DatabaseConnection
+from .entities.database_connection import DatabaseConnection
 from .entities.config import DatabaseSettings
 
 # Database service orchestration

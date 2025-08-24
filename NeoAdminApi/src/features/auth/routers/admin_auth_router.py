@@ -8,6 +8,7 @@ from neo_commons.core.value_objects.identifiers import TenantId
 from neo_commons.features.auth.dependencies import AuthDependencies, get_current_platform_admin
 from neo_commons.features.auth.entities.auth_context import AuthContext
 from ....common.dependencies import get_database_service
+from ....common.config import get_config_provider
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,13 @@ async def extract_tenant_id(request: Request) -> Optional[TenantId]:
 # Configure platform admin realm for neo-commons
 async def configure_platform_admin_realm():
     """Configure platform admin realm in neo-commons at startup."""
-    from neo_commons.config.manager import get_env_config
     from neo_commons.core.value_objects.identifiers import RealmId
     from neo_commons.features.auth.entities.keycloak_config import KeycloakConfig
     from neo_commons.features.auth.dependencies import get_auth_dependencies as get_global_auth_deps
     
-    env_config = get_env_config()
+    # Use centralized configuration
+    config_provider = get_config_provider()
+    env_config = config_provider.config
     auth_deps = get_global_auth_deps()
     
     # Register platform admin realm configuration
@@ -92,9 +94,9 @@ async def login(
         
         # For admin API: if no tenant_id, use platform admin realm
         if tenant_id is None:
-            # Use registered platform admin realm
-            from neo_commons.config.manager import get_env_config
-            env_config = get_env_config()
+            # Use registered platform admin realm with centralized configuration
+            config_provider = get_config_provider()
+            env_config = config_provider.config
             realm_id = RealmId(env_config.keycloak_realm)
             
             # Get realm configuration from registered platform admin realm  

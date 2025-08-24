@@ -5,7 +5,7 @@ from typing import Dict, Optional, List, Set
 from datetime import datetime
 import asyncio
 
-from ..entities.database_protocols import ConnectionRegistry, ConnectionManager
+from ..entities.protocols import ConnectionRegistry, ConnectionManager
 from ..entities.database_connection import DatabaseConnection
 from ....core.value_objects.identifiers import DatabaseConnectionId, RegionId
 from ....config.constants import ConnectionType, HealthStatus

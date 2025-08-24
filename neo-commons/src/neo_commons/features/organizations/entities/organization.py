@@ -58,12 +58,19 @@ class Organization:
     
     def __post_init__(self):
         """Post-initialization validation."""
-        # Validate slug format
-        import re
-        if not re.match(r'^[a-z0-9][a-z0-9-]*[a-z0-9]$', self.slug):
-            raise ValueError(f"Invalid slug format: {self.slug}")
-        if not (4 <= len(self.slug) <= 60):
-            raise ValueError(f"Slug length must be 4-60 characters: {self.slug}")
+        from ..utils.validation import OrganizationValidationRules
+        
+        # Validate slug format using centralized validation
+        try:
+            OrganizationValidationRules.validate_slug(self.slug)
+        except ValueError as e:
+            raise ValueError(f"Invalid slug: {e}")
+        
+        # Validate name format using centralized validation
+        try:
+            OrganizationValidationRules.validate_display_name(self.name)
+        except ValueError as e:
+            raise ValueError(f"Invalid name: {e}")
     
     @property
     def is_deleted(self) -> bool:

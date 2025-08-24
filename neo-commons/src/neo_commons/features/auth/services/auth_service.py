@@ -3,6 +3,8 @@
 import logging
 from typing import Any, Dict, Optional, Set
 
+from ....infrastructure.monitoring import critical_performance, high_performance
+
 from ....core.exceptions.auth import (
     AuthenticationError,
     InvalidCredentialsError,
@@ -40,6 +42,7 @@ class AuthService:
         self.realm_manager = realm_manager
         self.auth_cache_service = auth_cache_service
     
+    @critical_performance(name="auth.authenticate", include_args=True)
     async def authenticate(
         self, username: str, password: str, realm_id: RealmId
     ) -> AuthContext:

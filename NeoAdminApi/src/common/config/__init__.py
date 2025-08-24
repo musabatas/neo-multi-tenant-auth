@@ -1,10 +1,19 @@
 """Configuration management for NeoAdminApi.
 
-NeoAdminApi now uses neo-commons AdminAPIConfig directly instead of custom settings.
-This module is preserved for any future configuration needs.
+Centralized configuration provider to eliminate duplicate configuration imports
+and provide unified access to neo-commons configuration across the application.
 """
 
-# Neo-commons AdminAPIConfig is used directly in app.py
-# No custom settings needed - AdminAPIConfig provides all required configuration
+from .provider import (
+    get_config_provider,
+    set_config_provider,
+    ConfigurationProvider,
+    get_app_config,
+)
 
-__all__ = []
+__all__ = [
+    "get_config_provider",
+    "set_config_provider", 
+    "ConfigurationProvider",
+    "get_app_config",
+]

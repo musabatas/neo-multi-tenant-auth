@@ -6,6 +6,11 @@ from datetime import datetime
 
 from ....core.value_objects.identifiers import DatabaseConnectionId, RegionId
 from ....config.constants import ConnectionType, HealthStatus
+from ..utils.validation import (
+    validate_pool_configuration,
+    validate_connection_basic_fields,
+    validate_connection_timeouts
+)
 
 
 @dataclass
@@ -25,6 +30,7 @@ class DatabaseConnection:
     ssl_mode: str = "require"
     username: str = "postgres"
     encrypted_password: Optional[str] = None
+    connection_options: Dict[str, Any] = field(default_factory=dict)
     
     # Pool Configuration
     pool_min_size: int = 5
@@ -51,18 +57,21 @@ class DatabaseConnection:
     
     def __post_init__(self):
         """Validate the database connection after initialization."""
-        if not self.connection_name:
-            raise ValueError("connection_name cannot be empty")
-        if not self.host:
-            raise ValueError("host cannot be empty")
-        if self.pool_min_size < 0:
-            raise ValueError("pool_min_size must be >= 0")
-        if self.pool_max_size < self.pool_min_size:
-            raise ValueError("pool_max_size must be >= pool_min_size")
-        if self.pool_timeout_seconds <= 0:
-            raise ValueError("pool_timeout_seconds must be > 0")
-        if self.pool_recycle_seconds <= 0:
-            raise ValueError("pool_recycle_seconds must be > 0")
+        # Use shared validation utilities
+        validate_connection_basic_fields(self.connection_name, self.host, self.database_name)
+        validate_pool_configuration(
+            self.pool_min_size, 
+            self.pool_max_size, 
+            self.pool_timeout_seconds,
+            self.connection_name
+        )
+        validate_connection_timeouts(
+            self.pool_timeout_seconds,
+            self.pool_recycle_seconds, 
+            self.connection_name
+        )
+        
+        # Connection-specific validations
         if self.consecutive_failures < 0:
             raise ValueError("consecutive_failures must be >= 0")
         if self.max_consecutive_failures <= 0:
@@ -180,6 +189,7 @@ class DatabaseConnection:
             "database_name": self.database_name,
             "ssl_mode": self.ssl_mode,
             "username": self.username,
+            "connection_options": self.connection_options,
             "pool_min_size": self.pool_min_size,
             "pool_max_size": self.pool_max_size,
             "pool_timeout_seconds": self.pool_timeout_seconds,
@@ -249,6 +259,7 @@ class DatabaseConnection:
             ssl_mode=ssl_mode,  # Parsed from URL or default to 'prefer'
             username=username,
             encrypted_password=password,  # TODO: Should be encrypted in production
+            connection_options={},  # Default empty connection options for URL-based connections
             pool_min_size=5,
             pool_max_size=20,
             pool_timeout_seconds=30,
@@ -297,6 +308,7 @@ class DatabaseConnection:
             ssl_mode=data.get("ssl_mode", "require"),
             username=data.get("username", "postgres"),
             encrypted_password=data.get("encrypted_password"),
+            connection_options=data.get("connection_options", {}),
             pool_min_size=data.get("pool_min_size", 5),
             pool_max_size=data.get("pool_max_size", 20),
             pool_timeout_seconds=data.get("pool_timeout_seconds", 30),

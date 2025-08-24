@@ -50,24 +50,53 @@ from .core.exceptions import (
 )
 
 from .core.value_objects import (
-    # Value Objects
+    # Basic Value Objects
     UserId,
     TenantId,
     OrganizationId,
     PermissionCode,
     RoleCode,
+    
+    # Configurable Value Objects Framework
+    ConfigurableValueObject,
+    ValidationRule,
+    ValidationRuleBuilder,
+    set_value_object_configuration,
+    clear_value_object_cache,
+    get_value_object_statistics,
+    
+    # Configurable Identifier Value Objects
+    ConfigurableUserId,
+    ConfigurableTenantId,
+    ConfigurableOrganizationId,
+    ConfigurablePermissionCode,
+    ConfigurableRoleCode,
 )
 
-# TODO: Re-enable these imports when the modules are properly implemented
-# from .core.shared import (
-#     # Core Entities
-#     RequestContext,
-#     
-#     # Core Protocols
-#     TenantContextProtocol,
-#     UserIdentityProtocol,
-#     PermissionCheckerProtocol,
-# )
+from .core.shared import (
+    # Core Entities
+    RequestContext,
+    
+    # Application Protocols
+    ConfigurationProtocol,
+    EventPublisherProtocol,
+    EventHandlerProtocol,
+    ValidationProtocol,
+    EncryptionProtocol,
+    LoggingProtocol,
+    MetricsProtocol,
+    MonitoringProtocol,
+    
+    # Domain Protocols  
+    TenantContextProtocol,
+    UserIdentityProtocol,
+    UserResolverProtocol,
+    
+    # Enums
+    LogLevel,
+    MetricType,
+    HealthStatus,
+)
 
 # TODO: Re-enable these imports when entities are properly implemented
 # from .features.users.entities import User
@@ -131,25 +160,63 @@ __all__ = [
     "ValidationError",
     "get_http_status_code",
     "create_error_response",
+    "HttpStatusMapper",
+    "set_configuration_provider",
+    "clear_mapping_cache", 
+    "get_mapping_statistics",
+    # Backward compatibility aliases
+    "ConfigurableHttpStatusMapper",
     
-    # Value Objects
+    # Basic Value Objects
     "UserId",
     "TenantId",
     "OrganizationId",
     "PermissionCode",
     "RoleCode",
     
-    # TODO: Re-enable when entities and protocols are implemented
+    # Configurable Value Objects Framework
+    "ConfigurableValueObject",
+    "ValidationRule",
+    "ValidationRuleBuilder",
+    "set_value_object_configuration",
+    "clear_value_object_cache",
+    "get_value_object_statistics",
+    
+    # Configurable Identifier Value Objects
+    "ConfigurableUserId",
+    "ConfigurableTenantId",
+    "ConfigurableOrganizationId",
+    "ConfigurablePermissionCode",
+    "ConfigurableRoleCode",
+    
+    # Core Entities
+    "RequestContext",
+    
+    # Application Protocols
+    "ConfigurationProtocol",
+    "EventPublisherProtocol", 
+    "EventHandlerProtocol",
+    "ValidationProtocol",
+    "EncryptionProtocol",
+    "LoggingProtocol",
+    "MetricsProtocol",
+    "MonitoringProtocol",
+    
+    # Domain Protocols
+    "TenantContextProtocol",
+    "UserIdentityProtocol",
+    "UserResolverProtocol", 
+    
+    # Enums
+    "LogLevel",
+    "MetricType", 
+    "HealthStatus",
+    
+    # TODO: Re-enable when entities are implemented
     # "User",
     # "Organization", 
     # "Tenant",
     # "Team",
-    # "RequestContext",
-    # "TenantContextProtocol",
-    # "UserIdentityProtocol", 
-    # "PermissionCheckerProtocol",
-    # "DatabaseConnectionProtocol",
-    # "CacheProtocol",
     
     # Utilities
     "generate_uuid_v7",

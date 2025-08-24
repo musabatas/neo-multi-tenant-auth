@@ -1,15 +1,18 @@
 """HTTP status code mapping for exceptions.
 
-This module defines the mapping between exception types and
-HTTP status codes for API responses.
+This module provides both static and configurable HTTP status code mapping,
+allowing runtime customization of exception-to-status-code mappings
+via ConfigurationProtocol while maintaining backward compatibility.
 """
 
+from typing import Any, Dict, Optional, Type
+from ..shared.application import ConfigurationProtocol
 from .domain import *
 from .infrastructure import *
 from .database import *
 
 
-# HTTP Status Code mapping for exceptions
+# Static HTTP Status Code mapping for exceptions (backward compatibility)
 HTTP_STATUS_MAP = {
     # 400 Bad Request
     RequiredFieldError: 400,
@@ -114,3 +117,167 @@ HTTP_STATUS_MAP = {
     # Default for NeoCommonsError
     NeoCommonsError: 500,
 }
+
+
+class HttpStatusMapper:
+    """Configuration-driven HTTP status code mapper for exceptions.
+    
+    This class allows runtime customization of exception-to-status-code mappings
+    through ConfigurationProtocol, while providing sensible defaults.
+    """
+    
+    def __init__(self, config: Optional[ConfigurationProtocol] = None):
+        """Initialize with optional configuration provider.
+        
+        Args:
+            config: Optional configuration provider for custom mappings
+        """
+        self._config = config
+        self._cache: Dict[Type[Exception], int] = {}
+    
+    def get_status_code(self, exception: Exception) -> int:
+        """Get HTTP status code for exception with configuration override.
+        
+        Args:
+            exception: The exception instance
+            
+        Returns:
+            HTTP status code (cached for performance)
+        """
+        exception_type = type(exception)
+        
+        # Check cache first
+        if exception_type in self._cache:
+            return self._cache[exception_type]
+        
+        # Try configuration override
+        status_code = self._get_configured_status_code(exception_type)
+        
+        # Fall back to default mapping
+        if status_code is None:
+            status_code = HTTP_STATUS_MAP.get(exception_type, 500)
+        
+        # Cache the result
+        self._cache[exception_type] = status_code
+        return status_code
+    
+    def _get_configured_status_code(self, exception_type: Type[Exception]) -> Optional[int]:
+        """Get status code from configuration.
+        
+        Args:
+            exception_type: The exception class
+            
+        Returns:
+            Configured status code or None if not configured
+        """
+        if not self._config:
+            return None
+        
+        try:
+            # Try exact class name match
+            key = f"http_status_mapping.{exception_type.__name__}"
+            status_code = self._config.get(key)
+            if status_code is not None:
+                return int(status_code)
+            
+            # Try parent class matches for inheritance-based overrides
+            for base_class in exception_type.__mro__[1:]:  # Skip the class itself
+                if base_class == Exception:
+                    break
+                key = f"http_status_mapping.{base_class.__name__}"
+                status_code = self._config.get(key)
+                if status_code is not None:
+                    return int(status_code)
+                    
+        except (ValueError, TypeError):
+            # Invalid configuration value, fall back to default
+            pass
+        
+        return None
+    
+    def clear_cache(self) -> None:
+        """Clear the status code cache.
+        
+        Call this when configuration changes to force re-evaluation
+        of status code mappings.
+        """
+        self._cache.clear()
+    
+    def get_mapping_stats(self) -> Dict[str, Any]:
+        """Get statistics about current mappings.
+        
+        Returns:
+            Dictionary with mapping statistics
+        """
+        return {
+            "cached_mappings": len(self._cache),
+            "default_mappings": len(HTTP_STATUS_MAP),
+            "has_config": self._config is not None,
+            "cache_entries": {
+                exc_type.__name__: status_code 
+                for exc_type, status_code in self._cache.items()
+            }
+        }
+
+
+# Global mapper instance
+_global_mapper: Optional[HttpStatusMapper] = None
+
+
+def get_mapper() -> HttpStatusMapper:
+    """Get or create the global HTTP status mapper.
+    
+    Returns:
+        Global HttpStatusMapper instance
+    """
+    global _global_mapper
+    if _global_mapper is None:
+        _global_mapper = HttpStatusMapper()
+    return _global_mapper
+
+
+def set_configuration_provider(config: ConfigurationProtocol) -> None:
+    """Set the configuration provider for HTTP status mapping.
+    
+    Args:
+        config: Configuration provider instance
+    """
+    global _global_mapper
+    _global_mapper = HttpStatusMapper(config)
+
+
+def get_http_status_code(exception: Exception) -> int:
+    """Get HTTP status code for exception using configurable mapping.
+    
+    Args:
+        exception: The exception instance
+        
+    Returns:
+        HTTP status code
+    """
+    mapper = get_mapper()
+    return mapper.get_status_code(exception)
+
+
+def clear_mapping_cache() -> None:
+    """Clear the HTTP status mapping cache.
+    
+    Call this when configuration changes to force re-evaluation.
+    """
+    mapper = get_mapper()
+    mapper.clear_cache()
+
+
+def get_mapping_statistics() -> Dict[str, Any]:
+    """Get statistics about current HTTP status mappings.
+    
+    Returns:
+        Dictionary with mapping statistics
+    """
+    mapper = get_mapper()
+    return mapper.get_mapping_stats()
+
+
+# Backward compatibility aliases
+ConfigurableHttpStatusMapper = HttpStatusMapper
+get_configurable_mapper = get_mapper

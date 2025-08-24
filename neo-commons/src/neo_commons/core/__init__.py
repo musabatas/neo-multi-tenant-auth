@@ -2,6 +2,8 @@
 
 Clean Core - Only exports exceptions and value objects.
 Entities are accessed through features/, protocols through shared/.
+
+For dynamic configuration patterns and best practices, see CONFIGURATION_GUIDE.md
 """
 
 # Import from sub-modules - Clean Core approach
@@ -139,6 +141,10 @@ __all__ = [
     "HTTP_STATUS_MAP",
     "get_http_status_code",
     "create_error_response",
+    "ConfigurableHttpStatusMapper",
+    "set_configuration_provider",
+    "clear_mapping_cache", 
+    "get_mapping_statistics",
     
     # Value Objects (Clean Core - these are immutable identifiers)
     "UserId",

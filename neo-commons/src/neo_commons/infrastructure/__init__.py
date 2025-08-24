@@ -2,10 +2,10 @@
 
 Core infrastructure components that serve all features and services:
 - configuration/: Configuration management system
-- middleware/: FastAPI middleware for cross-cutting concerns
+- middleware/: FastAPI middleware for cross-cutting concerns  
 - fastapi/: FastAPI application factory and configuration
 - protocols/: Infrastructure contracts and interfaces
-- database/: Low-level database utilities
+- monitoring/: Performance monitoring and metrics collection
 """
 
 # Configuration infrastructure

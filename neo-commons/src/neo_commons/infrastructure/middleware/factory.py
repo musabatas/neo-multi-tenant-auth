@@ -7,7 +7,8 @@ with sensible defaults and proper ordering for optimal security and performance.
 from typing import Optional, List, Dict, Any, Callable
 from fastapi import FastAPI
 
-# from .auth_middleware import AuthenticationMiddleware, OptionalAuthenticationMiddleware  # TODO: Enable when UserService is implemented
+# Auth middleware moved to features/auth/middleware.py for better organization
+# from ...features.auth.middleware import AuthMiddleware, TenantIsolationMiddleware, RateLimitingMiddleware  # TODO: Enable when UserService is implemented
 # from .tenant_middleware import TenantContextMiddleware, MultiTenantDatabaseMiddleware  # TODO: Enable when TenantService is implemented
 from .logging_middleware import StructuredLoggingMiddleware
 from .security_middleware import SecurityMiddleware, CORSMiddleware, RateLimitMiddleware

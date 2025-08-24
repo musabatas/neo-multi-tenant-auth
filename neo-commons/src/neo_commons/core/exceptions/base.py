@@ -30,7 +30,7 @@ class NeoCommonsError(Exception):
 
 
 def get_http_status_code(exception: Exception) -> int:
-    """Get HTTP status code for exception.
+    """Get HTTP status code for exception using configurable mapping.
     
     Args:
         exception: The exception instance
@@ -38,9 +38,8 @@ def get_http_status_code(exception: Exception) -> int:
     Returns:
         HTTP status code
     """
-    from .http_mapping import HTTP_STATUS_MAP
-    exception_type = type(exception)
-    return HTTP_STATUS_MAP.get(exception_type, 500)
+    from .http_mapping import get_http_status_code as get_configurable_status_code
+    return get_configurable_status_code(exception)
 
 
 def create_error_response(exception: NeoCommonsError) -> Dict[str, Any]:

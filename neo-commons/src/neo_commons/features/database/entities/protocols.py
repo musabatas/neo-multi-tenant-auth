@@ -111,6 +111,11 @@ class ConnectionPool(Protocol):
     def free_size(self) -> int:
         """Get number of free connections in pool."""
         ...
+    
+    @abstractmethod
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get detailed pool statistics."""
+        ...
 
 
 @runtime_checkable

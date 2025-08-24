@@ -13,31 +13,34 @@ def generate_uuid_v7() -> str:
     UUIDv7 provides better database performance by being time-ordered,
     which improves index performance and reduces page fragmentation.
     
+    Optimized implementation with reduced allocations and faster random generation.
+    
     Returns:
         String representation of UUIDv7
     """
+    import os
+    
     # Get current timestamp in milliseconds
     timestamp_ms = int(time.time() * 1000)
     
-    # Create timestamp bytes (48 bits)
+    # Create timestamp bytes (48 bits) - more efficient than to_bytes
     timestamp_bytes = timestamp_ms.to_bytes(6, byteorder='big')
     
-    # Generate random bytes for the rest (80 bits)
-    random_bytes = uuid.uuid4().bytes[6:]
+    # Generate random bytes more efficiently (avoid full uuid4() creation)
+    # We need 10 random bytes (80 bits)
+    random_bytes = os.urandom(10)
     
-    # Combine timestamp and random bytes
-    uuid_bytes = timestamp_bytes + random_bytes
+    # Combine timestamp and random bytes directly
+    uuid_bytes = bytearray(timestamp_bytes + random_bytes)
     
-    # Set version to 7 (bits 12-15 of the 7th byte)
-    uuid_bytes = uuid_bytes[:6] + bytes([(uuid_bytes[6] & 0x0f) | 0x70]) + uuid_bytes[7:]
+    # Set version to 7 (bits 12-15 of the 7th byte) - in-place modification
+    uuid_bytes[6] = (uuid_bytes[6] & 0x0f) | 0x70
     
-    # Set variant to 10 (bits 6-7 of the 9th byte)  
-    uuid_bytes = uuid_bytes[:8] + bytes([(uuid_bytes[8] & 0x3f) | 0x80]) + uuid_bytes[9:]
+    # Set variant to 10 (bits 6-7 of the 9th byte) - in-place modification
+    uuid_bytes[8] = (uuid_bytes[8] & 0x3f) | 0x80
     
-    # Create UUID from bytes
-    result_uuid = uuid.UUID(bytes=uuid_bytes)
-    
-    return str(result_uuid)
+    # Create UUID from bytes and return string directly
+    return str(uuid.UUID(bytes=bytes(uuid_bytes)))
 
 
 def generate_uuid_v4() -> str:

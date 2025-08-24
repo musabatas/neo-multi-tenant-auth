@@ -3,6 +3,7 @@
 from typing import Optional
 
 from pydantic import BaseModel, Field, validator
+from neo_commons.features.organizations import OrganizationValidationRules
 
 
 class OrganizationCreateRequest(BaseModel):
@@ -40,23 +41,23 @@ class OrganizationCreateRequest(BaseModel):
     
     @validator("name")
     def validate_name(cls, v):
-        """Validate organization name format."""
-        if not v.replace("-", "").replace("_", "").isalnum():
-            raise ValueError(
-                "Organization name must contain only alphanumeric characters, hyphens, and underscores"
-            )
-        return v.lower()
+        """Validate organization name format using centralized rules."""
+        return OrganizationValidationRules.validate_name(v)
+    
+    @validator("display_name")
+    def validate_display_name(cls, v):
+        """Validate display name using centralized rules."""
+        return OrganizationValidationRules.validate_display_name(v)
+    
+    @validator("description")
+    def validate_description(cls, v):
+        """Validate description using centralized rules."""
+        return OrganizationValidationRules.validate_description(v)
     
     @validator("domain")
     def validate_domain(cls, v):
-        """Validate domain format."""
-        if v is None:
-            return v
-        
-        if not v or "." not in v:
-            raise ValueError("Invalid domain format")
-        
-        return v.lower()
+        """Validate domain format using centralized rules."""
+        return OrganizationValidationRules.validate_domain(v)
 
 
 class OrganizationUpdateRequest(BaseModel):
@@ -81,3 +82,15 @@ class OrganizationUpdateRequest(BaseModel):
         None,
         description="Organization active status"
     )
+    
+    @validator("display_name")
+    def validate_display_name(cls, v):
+        """Validate display name using centralized rules."""
+        if v is None:
+            return v
+        return OrganizationValidationRules.validate_display_name(v)
+    
+    @validator("description")
+    def validate_description(cls, v):
+        """Validate description using centralized rules."""
+        return OrganizationValidationRules.validate_description(v)

@@ -5,7 +5,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
-from ..entities.database_protocols import SchemaResolver, ConnectionManager
+from ..entities.protocols import SchemaResolver, ConnectionManager
 from ....core.exceptions.database import (
     SchemaNotFoundError,
     InvalidSchemaError,
@@ -13,6 +13,7 @@ from ....core.exceptions.database import (
 )
 from ....config.constants import DatabaseSchemas
 from ...tenants.services.tenant_cache import TenantCache
+from ..utils.queries import SCHEMA_EXISTENCE_CHECK, TENANT_SCHEMA_LIST
 
 logger = logging.getLogger(__name__)
 
@@ -262,12 +263,7 @@ class DatabaseSchemaResolver(SchemaResolver):
         conn_name = connection_name or self._admin_connection_name
         
         try:
-            query = """
-                SELECT EXISTS(
-                    SELECT 1 FROM information_schema.schemata 
-                    WHERE schema_name = $1
-                )
-            """
+            query = f"SELECT EXISTS({SCHEMA_EXISTENCE_CHECK})"
             
             result = await self._connection_manager.execute_fetchval(
                 conn_name,

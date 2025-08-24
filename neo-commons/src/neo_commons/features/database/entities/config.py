@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings
 from enum import Enum
 
 from ....config.constants import ConnectionType
+from ..utils.validation import validate_pool_configuration, validate_connection_basic_fields, validate_connection_timeouts
 
 
 class DatabaseSettings(BaseSettings):
@@ -89,16 +90,14 @@ class DatabaseConnectionConfig:
     
     def __post_init__(self):
         """Validate configuration after initialization."""
-        if self.pool_min_size < 0:
-            raise ValueError("pool_min_size must be >= 0")
-        if self.pool_max_size < self.pool_min_size:
-            raise ValueError("pool_max_size must be >= pool_min_size")
-        if self.pool_timeout_seconds <= 0:
-            raise ValueError("pool_timeout_seconds must be > 0")
-        if not self.connection_name:
-            raise ValueError("connection_name cannot be empty")
-        if not self.host:
-            raise ValueError("host cannot be empty")
+        # Use shared validation utilities
+        validate_connection_basic_fields(self.connection_name, self.host)
+        validate_pool_configuration(
+            self.pool_min_size, 
+            self.pool_max_size, 
+            self.pool_timeout_seconds,
+            self.connection_name
+        )
     
     @property
     def dsn(self) -> str:

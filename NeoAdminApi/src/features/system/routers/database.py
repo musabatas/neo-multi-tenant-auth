@@ -47,19 +47,9 @@ async def reload_database_connections(
     """
     try:
         from ..services.connection_loader import DatabaseConnectionLoader
-        import os
         
-        # Get admin database URL from environment
-        admin_db_url = os.getenv("ADMIN_DATABASE_URL")
-        if not admin_db_url:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="ADMIN_DATABASE_URL environment variable not configured"
-            )
-        
-        # Create connection loader
+        # Create connection loader using neo-commons utilities (no admin_database_url needed)
         loader = DatabaseConnectionLoader(
-            admin_database_url=admin_db_url,
             connection_registry=db_service.connection_registry
         )
         

@@ -8,7 +8,7 @@ import asyncpg
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from ..entities.database_protocols import (
+from ..entities.protocols import (
     ConnectionManager, 
     ConnectionPool, 
     ConnectionRegistry,
@@ -25,20 +25,58 @@ from ....core.exceptions.database import (
     HealthCheckFailedError,
     FailoverError
 )
+from ..utils.queries import BASIC_HEALTH_CHECK
+from ..utils.connection_factory import ConnectionFactory
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PoolMetrics:
-    """Metrics for connection pool."""
+    """Enhanced metrics for connection pool with comprehensive performance data."""
+    # Current pool state
     total_connections: int = 0
     active_connections: int = 0
     idle_connections: int = 0
     last_health_check: Optional[datetime] = None
+    
+    # Connection lifecycle metrics
+    total_connections_created: int = 0
+    failed_connections: int = 0
+    health_check_failures: int = 0
+    
+    # Query metrics
     total_queries: int = 0
     failed_queries: int = 0
+    
+    # Response time metrics (NEW)
     avg_response_time_ms: float = 0.0
+    p95_response_time_ms: float = 0.0
+    p99_response_time_ms: float = 0.0
+    min_response_time_ms: float = 0.0
+    max_response_time_ms: float = 0.0
+    
+    # Connection acquisition metrics (NEW)
+    connection_acquisition_time_ms: float = 0.0
+    p95_acquisition_time_ms: float = 0.0
+    max_acquisition_time_ms: float = 0.0
+    acquisition_timeouts: int = 0
+    
+    # Capacity and saturation metrics (NEW)
+    saturation_level: float = 0.0  # 0.0 = idle, 1.0 = fully saturated
+    recommended_pool_size: int = 0
+    pool_efficiency: float = 0.0  # active/total connections ratio
+    
+    # Health and quality metrics (NEW)
+    health_score: float = 100.0  # 0-100 health score
+    recent_failures: int = 0
+    query_success_rate: float = 100.0  # Percentage of successful queries
+    connection_churn_rate: float = 0.0  # Connections created/destroyed per minute
+    
+    # Trend metrics (NEW)
+    queries_per_second: float = 0.0
+    peak_concurrent_queries: int = 0
+    avg_connection_hold_time_ms: float = 0.0
 
 
 class AsyncConnectionPool(ConnectionPool):
@@ -54,18 +92,7 @@ class AsyncConnectionPool(ConnectionPool):
     async def _create_pool(self) -> asyncpg.Pool:
         """Create the asyncpg connection pool."""
         try:
-            pool = await asyncpg.create_pool(
-                host=self._connection_config.host,
-                port=self._connection_config.port,
-                database=self._connection_config.database_name,
-                user=self._connection_config.username,
-                password=self._connection_config.encrypted_password,  # Password should be decrypted at connection loading
-                ssl=self._connection_config.ssl_mode,
-                min_size=self._connection_config.pool_min_size,
-                max_size=self._connection_config.pool_max_size,
-                timeout=self._connection_config.pool_timeout_seconds,
-                max_inactive_connection_lifetime=self._connection_config.pool_recycle_seconds,
-            )
+            pool = await ConnectionFactory.create_connection_pool(self._connection_config)
             
             logger.info(
                 f"Created connection pool for {self._connection_config.connection_name}: "
@@ -140,7 +167,7 @@ class AsyncConnectionPool(ConnectionPool):
         
         try:
             async with self.connection() as conn:
-                await conn.fetchval("SELECT 1")
+                await conn.fetchval(BASIC_HEALTH_CHECK)
             return True
         except Exception as e:
             logger.warning(f"Pool health check failed: {e}")
@@ -167,6 +194,73 @@ class AsyncConnectionPool(ConnectionPool):
             self._metrics.total_connections = self._pool.get_size()
             self._metrics.idle_connections = self.free_size
         return self._metrics
+    
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get detailed pool statistics."""
+        if not self._pool:
+            return {
+                "connection_name": self._connection_config.connection_name,
+                "pool_status": "not_initialized",
+                "total_connections": 0,
+                "idle_connections": 0,
+                "busy_connections": 0,
+                "min_size": self._connection_config.pool_min_size,
+                "max_size": self._connection_config.pool_max_size,
+                "timeout_seconds": self._connection_config.pool_timeout_seconds,
+                "recycle_seconds": self._connection_config.pool_recycle_seconds,
+                "pre_ping": self._connection_config.pool_pre_ping,
+                "is_closing": self._is_closing,
+                "metrics": {
+                    "total_acquired": self._metrics.total_connections_created,
+                    "active_connections": self._metrics.active_connections,
+                    "failed_acquisitions": self._metrics.failed_connections,
+                    "health_check_failures": self._metrics.health_check_failures
+                }
+            }
+        
+        try:
+            # Get current pool state
+            total_connections = self._pool.get_size()
+            busy_connections = self._pool.get_busy_count() if hasattr(self._pool, 'get_busy_count') else 0
+            idle_connections = total_connections - busy_connections
+            
+            # Update metrics
+            self._metrics.total_connections = total_connections
+            self._metrics.idle_connections = idle_connections
+            
+            return {
+                "connection_name": self._connection_config.connection_name,
+                "pool_status": "initialized",
+                "total_connections": total_connections,
+                "idle_connections": idle_connections,
+                "busy_connections": busy_connections,
+                "min_size": self._connection_config.pool_min_size,
+                "max_size": self._connection_config.pool_max_size,
+                "timeout_seconds": self._connection_config.pool_timeout_seconds,
+                "recycle_seconds": self._connection_config.pool_recycle_seconds,
+                "pre_ping": self._connection_config.pool_pre_ping,
+                "is_closing": self._is_closing,
+                "metrics": {
+                    "total_acquired": self._metrics.total_connections_created,
+                    "active_connections": self._metrics.active_connections,
+                    "failed_acquisitions": self._metrics.failed_connections,
+                    "health_check_failures": self._metrics.health_check_failures
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get pool stats for {self._connection_config.connection_name}: {e}")
+            return {
+                "connection_name": self._connection_config.connection_name,
+                "pool_status": "error",
+                "error": str(e),
+                "total_connections": 0,
+                "idle_connections": 0,
+                "busy_connections": 0,
+                "min_size": self._connection_config.pool_min_size,
+                "max_size": self._connection_config.pool_max_size,
+                "is_closing": self._is_closing
+            }
 
 
 class DatabaseConnectionManager(ConnectionManager):

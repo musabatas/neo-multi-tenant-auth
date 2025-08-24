@@ -35,27 +35,18 @@ async def lifespan(app: FastAPI):
         load_dotenv(env_local_file, override=True)
         logger.info(f"Loaded local environment overrides from {env_local_file}")
     
-    from neo_commons.config.manager import get_env_config
-    from neo_commons.features.auth import AuthServiceFactory
     from .common.dependencies import get_database_service
+    from .common.config import get_config_provider
     
     # Get database service first
     database_service = await get_database_service()
     
     # Get centralized configuration
-    env_config = get_env_config()
+    config_provider = get_config_provider()
+    env_config = config_provider.config
     
-    # Initialize auth factory with standard neo-commons configuration
-    # Initialize neo-commons auth factory directly
-    from neo_commons.features.auth import AuthServiceFactory
-    _auth_factory = AuthServiceFactory(
-        keycloak_server_url=env_config.keycloak_server_url,
-        keycloak_admin_username=env_config.keycloak_admin or "admin",
-        keycloak_admin_password=env_config.keycloak_password or "admin",
-        redis_url=env_config.redis_url,
-        redis_password=env_config.redis_password,
-        database_service=database_service,
-    )
+    # Initialize auth factory using centralized configuration
+    _auth_factory = await config_provider.get_auth_factory(database_service)
     
     # Initialize all auth services
     await _auth_factory.initialize_all_services()
@@ -128,6 +119,9 @@ def create_app() -> FastAPI:
     
     from .features.organizations.routers.v1 import router as orgs_router  
     app.include_router(orgs_router, prefix="/api/v1/organizations", tags=["Organizations"])
+    
+    from .features.tenants.routers.v1 import router as tenants_router
+    app.include_router(tenants_router, prefix="/api/v1/tenants", tags=["Tenants"])
     
     from .features.system.routers.v1 import router as system_router
     app.include_router(system_router, prefix="/api/v1/system")

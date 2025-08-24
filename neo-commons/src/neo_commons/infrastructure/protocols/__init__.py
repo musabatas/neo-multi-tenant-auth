@@ -14,7 +14,20 @@ from .infrastructure import (
     MetricsCollectorProtocol
 )
 
+from .factory import (
+    RuntimeProtocolFactory,
+    ProtocolImplementation,
+    AdaptationStrategy,
+    ProtocolRegistrar,
+    get_protocol_factory,
+    set_protocol_factory,
+    create_protocol,
+    register_implementation,
+    protocol_implementation
+)
+
 __all__ = [
+    # Infrastructure protocols
     "InfrastructureProtocol",
     "DatabaseConnectionProtocol",
     "CacheProtocol", 
@@ -23,4 +36,15 @@ __all__ = [
     "ServiceProtocol",
     "HealthCheckProtocol",
     "MetricsCollectorProtocol",
+    
+    # Protocol factory
+    "RuntimeProtocolFactory",
+    "ProtocolImplementation",
+    "AdaptationStrategy",
+    "ProtocolRegistrar",
+    "get_protocol_factory",
+    "set_protocol_factory", 
+    "create_protocol",
+    "register_implementation",
+    "protocol_implementation",
 ]

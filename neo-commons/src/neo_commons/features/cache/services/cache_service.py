@@ -3,6 +3,8 @@
 import logging
 from typing import Dict, List, Optional, Any, TypeVar
 
+from ....infrastructure.monitoring import critical_performance, medium_performance
+
 from ..entities.protocols import Cache
 from ..entities.config import CacheSettings
 from ....core.value_objects import TenantId
@@ -50,6 +52,7 @@ class CacheService:
     
     # High-level cache operations
     
+    @critical_performance(name="cache.get", include_args=True)
     async def get(self, key: str, default: Optional[T] = None) -> Optional[T]:
         """Get value from cache."""
         if not self._initialized:
@@ -58,6 +61,7 @@ class CacheService:
         result = await self.default_cache.get(key)
         return result if result is not None else default
     
+    @critical_performance(name="cache.set", include_args=True)
     async def set(self, 
                  key: str, 
                  value: T, 
@@ -69,6 +73,7 @@ class CacheService:
         # RedisAdapter doesn't support tags, so we ignore them for now
         await self.default_cache.set(key, value, ttl)
     
+    @medium_performance(name="cache.delete", include_args=True)
     async def delete(self, key: str) -> bool:
         """Delete value from cache."""
         if not self._initialized:
@@ -87,6 +92,7 @@ class CacheService:
         """Build tenant-specific cache key."""
         return f"tenant:{tenant_id}:{key}"
     
+    @critical_performance(name="cache.get_tenant_value", include_args=True)
     async def get_tenant_value(self, 
                               tenant_id: str, 
                               key: str, 
@@ -95,6 +101,7 @@ class CacheService:
         tenant_key = await self.get_tenant_key(tenant_id, key)
         return await self.get(tenant_key, default)
     
+    @critical_performance(name="cache.set_tenant_value", include_args=True)
     async def set_tenant_value(self, 
                               tenant_id: str, 
                               key: str, 

@@ -14,7 +14,7 @@ from .protocols import (
 )
 
 # Domain entities
-from .connection import DatabaseConnection
+from .database_connection import DatabaseConnection
 
 # Configuration
 from .config import (

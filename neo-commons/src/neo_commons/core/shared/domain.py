@@ -30,36 +30,6 @@ class UserIdentityProtocol(Protocol):
     roles: set[str]
 
 
-@runtime_checkable
-class PermissionCheckerProtocol(Protocol):
-    """Protocol for permission checking."""
-    
-    async def check_permission(
-        self,
-        user_id: str,
-        permission: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> bool:
-        """Check if user has specific permission."""
-        ...
-    
-    async def check_multiple_permissions(
-        self,
-        user_id: str,
-        permissions: List[str],
-        require_all: bool = True,
-        context: Optional[Dict[str, Any]] = None
-    ) -> bool:
-        """Check multiple permissions."""
-        ...
-    
-    async def get_user_permissions(
-        self,
-        user_id: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> set[str]:
-        """Get all permissions for user."""
-        ...
 
 
 @runtime_checkable
@@ -83,14 +53,3 @@ class UserResolverProtocol(Protocol):
         ...
 
 
-@runtime_checkable
-class SchemaResolverProtocol(Protocol):
-    """Protocol for database schema resolution."""
-    
-    async def resolve_schema(self, tenant_id: Optional[str] = None) -> str:
-        """Resolve database schema name for tenant."""
-        ...
-    
-    def validate_schema_name(self, schema_name: str) -> str:
-        """Validate and return safe schema name."""
-        ...

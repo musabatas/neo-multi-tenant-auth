@@ -6,10 +6,13 @@ from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import asyncpg
 
-from ..entities.database_protocols import ConnectionHealthChecker, ConnectionManager
+from ..entities.protocols import ConnectionHealthChecker, ConnectionManager
 from ..entities.database_connection import DatabaseConnection
 from ....config.constants import HealthStatus
 from ....core.exceptions.database import HealthCheckFailedError
+from .health_strategy import HealthCheckStrategy, create_health_strategy
+from ..utils.queries import BASIC_HEALTH_CHECK
+from ..utils.connection_factory import ConnectionFactory
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +23,14 @@ class DatabaseHealthChecker(ConnectionHealthChecker):
     def __init__(self, 
                  connection_timeout: int = 10,
                  query_timeout: int = 5,
-                 health_check_interval: int = 30):
+                 health_check_interval: int = 30,
+                 health_strategy: Optional[HealthCheckStrategy] = None):
         self.connection_timeout = connection_timeout
         self.query_timeout = query_timeout
         self.health_check_interval = health_check_interval
         
-        # Health check queries by connection type
-        self.health_check_queries = {
-            "basic": "SELECT 1",
-            "extended": "SELECT current_timestamp, version()",
-            "deep": """
-                SELECT 
-                    current_timestamp as check_time,
-                    pg_database_size(current_database()) as db_size,
-                    (SELECT count(*) FROM pg_stat_activity) as active_connections,
-                    pg_is_in_recovery() as is_replica
-            """
-        }
+        # Use configurable health check strategy
+        self.health_strategy = health_strategy or create_health_strategy("standard")
     
     async def check_health(self, connection: DatabaseConnection) -> bool:
         """Check if a database connection is healthy."""
@@ -77,23 +71,24 @@ class DatabaseHealthChecker(ConnectionHealthChecker):
     async def _perform_basic_check(self, connection: DatabaseConnection) -> bool:
         """Perform basic connectivity check."""
         try:
-            conn = await asyncio.wait_for(
-                asyncpg.connect(
-                    host=connection.host,
-                    port=connection.port,
-                    database=connection.database_name,
-                    user=connection.username,
-                    password=connection.encrypted_password,  # Password should be decrypted at connection loading
-                    ssl=connection.ssl_mode,
-                ),
+            conn = await ConnectionFactory.create_connection(
+                connection,
                 timeout=self.connection_timeout
             )
             
             try:
+                # Get basic health check query from strategy
+                queries = self.health_strategy.get_queries_for_connection(connection)
+                basic_query = queries.get("basic")
+                
+                if not basic_query:
+                    logger.warning(f"No basic health check query available for {connection.connection_name}")
+                    return False
+                
                 # Execute basic health check query
                 result = await asyncio.wait_for(
-                    conn.fetchval(self.health_check_queries["basic"]),
-                    timeout=self.query_timeout
+                    conn.fetchval(basic_query.query),
+                    timeout=basic_query.timeout_seconds
                 )
                 
                 return result == 1
@@ -111,23 +106,24 @@ class DatabaseHealthChecker(ConnectionHealthChecker):
     async def _perform_extended_check(self, connection: DatabaseConnection) -> bool:
         """Perform extended health check with more detailed queries."""
         try:
-            conn = await asyncio.wait_for(
-                asyncpg.connect(
-                    host=connection.host,
-                    port=connection.port,
-                    database=connection.database_name,
-                    user=connection.username,
-                    password=connection.encrypted_password,  # Password should be decrypted at connection loading
-                    ssl=connection.ssl_mode,
-                ),
+            conn = await ConnectionFactory.create_connection(
+                connection,
                 timeout=self.connection_timeout
             )
             
             try:
+                # Get extended health check query from strategy
+                queries = self.health_strategy.get_queries_for_connection(connection)
+                extended_query = queries.get("extended")
+                
+                if not extended_query:
+                    # If no extended query, consider it successful
+                    return True
+                
                 # Execute extended health check query
                 result = await asyncio.wait_for(
-                    conn.fetchrow(self.health_check_queries["extended"]),
-                    timeout=self.query_timeout
+                    conn.fetchrow(extended_query.query),
+                    timeout=extended_query.timeout_seconds
                 )
                 
                 if result:
@@ -154,23 +150,27 @@ class DatabaseHealthChecker(ConnectionHealthChecker):
     async def perform_deep_health_check(self, connection: DatabaseConnection) -> Dict[str, any]:
         """Perform deep health check with detailed metrics."""
         try:
-            conn = await asyncio.wait_for(
-                asyncpg.connect(
-                    host=connection.host,
-                    port=connection.port,
-                    database=connection.database_name,
-                    user=connection.username,
-                    password=connection.encrypted_password,  # Password should be decrypted at connection loading
-                    ssl=connection.ssl_mode,
-                ),
+            conn = await ConnectionFactory.create_connection(
+                connection,
                 timeout=self.connection_timeout
             )
             
             try:
+                # Get deep health check query from strategy
+                queries = self.health_strategy.get_queries_for_connection(connection)
+                deep_query = queries.get("deep")
+                
+                if not deep_query:
+                    # If no deep query, return basic success info
+                    return {
+                        "status": "healthy",
+                        "message": "No deep health check configured"
+                    }
+                
                 # Execute deep health check query
                 result = await asyncio.wait_for(
-                    conn.fetchrow(self.health_check_queries["deep"]),
-                    timeout=self.query_timeout * 2  # Allow more time for deep check
+                    conn.fetchrow(deep_query.query),
+                    timeout=deep_query.timeout_seconds
                 )
                 
                 if result:
@@ -199,15 +199,8 @@ class DatabaseHealthChecker(ConnectionHealthChecker):
     async def check_schema_accessibility(self, connection: DatabaseConnection, schema_name: str) -> bool:
         """Check if a specific schema is accessible."""
         try:
-            conn = await asyncio.wait_for(
-                asyncpg.connect(
-                    host=connection.host,
-                    port=connection.port,
-                    database=connection.database_name,
-                    user=connection.username,
-                    password=connection.encrypted_password,
-                    ssl=connection.ssl_mode,
-                ),
+            conn = await ConnectionFactory.create_connection(
+                connection,
                 timeout=self.connection_timeout
             )
             
@@ -239,22 +232,15 @@ class DatabaseHealthChecker(ConnectionHealthChecker):
         try:
             start_time = datetime.utcnow()
             
-            conn = await asyncio.wait_for(
-                asyncpg.connect(
-                    host=connection.host,
-                    port=connection.port,
-                    database=connection.database_name,
-                    user=connection.username,
-                    password=connection.encrypted_password,
-                    ssl=connection.ssl_mode,
-                ),
+            conn = await ConnectionFactory.create_connection(
+                connection,
                 timeout=self.connection_timeout
             )
             
             try:
                 # Execute simple query and measure time
                 await asyncio.wait_for(
-                    conn.fetchval("SELECT 1"),
+                    conn.fetchval(BASIC_HEALTH_CHECK),
                     timeout=self.query_timeout
                 )
                 

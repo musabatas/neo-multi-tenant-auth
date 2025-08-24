@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from uuid import UUID
 import logging
 
+from ....infrastructure.monitoring import critical_performance, high_performance
+
 from ....core.value_objects import UserId, TenantId
 from ....core.exceptions import AuthorizationError
 from ..entities import (
@@ -344,6 +346,7 @@ class PermissionService:
     
     # Permission Checking
     
+    @critical_performance(name="permission.check_permission", include_args=True)
     async def check_permission(
         self,
         user_id: UserId,
@@ -380,6 +383,7 @@ class PermissionService:
             user_id, permission_codes, tenant_id, scope_id
         )
     
+    @critical_performance(name="permission.get_user_permissions", include_args=True)
     async def get_user_permissions(
         self,
         user_id: UserId,

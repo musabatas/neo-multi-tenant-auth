@@ -58,21 +58,24 @@ class Tenant:
     deleted_at: Optional[datetime] = None
     
     def __post_init__(self):
-        """Post-initialization validation."""
-        # Validate slug format
-        import re
-        if not re.match(r'^[a-z0-9][a-z0-9-]*[a-z0-9]$', self.slug):
-            raise ValueError(f"Invalid tenant slug format: {self.slug}")
-        if not (4 <= len(self.slug) <= 54):
-            raise ValueError(f"Tenant slug length must be 4-54 characters: {self.slug}")
+        """Post-initialization validation using centralized validation."""
+        from ..utils.validation import TenantValidationRules
         
-        # Validate schema name format
-        if self.schema_name and not re.match(r'^[a-z][a-z0-9_]*$', self.schema_name):
-            raise ValueError(f"Invalid schema name format: {self.schema_name}")
+        # Validate using centralized rules
+        errors = TenantValidationRules.validate_all(
+            self.slug, 
+            self.name, 
+            self.description,
+            self.schema_name if self.schema_name else None,
+            self.custom_domain
+        )
+        
+        if errors:
+            raise ValueError(f"Tenant validation failed: {'; '.join(errors)}")
         
         # Set default schema name if not provided
         if not self.schema_name:
-            object.__setattr__(self, 'schema_name', f"tenant_{self.slug.replace('-', '_')}")
+            object.__setattr__(self, 'schema_name', TenantValidationRules.generate_schema_name(self.slug))
     
     @property
     def is_active(self) -> bool:

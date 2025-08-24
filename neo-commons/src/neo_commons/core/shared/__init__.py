@@ -25,16 +25,20 @@ from ..value_objects.identifiers import (
 from .domain import (
     TenantContextProtocol,
     UserIdentityProtocol,
-    PermissionCheckerProtocol,
-    UserResolverProtocol,
-    SchemaResolverProtocol
+    UserResolverProtocol
 )
 from .application import (
     ConfigurationProtocol,
     EventPublisherProtocol,
     EventHandlerProtocol,
     ValidationProtocol,
-    EncryptionProtocol
+    EncryptionProtocol,
+    LoggingProtocol,
+    MetricsProtocol,
+    MonitoringProtocol,
+    LogLevel,
+    MetricType,
+    HealthStatus
 )
 
 __all__ = [
@@ -53,12 +57,18 @@ __all__ = [
     # Protocols
     "TenantContextProtocol",
     "UserIdentityProtocol", 
-    "PermissionCheckerProtocol",
     "UserResolverProtocol",
-    "SchemaResolverProtocol",
     "ConfigurationProtocol",
     "EventPublisherProtocol",
     "EventHandlerProtocol",
     "ValidationProtocol",
     "EncryptionProtocol",
+    "LoggingProtocol",
+    "MetricsProtocol", 
+    "MonitoringProtocol",
+    
+    # Enums
+    "LogLevel",
+    "MetricType",
+    "HealthStatus",
 ]

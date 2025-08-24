@@ -11,11 +11,21 @@ class OrganizationRepository:
     def __init__(self, database_service: DatabaseService):
         """Initialize repository with database service."""
         self.database_service = database_service
+        self._admin_schema_cache: Optional[str] = None
+    
+    async def _get_admin_schema(self) -> str:
+        """Get admin schema name with caching for performance."""
+        if self._admin_schema_cache is None:
+            self._admin_schema_cache = await self.database_service.schema_resolver.get_admin_schema()
+        return self._admin_schema_cache
     
     async def create(self, organization: Organization) -> Organization:
         """Create new organization."""
-        query = """
-            INSERT INTO admin.organizations (
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
+        query = f"""
+            INSERT INTO {admin_schema}.organizations (
                 id, name, slug, legal_name, tax_id, business_type, industry,
                 company_size, website_url, primary_contact_id, address_line1,
                 address_line2, city, state_province, postal_code, country_code,
@@ -45,8 +55,11 @@ class OrganizationRepository:
     
     async def get_by_id(self, organization_id: OrganizationId) -> Optional[Organization]:
         """Get organization by ID."""
-        query = """
-            SELECT * FROM admin.organizations 
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
+        query = f"""
+            SELECT * FROM {admin_schema}.organizations 
             WHERE id = $1 AND deleted_at IS NULL
         """
         
@@ -56,8 +69,11 @@ class OrganizationRepository:
     
     async def get_by_name(self, name: str) -> Optional[Organization]:
         """Get organization by name."""
-        query = """
-            SELECT * FROM admin.organizations 
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
+        query = f"""
+            SELECT * FROM {admin_schema}.organizations 
             WHERE name = $1 AND deleted_at IS NULL
         """
         
@@ -67,8 +83,11 @@ class OrganizationRepository:
     
     async def update(self, organization: Organization) -> Organization:
         """Update organization."""
-        query = """
-            UPDATE admin.organizations SET
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
+        query = f"""
+            UPDATE {admin_schema}.organizations SET
                 name = $2, slug = $3, legal_name = $4, tax_id = $5, business_type = $6,
                 industry = $7, company_size = $8, website_url = $9, primary_contact_id = $10,
                 address_line1 = $11, address_line2 = $12, city = $13, state_province = $14,
@@ -101,8 +120,11 @@ class OrganizationRepository:
     
     async def delete(self, organization_id: OrganizationId) -> bool:
         """Delete organization (soft delete)."""
-        query = """
-            UPDATE admin.organizations SET
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
+        query = f"""
+            UPDATE {admin_schema}.organizations SET
                 deleted_at = NOW(),
                 is_active = false,
                 updated_at = NOW()
@@ -140,8 +162,11 @@ class OrganizationRepository:
         param_count += 1
         params.append(skip)
         
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
         query = f"""
-            SELECT * FROM admin.organizations
+            SELECT * FROM {admin_schema}.organizations
             WHERE {where_clause}
             ORDER BY name ASC
             LIMIT ${param_count - 1} OFFSET ${param_count}
@@ -171,8 +196,11 @@ class OrganizationRepository:
         
         where_clause = " AND ".join(conditions)
         
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
         query = f"""
-            SELECT COUNT(*) FROM admin.organizations
+            SELECT COUNT(*) FROM {admin_schema}.organizations
             WHERE {where_clause}
         """
         
@@ -187,10 +215,13 @@ class OrganizationRepository:
         limit: int = 50,
     ) -> List[dict]:
         """List tenants for an organization."""
-        query = """
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
+        query = f"""
             SELECT id, slug, name, description, schema_name, deployment_type,
                    environment, status, created_at, updated_at
-            FROM admin.tenants
+            FROM {admin_schema}.tenants
             WHERE organization_id = $1 AND deleted_at IS NULL
             ORDER BY name ASC
             LIMIT $2 OFFSET $3
@@ -202,8 +233,11 @@ class OrganizationRepository:
     
     async def count_organization_tenants(self, organization_id: OrganizationId) -> int:
         """Count tenants for an organization."""
-        query = """
-            SELECT COUNT(*) FROM admin.tenants
+        # Get dynamic schema name
+        admin_schema = await self._get_admin_schema()
+        
+        query = f"""
+            SELECT COUNT(*) FROM {admin_schema}.tenants
             WHERE organization_id = $1 AND deleted_at IS NULL
         """
         
