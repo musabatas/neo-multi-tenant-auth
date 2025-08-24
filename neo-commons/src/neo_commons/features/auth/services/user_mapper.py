@@ -25,12 +25,63 @@ class UserMapper(UserMapperProtocol):
     async def map_keycloak_to_platform(
         self, 
         keycloak_user_id: KeycloakUserId, 
-        tenant_id: TenantId,
+        tenant_id: Optional[TenantId],
     ) -> UserId:
         """Map Keycloak user ID to platform user ID."""
         logger.debug(f"Mapping Keycloak user {keycloak_user_id.value} to platform user")
         
         try:
+            # For platform admin users (no tenant), look up existing user in database
+            if tenant_id is None:
+                logger.debug("Platform admin user detected, looking up platform user ID in database")
+                
+                # First, check if user exists in database by external_user_id (Keycloak ID)
+                if hasattr(self.user_mapping_repository, 'database_service') and self.user_mapping_repository.database_service:
+                    try:
+                        async with self.user_mapping_repository.database_service.get_connection("admin") as conn:
+                            result = await conn.fetchrow(
+                                "SELECT id FROM admin.users WHERE external_user_id = $1",
+                                keycloak_user_id.value
+                            )
+                            
+                            logger.debug(f"Database query result: {result}")
+                            
+                            if result and result['id']:
+                                platform_user_id = UserId(str(result['id']))
+                                logger.debug(f"Found existing platform admin user: {platform_user_id.value}")
+                                return platform_user_id
+                            else:
+                                logger.debug(f"No user found with external_user_id: {keycloak_user_id.value}")
+                    
+                    except Exception as e:
+                        logger.warning(f"Failed to query database for existing user: {e}")
+                
+                # Fallback: check in-memory mapping
+                existing_mapping = await self.user_mapping_repository.get_by_keycloak_id(
+                    keycloak_user_id, tenant_id  # tenant_id is None for admin
+                )
+                
+                if existing_mapping:
+                    logger.debug(f"Found existing admin user mapping: {existing_mapping['platform_user_id']}")
+                    return UserId(existing_mapping["platform_user_id"])
+                
+                # If no user exists, create a new one (this should be rare for platform admin)
+                platform_user_id = UserId(generate_uuid_v7())
+                logger.warning(f"Creating new platform admin user - this should be rare: {platform_user_id.value}")
+                
+                await self.user_mapping_repository.create_mapping(
+                    keycloak_user_id=keycloak_user_id,
+                    platform_user_id=platform_user_id,
+                    tenant_id=tenant_id,  # None for admin
+                )
+                
+                logger.info(
+                    f"Created new admin user mapping: KC={keycloak_user_id.value} -> "
+                    f"Platform={platform_user_id.value}"
+                )
+                return platform_user_id
+            
+            # For tenant users, use database mapping
             # Check if mapping already exists
             existing_mapping = await self.user_mapping_repository.get_by_keycloak_id(
                 keycloak_user_id, tenant_id

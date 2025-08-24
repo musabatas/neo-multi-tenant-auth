@@ -10,7 +10,6 @@ class LoginRequest(BaseModel):
     
     username: str = Field(..., min_length=1, max_length=255, description="Username or email")
     password: str = Field(..., min_length=1, max_length=255, description="Password")
-    tenant_id: Optional[str] = Field(None, description="Tenant ID (optional if extracted from request)")
     remember_me: bool = Field(False, description="Extended session duration")
     
     @validator('username')
@@ -30,7 +29,6 @@ class RegisterRequest(BaseModel):
     confirm_password: str = Field(..., description="Password confirmation")
     first_name: str = Field(..., min_length=1, max_length=100, description="First name")
     last_name: str = Field(..., min_length=1, max_length=100, description="Last name")
-    tenant_id: Optional[str] = Field(None, description="Tenant ID (optional if extracted from request)")
     
     @validator('username')
     def validate_username(cls, v):
@@ -80,7 +78,6 @@ class ForgotPasswordRequest(BaseModel):
     """Forgot password request."""
     
     email: EmailStr = Field(..., description="User email address")
-    tenant_id: Optional[str] = Field(None, description="Tenant ID (optional if extracted from request)")
 
 
 class ResetPasswordRequest(BaseModel):

@@ -18,12 +18,16 @@ class UserMappingRepository:
         if not database_service:
             raise ValueError("Database service is required")
         self.database_service = database_service
+        
+        # In-memory storage for now (TODO: implement actual database operations)
+        self._mappings = {}  # {keycloak_id:tenant_key -> mapping_dict}
+        self._profiles = {}  # {platform_user_id -> profile_dict}
     
     async def create_mapping(
         self,
         keycloak_user_id: KeycloakUserId,
         platform_user_id: UserId,
-        tenant_id: TenantId,
+        tenant_id: Optional[TenantId],
         user_info: Optional[Dict] = None,
     ) -> None:
         """Create a new user mapping."""
@@ -32,19 +36,33 @@ class UserMappingRepository:
             f"Platform={platform_user_id.value}"
         )
         
-        # For now, this is handled by UserRepository directly
-        # User mapping is implicit through external_user_id field in users table
-        logger.info(f"User mapping handled by UserRepository for KC user {keycloak_user_id.value}")
+        # Create mapping key using same logic as get_by_keycloak_id
+        tenant_key = tenant_id.value if tenant_id else "platform_admin"
+        mapping_key = f"{keycloak_user_id.value}:{tenant_key}"
+        
+        # Store mapping in memory (TODO: implement actual database storage)
+        mapping = {
+            "keycloak_user_id": keycloak_user_id.value,
+            "platform_user_id": platform_user_id.value,
+            "tenant_id": tenant_id.value if tenant_id else None,
+            "created_at": datetime.now(timezone.utc),
+            "last_sync": datetime.now(timezone.utc),
+            "user_info": user_info or {},
+        }
+        
+        self._mappings[mapping_key] = mapping
+        logger.info(f"Successfully created user mapping for KC user {keycloak_user_id.value}")
     
     async def get_by_keycloak_id(
         self, 
         keycloak_user_id: KeycloakUserId, 
-        tenant_id: TenantId,
+        tenant_id: Optional[TenantId],
     ) -> Optional[Dict]:
         """Get mapping by Keycloak user ID."""
         logger.debug(f"Getting mapping for Keycloak user {keycloak_user_id.value}")
         
-        mapping_key = f"{keycloak_user_id.value}:{tenant_id.value}"
+        tenant_key = tenant_id.value if tenant_id else "platform_admin"
+        mapping_key = f"{keycloak_user_id.value}:{tenant_key}"
         
         # TODO: Implement actual database query
         mapping = self._mappings.get(mapping_key)

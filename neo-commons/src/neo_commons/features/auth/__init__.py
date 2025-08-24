@@ -400,6 +400,7 @@ class AuthServiceFactory:
                 realm_manager=realm_manager,
                 user_mapper=user_mapper,
                 public_key_cache=auth_cache,
+                database_service=self.database_service,
             )
         return self._jwt_validator
     

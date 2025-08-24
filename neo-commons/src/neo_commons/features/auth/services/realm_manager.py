@@ -31,11 +31,82 @@ class RealmManager(RealmManagerProtocol):
         self.admin_username = admin_username
         self.admin_password = admin_password
         self.default_client_id = default_client_id
+        # In-memory storage for custom realm configurations
+        self._custom_realm_configs: Dict[str, KeycloakConfig] = {}
+        self._custom_realms: Dict[str, Realm] = {}
+    
+    def register_custom_realm_config(self, realm_id: RealmId, config: KeycloakConfig, tenant_id: Optional[TenantId] = None) -> None:
+        """Register a custom realm configuration that doesn't require database storage.
+        
+        This is useful for platform admin realms or other scenarios where realm configs
+        should not be stored in the database.
+        
+        Args:
+            realm_id: The realm identifier
+            config: Keycloak configuration for the realm
+            tenant_id: Optional tenant ID for multi-tenant scenarios
+        """
+        logger.debug(f"Registering custom realm config for realm {realm_id.value}")
+        
+        # Store the config
+        self._custom_realm_configs[realm_id.value] = config
+        
+        # Create a lightweight realm object
+        custom_realm = Realm(
+            realm_id=realm_id,
+            tenant_id=tenant_id,
+            name=config.realm_name,
+            display_name=f"Custom Realm: {config.realm_name}",
+            enabled=True,
+            config=config,
+            status="active",
+        )
+        self._custom_realms[realm_id.value] = custom_realm
+        
+        logger.info(f"Registered custom realm config for {realm_id.value}")
+    
+    def register_platform_realm_config(self, realm_id: RealmId, config: KeycloakConfig) -> None:
+        """Register a platform admin realm configuration.
+        
+        This is a convenience method for registering platform-level realm configs
+        that don't belong to any specific tenant.
+        
+        Args:
+            realm_id: The realm identifier
+            config: Keycloak configuration for the realm
+        """
+        self.register_custom_realm_config(realm_id, config, tenant_id=None)
+    
+    async def get_realm_config_by_id(self, realm_id: RealmId) -> KeycloakConfig:
+        """Get realm configuration by realm ID."""
+        logger.debug(f"Getting realm config by ID: {realm_id.value}")
+        
+        # Check custom realm configs first
+        if realm_id.value in self._custom_realm_configs:
+            logger.debug(f"Found custom realm config for ID: {realm_id.value}")
+            return self._custom_realm_configs[realm_id.value]
+        
+        # Fall back to database-stored realms
+        realm = await self.realm_repository.get_by_id(realm_id)
+        if not realm:
+            raise RealmNotFoundError(f"Realm configuration not found: {realm_id.value}")
+        
+        if not realm.config:
+            raise RealmConfigurationError(f"Realm has no configuration: {realm_id.value}")
+        
+        return realm.config
     
     async def get_realm_config(self, tenant_id: TenantId) -> KeycloakConfig:
         """Get realm configuration for tenant."""
         logger.debug(f"Getting realm config for tenant {tenant_id.value}")
         
+        # First check custom realm configs by tenant
+        for realm_id, realm in self._custom_realms.items():
+            if realm.tenant_id == tenant_id and realm.config:
+                logger.debug(f"Found custom realm config for tenant {tenant_id.value}")
+                return realm.config
+        
+        # Fall back to database-stored realms
         realm = await self.realm_repository.get_by_tenant_id(tenant_id)
         if not realm:
             raise RealmNotFoundError(f"No realm found for tenant: {tenant_id.value}")
@@ -185,6 +256,12 @@ class RealmManager(RealmManagerProtocol):
         """Get realm by ID."""
         logger.debug(f"Getting realm by ID: {realm_id.value}")
         
+        # First check custom realms
+        if realm_id.value in self._custom_realms:
+            logger.debug(f"Found custom realm for ID: {realm_id.value}")
+            return self._custom_realms[realm_id.value]
+        
+        # Fall back to database-stored realms
         realm = await self.realm_repository.get_by_id(realm_id)
         return realm
     
@@ -192,6 +269,13 @@ class RealmManager(RealmManagerProtocol):
         """Get realm by tenant ID."""
         logger.debug(f"Getting realm for tenant: {tenant_id.value}")
         
+        # First check custom realms
+        for realm in self._custom_realms.values():
+            if realm.tenant_id == tenant_id:
+                logger.debug(f"Found custom realm for tenant: {tenant_id.value}")
+                return realm
+        
+        # Fall back to database-stored realms
         realm = await self.realm_repository.get_by_tenant_id(tenant_id)
         return realm
     

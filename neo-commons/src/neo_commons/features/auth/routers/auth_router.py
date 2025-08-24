@@ -38,13 +38,20 @@ from ..models.responses import (
     UserProfileResponse,
     UserValidationResponse,
 )
+from ...database.services.database_service import DatabaseManager
 from ..services.password_reset_service import PasswordResetService
 from ..services.user_registration_service import UserRegistrationService
 
 logger = logging.getLogger(__name__)
 
 # FastAPI router
-router = APIRouter(prefix="/auth", tags=["authentication"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+
+# Dependency function for database service
+async def get_database_service():
+    """Get database service instance."""
+    return await DatabaseManager.get_instance()
 
 # Security scheme
 security = HTTPBearer(auto_error=False)
@@ -110,13 +117,12 @@ async def login(
     request: Request,
     login_data: LoginRequest,
     auth_deps: AuthDependencies = Depends(get_auth_dependencies),
+    db_service = Depends(get_database_service),
 ) -> LoginResponse:
     """User login endpoint."""
     try:
-        # Extract tenant ID
+        # Extract tenant ID from headers only
         tenant_id = await extract_tenant_id(request)
-        if login_data.tenant_id:
-            tenant_id = TenantId(login_data.tenant_id)
         
         realm_name = await get_realm_name(tenant_id)
         
@@ -158,20 +164,9 @@ async def login(
                 scope=jwt_token.scope,
             )
             
-            # Create user profile response
-            user_profile = UserProfileResponse(
-                user_id=auth_context.user_id.value,
-                keycloak_user_id=auth_context.keycloak_user_id.value,
-                tenant_id=auth_context.tenant_id.value,
-                email=auth_context.email,
-                username=auth_context.username,
-                first_name=auth_context.first_name,
-                last_name=auth_context.last_name,
-                display_name=auth_context.display_name,
-                created_at=auth_context.authenticated_at,
-                roles=[role.value for role in auth_context.roles],
-                permissions=[perm.value for perm in auth_context.permissions],
-            )
+            # Create complete user profile response
+            schema_name = getattr(request.state, 'database_schema', 'admin')  # Default to admin, can be overridden
+            user_profile = await UserProfileResponse.from_auth_context(auth_context, schema_name, db_service)
             
             logger.info(f"User {login_data.username} logged in successfully")
             
@@ -212,10 +207,8 @@ async def register(
 ) -> RegisterResponse:
     """User registration endpoint."""
     try:
-        # Extract tenant ID
+        # Extract tenant ID from headers only
         tenant_id = await extract_tenant_id(request)
-        if registration_data.tenant_id:
-            tenant_id = TenantId(registration_data.tenant_id)
         
         realm_name = await get_realm_name(tenant_id)
         
@@ -359,10 +352,8 @@ async def forgot_password(
 ) -> PasswordResetResponse:
     """Forgot password endpoint."""
     try:
-        # Extract tenant ID
+        # Extract tenant ID from headers only
         tenant_id = await extract_tenant_id(request)
-        if forgot_data.tenant_id:
-            tenant_id = TenantId(forgot_data.tenant_id)
         
         realm_name = await get_realm_name(tenant_id)
         
@@ -385,22 +376,13 @@ async def forgot_password(
 
 @router.get("/me", response_model=UserProfileResponse)
 async def get_current_user_profile(
+    request: Request,
     current_user: AuthContext = Depends(lambda: get_auth_dependencies().get_current_user),
+    db_service = Depends(get_database_service),
 ) -> UserProfileResponse:
-    """Get current user profile."""
-    return UserProfileResponse(
-        user_id=current_user.user_id.value,
-        keycloak_user_id=current_user.keycloak_user_id.value,
-        tenant_id=current_user.tenant_id.value,
-        email=current_user.email,
-        username=current_user.username,
-        first_name=current_user.first_name,
-        last_name=current_user.last_name,
-        display_name=current_user.display_name,
-        created_at=current_user.authenticated_at,
-        roles=[role.value for role in current_user.roles],
-        permissions=[perm.value for perm in current_user.permissions],
-    )
+    """Get current user profile with complete database data."""
+    schema_name = getattr(request.state, 'database_schema', 'admin')  # Default to admin, can be overridden
+    return await UserProfileResponse.from_auth_context(current_user, schema_name, db_service)
 
 
 @router.get("/session", response_model=SessionInfoResponse)
@@ -415,7 +397,6 @@ async def get_session_info(
     return SessionInfoResponse(
         session_id=current_user.session_id or "unknown",
         user_id=current_user.user_id.value,
-        tenant_id=current_user.tenant_id.value,
         authenticated_at=current_user.authenticated_at,
         expires_at=current_user.expires_at,
         ip_address=client_ip,

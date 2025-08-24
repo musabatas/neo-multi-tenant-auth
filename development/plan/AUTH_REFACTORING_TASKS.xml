@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<auth_refactoring_tasks>
+  <metadata>
+    <created_date>2025-08-24</created_date>
+    <description>Systematic tasks for auth feature refactoring between neo-commons and NeoAdminApi</description>
+    <priority_levels>
+      <level id="critical" description="Security vulnerabilities and breaking issues"/>
+      <level id="high" description="Core functionality and architectural issues"/>
+      <level id="medium" description="Code quality and maintainability issues"/>
+      <level id="low" description="Minor improvements and optimizations"/>
+    </priority_levels>
+    <status_options>
+      <status>pending</status>
+      <status>in_progress</status>
+      <status>completed</status>
+      <status>blocked</status>
+      <status>verified</status>
+    </status_options>
+  </metadata>
+
+  <!-- PHASE 1: Critical Security Fixes -->
+  <phase id="1" name="Critical Security Fixes">
+    <task id="T001" priority="critical" status="completed">
+      <title>Fix JWT signature verification vulnerability</title>
+      <description>Remove jwt.decode with verify_signature=False in NeoAdminApi</description>
+      <location>NeoAdminApi/src/features/auth/services/auth_service.py:93</location>
+      <implementation>
+        <step>Replace jwt.decode(token, options={"verify_signature": False}) with proper validation</step>
+        <step>Use neo-commons JWTValidator or KeycloakOpenIDAdapter.decode_token()</step>
+        <step>Ensure all token validation includes signature verification</step>
+      </implementation>
+      <acceptance_criteria>
+        - No jwt.decode with verify_signature=False in codebase
+        - All tokens validated with proper signature verification
+        - Authentication still works correctly
+      </acceptance_criteria>
+      <estimated_effort>1 hour</estimated_effort>
+    </task>
+  </phase>
+
+  <!-- PHASE 2: Neo-Commons Enhancement -->
+  <phase id="2" name="Neo-Commons Authentication Enhancement">
+    <task id="T002" priority="high" status="completed">
+      <title>Implement database permission loading in neo-commons</title>
+      <description>Complete TODO items for loading permissions/roles from database</description>
+      <location>neo-commons/src/neo_commons/features/auth/services/auth_service.py:121-123,150-152</location>
+      <implementation>
+        <step>Accept database_service as parameter in get_user_permissions()</step>
+        <step>Query admin.user_permissions table for direct permissions</step>
+        <step>Query admin.user_roles and admin.role_permissions for role-based permissions</step>
+        <step>Combine all permissions and return as Set[PermissionCode]</step>
+        <step>Cache results using auth_cache_service with proper TTL</step>
+      </implementation>
+      <acceptance_criteria>
+        - Permissions loaded from database correctly
+        - Roles loaded from database correctly
+        - Results cached in Redis
+        - Cache invalidation works on permission changes
+      </acceptance_criteria>
+      <estimated_effort>3 hours</estimated_effort>
+    </task>
+
+    <task id="T003" priority="medium" status="completed">
+      <title>Fix duplicate get_user_permissions method</title>
+      <description>Remove duplicate method definition in neo-commons AuthService</description>
+      <location>neo-commons/src/neo_commons/features/auth/services/auth_service.py:104,274</location>
+      <implementation>
+        <step>Remove one of the duplicate get_user_permissions definitions</step>
+        <step>Ensure the remaining method has correct signature and implementation</step>
+        <step>Verify all references still work</step>
+      </implementation>
+      <acceptance_criteria>
+        - Only one get_user_permissions method exists
+        - Method works correctly with proper parameters
+      </acceptance_criteria>
+      <estimated_effort>30 minutes</estimated_effort>
+    </task>
+
+    <task id="T004" priority="high" status="completed">
+      <title>Make get_current_user dependency flexible for non-tenant contexts</title>
+      <description>Support platform admin users without tenant context</description>
+      <location>neo-commons/src/neo_commons/features/auth/dependencies.py</location>
+      <implementation>
+        <step>Make tenant_id extraction optional in get_current_user</step>
+        <step>Handle None tenant_id for platform admin users</step>
+        <step>Update AuthContext to properly support optional tenant_id</step>
+        <step>Remove need for dummy TenantId workarounds</step>
+      </implementation>
+      <acceptance_criteria>
+        - Platform admins authenticate without tenant context
+        - Tenant users still have proper tenant context
+        - No dummy tenant IDs needed
+      </acceptance_criteria>
+      <estimated_effort>2 hours</estimated_effort>
+    </task>
+
+    <task id="T005" priority="medium" status="pending">
+      <title>Centralize Keycloak configuration in neo-commons</title>
+      <description>Create centralized configuration management for Keycloak</description>
+      <location>neo-commons/src/neo_commons/features/auth/</location>
+      <implementation>
+        <step>Create centralized KeycloakConfigFactory</step>
+        <step>Accept configuration parameters from environment/settings</step>
+        <step>Cache configuration per realm/tenant</step>
+        <step>Provide dependency injection for configuration</step>
+      </implementation>
+      <acceptance_criteria>
+        - Single source of truth for Keycloak configuration
+        - Configuration easily injectable into services
+        - Environment-based configuration works
+      </acceptance_criteria>
+      <estimated_effort>2 hours</estimated_effort>
+    </task>
+  </phase>
+
+  <!-- PHASE 3: NeoAdminApi Refactoring -->
+  <phase id="3" name="NeoAdminApi Authentication Refactoring">
+    <task id="T006" priority="high" status="pending" depends_on="T002,T004">
+      <title>Replace NeoAdminApi AuthService with neo-commons AuthService</title>
+      <description>Remove duplicate AuthService and use neo-commons implementation</description>
+      <location>NeoAdminApi/src/features/auth/services/auth_service.py</location>
+      <implementation>
+        <step>Remove NeoAdminApi's AuthService class</step>
+        <step>Update dependencies.py to use neo-commons AuthServiceFactory</step>
+        <step>Create thin adapter if needed for admin-specific logic</step>
+        <step>Ensure all methods delegate to neo-commons services</step>
+      </implementation>
+      <acceptance_criteria>
+        - No duplicate AuthService in NeoAdminApi
+        - All auth operations use neo-commons
+        - Admin-specific logic preserved in adapter
+        - All existing endpoints still work
+      </acceptance_criteria>
+      <estimated_effort>4 hours</estimated_effort>
+    </task>
+
+    <task id="T007" priority="high" status="pending" depends_on="T004">
+      <title>Remove get_current_admin_user dependency</title>
+      <description>Replace custom dependency with neo-commons get_current_user</description>
+      <location>NeoAdminApi/src/features/auth/routers/v1.py:42-103</location>
+      <implementation>
+        <step>Remove get_current_admin_user function</step>
+        <step>Import get_current_user from neo-commons</step>
+        <step>Update all route handlers to use neo-commons dependency</step>
+        <step>Ensure platform admin context is handled properly</step>
+      </implementation>
+      <acceptance_criteria>
+        - No custom auth dependency in NeoAdminApi
+        - All routes use neo-commons dependencies
+        - Admin authentication still works
+      </acceptance_criteria>
+      <estimated_effort>2 hours</estimated_effort>
+    </task>
+
+    <task id="T008" priority="medium" status="pending" depends_on="T005">
+      <title>Remove hardcoded KeycloakConfig creation</title>
+      <description>Use centralized configuration from neo-commons</description>
+      <location>NeoAdminApi/src/features/auth/services/auth_service.py:74-80</location>
+      <implementation>
+        <step>Remove all hardcoded KeycloakConfig instantiations</step>
+        <step>Use neo-commons configuration factory</step>
+        <step>Inject configuration through dependency injection</step>
+        <step>Ensure configuration is consistent across all methods</step>
+      </implementation>
+      <acceptance_criteria>
+        - No hardcoded KeycloakConfig in NeoAdminApi
+        - Configuration comes from neo-commons
+        - All auth operations use same configuration
+      </acceptance_criteria>
+      <estimated_effort>1.5 hours</estimated_effort>
+    </task>
+
+    <task id="T009" priority="medium" status="pending" depends_on="T004">
+      <title>Remove dummy TenantId workarounds</title>
+      <description>Eliminate use of dummy tenant IDs for admin users</description>
+      <location>NeoAdminApi/src/features/auth/services/auth_service.py:248,554</location>
+      <implementation>
+        <step>Remove all dummy TenantId("00000000-0000-0000-0000-000000000000") usage</step>
+        <step>Use proper None tenant_id for platform admins</step>
+        <step>Update cache keys to handle None tenant_id</step>
+        <step>Verify caching still works for admin users</step>
+      </implementation>
+      <acceptance_criteria>
+        - No dummy tenant IDs in codebase
+        - Platform admins have None tenant_id
+        - Caching works correctly for admins
+      </acceptance_criteria>
+      <estimated_effort>1 hour</estimated_effort>
+    </task>
+  </phase>
+
+  <!-- PHASE 4: Integration and Optimization -->
+  <phase id="4" name="Integration and Optimization">
+    <task id="T010" priority="low" status="pending" depends_on="T006">
+      <title>Consolidate auth dependencies in NeoAdminApi</title>
+      <description>Create single AuthServiceFactory instance and reuse</description>
+      <location>NeoAdminApi/src/common/dependencies.py</location>
+      <implementation>
+        <step>Create AuthServiceFactory once at module level</step>
+        <step>Reuse factory for get_auth_service and get_cache_service</step>
+        <step>Ensure proper singleton pattern</step>
+      </implementation>
+      <acceptance_criteria>
+        - Single AuthServiceFactory instance
+        - Both auth and cache services use same factory
+        - No performance degradation
+      </acceptance_criteria>
+      <estimated_effort>1 hour</estimated_effort>
+    </task>
+
+    <task id="T011" priority="medium" status="pending" depends_on="T002">
+      <title>Implement proper cache invalidation</title>
+      <description>Ensure cache is invalidated when permissions/roles change</description>
+      <location>neo-commons/src/neo_commons/features/auth/services/auth_cache_service.py</location>
+      <implementation>
+        <step>Add cache invalidation hooks to permission/role updates</step>
+        <step>Implement cache versioning if needed</step>
+        <step>Add cache invalidation API endpoints</step>
+        <step>Test cache invalidation scenarios</step>
+      </implementation>
+      <acceptance_criteria>
+        - Cache invalidated on permission changes
+        - Cache invalidated on role changes
+        - No stale permissions served
+      </acceptance_criteria>
+      <estimated_effort>2 hours</estimated_effort>
+    </task>
+
+    <task id="T012" priority="medium" status="pending" depends_on="T006,T007">
+      <title>Add comprehensive parameter validation</title>
+      <description>Ensure all auth methods validate parameters properly</description>
+      <location>neo-commons/src/neo_commons/features/auth/</location>
+      <implementation>
+        <step>Add Pydantic models for all auth method parameters</step>
+        <step>Validate database_service, cache_service parameters</step>
+        <step>Add proper error handling for invalid parameters</step>
+        <step>Document parameter requirements</step>
+      </implementation>
+      <acceptance_criteria>
+        - All parameters validated before use
+        - Clear error messages for invalid parameters
+        - No hardcoded values or assumptions
+      </acceptance_criteria>
+      <estimated_effort>2 hours</estimated_effort>
+    </task>
+  </phase>
+
+  <!-- PHASE 5: Testing and Verification -->
+  <phase id="5" name="Testing and Verification">
+    <task id="T013" priority="high" status="pending" depends_on="T001,T006,T007">
+      <title>Add unit tests for refactored auth</title>
+      <description>Create comprehensive unit tests for auth refactoring</description>
+      <location>tests/</location>
+      <implementation>
+        <step>Write tests for neo-commons auth with database loading</step>
+        <step>Write tests for NeoAdminApi auth integration</step>
+        <step>Test platform admin authentication</step>
+        <step>Test tenant user authentication</step>
+        <step>Test permission/role loading</step>
+      </implementation>
+      <acceptance_criteria>
+        - 90%+ code coverage for auth modules
+        - All edge cases tested
+        - Tests pass consistently
+      </acceptance_criteria>
+      <estimated_effort>4 hours</estimated_effort>
+    </task>
+
+    <task id="T014" priority="high" status="pending" depends_on="T013">
+      <title>Integration testing</title>
+      <description>End-to-end testing of authentication flow</description>
+      <location>tests/integration/</location>
+      <implementation>
+        <step>Test complete login flow</step>
+        <step>Test token refresh flow</step>
+        <step>Test logout flow</step>
+        <step>Test permission checking</step>
+        <step>Test cache hit/miss scenarios</step>
+      </implementation>
+      <acceptance_criteria>
+        - All auth endpoints work correctly
+        - Tokens validated properly
+        - Permissions checked correctly
+        - Cache works as expected
+      </acceptance_criteria>
+      <estimated_effort>3 hours</estimated_effort>
+    </task>
+
+    <task id="T015" priority="critical" status="pending" depends_on="T001">
+      <title>Security audit</title>
+      <description>Verify all security vulnerabilities are fixed</description>
+      <location>All auth-related files</location>
+      <implementation>
+        <step>Scan for jwt.decode with verify_signature=False</step>
+        <step>Verify all tokens are validated with signatures</step>
+        <step>Check for any hardcoded secrets</step>
+        <step>Verify proper error handling doesn't leak information</step>
+      </implementation>
+      <acceptance_criteria>
+        - No security vulnerabilities found
+        - All tokens properly validated
+        - No information leakage
+      </acceptance_criteria>
+      <estimated_effort>2 hours</estimated_effort>
+    </task>
+  </phase>
+
+  <!-- Summary -->
+  <summary>
+    <total_tasks>15</total_tasks>
+    <by_priority>
+      <critical>2</critical>
+      <high>6</high>
+      <medium>6</medium>
+      <low>1</low>
+    </by_priority>
+    <estimated_total_effort>35.5 hours</estimated_total_effort>
+    <key_outcomes>
+      - Critical security vulnerability fixed
+      - Authentication centralized in neo-commons
+      - No code duplication between services
+      - Proper parameter passing implemented
+      - Comprehensive testing coverage
+      - Platform admin support without workarounds
+    </key_outcomes>
+  </summary>
+</auth_refactoring_tasks>

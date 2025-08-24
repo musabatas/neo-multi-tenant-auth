@@ -93,6 +93,34 @@ class FastAPIFactory:
             **kwargs
         )
         
+        # Add security schemes to OpenAPI spec for authentication
+        def custom_openapi():
+            if app.openapi_schema:
+                return app.openapi_schema
+            
+            from fastapi.openapi.utils import get_openapi
+            openapi_schema = get_openapi(
+                title=config.docs_config.title,
+                version=config.docs_config.version,
+                description=config.docs_config.description,
+                routes=app.routes,
+            )
+            
+            # Add security schemes for Bearer token authentication
+            openapi_schema["components"]["securitySchemes"] = {
+                "bearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "JWT",
+                    "description": "Enter JWT Bearer token"
+                }
+            }
+            
+            app.openapi_schema = openapi_schema
+            return app.openapi_schema
+        
+        app.openapi = custom_openapi
+        
         # Store configuration in app state
         app.state.config = config
         

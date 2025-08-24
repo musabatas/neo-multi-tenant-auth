@@ -134,7 +134,7 @@ class UserMapperProtocol(Protocol):
     
     @abstractmethod
     async def map_keycloak_to_platform(
-        self, keycloak_user_id: KeycloakUserId, tenant_id: TenantId
+        self, keycloak_user_id: KeycloakUserId, tenant_id: Optional[TenantId]
     ) -> UserId:
         """Map Keycloak user ID to platform user ID."""
         ...

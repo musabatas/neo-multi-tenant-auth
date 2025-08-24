@@ -52,30 +52,57 @@ class AuthDependencies:
         self,
         request: Request,
         credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+        require_tenant: bool = True,
     ) -> AuthContext:
-        """Get current authenticated user from JWT token."""
+        """Get current authenticated user from JWT token.
+        
+        Args:
+            request: FastAPI request object
+            credentials: JWT credentials
+            require_tenant: Whether to require tenant context (False for platform admins)
+        """
         try:
-            # Extract tenant from request (could be from subdomain, header, or path)
+            # Extract tenant from request (now returns Optional[TenantId])
             tenant_id = await self._extract_tenant_id(request)
             
-            # Get realm configuration for tenant
-            realm_config = await self.realm_manager.get_realm_config(tenant_id)
-            realm_id = realm_config.realm_id
+            # Check if tenant is required but not provided
+            if require_tenant and tenant_id is None:
+                logger.warning("Tenant context required but not provided")
+                raise AuthDependencyError(
+                    "Tenant identification required",
+                    status_code=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if tenant_id is None:
+                logger.debug("No tenant context found, assuming platform admin")
+            
+            # Get realm configuration
+            if tenant_id:
+                # Tenant-specific realm
+                realm_config = await self.realm_manager.get_realm_config(tenant_id)
+                realm_id = RealmId(realm_config.realm_name)
+            else:
+                # Platform admin realm - use environment configuration  
+                # When no tenant_id, we use the platform default realm from environment
+                from ...config.manager import get_env_config
+                env_config = get_env_config()
+                realm_id = RealmId(env_config.keycloak_realm)
             
             # Validate token and get auth context
             auth_context = await self.token_service.validate_and_cache_token(
                 credentials.credentials, realm_id
             )
             
-            # Ensure tenant matches
-            if auth_context.tenant_id != tenant_id:
-                logger.warning(
-                    f"Token tenant {auth_context.tenant_id.value} doesn't match "
-                    f"request tenant {tenant_id.value}"
-                )
-                raise AuthDependencyError("Invalid token for this tenant")
+            # For tenant users, ensure tenant matches
+            if require_tenant and tenant_id:
+                if auth_context.tenant_id and auth_context.tenant_id != tenant_id:
+                    logger.warning(
+                        f"Token tenant {auth_context.tenant_id.value if auth_context.tenant_id else 'None'} "
+                        f"doesn't match request tenant {tenant_id.value}"
+                    )
+                    raise AuthDependencyError("Invalid token for this tenant")
             
-            logger.debug(f"Authenticated user {auth_context.user_id.value}")
+            logger.debug(f"Authenticated user {auth_context.user_id.value} (tenant: {auth_context.tenant_id.value if auth_context.tenant_id else 'platform'})")
             return auth_context
         
         except InvalidTokenError as e:
@@ -89,6 +116,14 @@ class AuthDependencies:
         except Exception as e:
             logger.error(f"Unexpected authentication error: {e}")
             raise AuthDependencyError("Authentication failed")
+    
+    async def get_current_platform_admin(
+        self,
+        request: Request,
+        credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    ) -> AuthContext:
+        """Get current platform admin user (no tenant context required)."""
+        return await self.get_current_user(request, credentials, require_tenant=False)
     
     async def get_optional_user(
         self,
@@ -278,8 +313,8 @@ class AuthDependencies:
         
         return dependency
     
-    async def _extract_tenant_id(self, request: Request) -> TenantId:
-        """Extract tenant ID from request."""
+    async def _extract_tenant_id(self, request: Request) -> Optional[TenantId]:
+        """Extract tenant ID from request - now returns Optional for flexibility."""
         # Strategy 1: Check custom header
         tenant_header = request.headers.get("x-tenant-id")
         if tenant_header:
@@ -302,12 +337,9 @@ class AuthDependencies:
         if tenant_query:
             return TenantId(tenant_query)
         
-        # Default: Raise error if no tenant found
-        logger.error("No tenant ID found in request")
-        raise AuthDependencyError(
-            "Tenant identification required",
-            status_code=status.HTTP_400_BAD_REQUEST
-        )
+        # No tenant found - return None (optional tenant context)
+        logger.debug("No tenant ID found in request - using platform context")
+        return None
 
 
 # Convenience functions for global auth dependencies
@@ -351,6 +383,15 @@ async def get_current_user(
     """Get current authenticated user (global dependency)."""
     deps = get_auth_dependencies()
     return await deps.get_current_user(request, credentials)
+
+
+async def get_current_platform_admin(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+) -> AuthContext:
+    """Get current platform admin user (global dependency - no tenant context required)."""
+    deps = get_auth_dependencies()
+    return await deps.get_current_platform_admin(request, credentials)
 
 
 async def get_optional_user(

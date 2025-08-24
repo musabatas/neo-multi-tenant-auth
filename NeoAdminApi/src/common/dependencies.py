@@ -32,6 +32,7 @@ async def get_database_service():
     from neo_commons.features.database.services import DatabaseManager
     return await DatabaseManager.get_instance()
 
+
 async def get_organization_service():
     """Get organization service with dependency injection."""
     from ..features.organizations.services.organization_service import OrganizationService
@@ -94,6 +95,21 @@ async def get_cache_service():
     
     # Return the cache service
     return await auth_factory.get_cache_service()
+
+
+async def get_user_service():
+    """Get user service with dependency injection."""
+    from neo_commons.features.users.services.user_service import UserService
+    from neo_commons.features.users.repositories.user_repository import UserRepository
+    
+    # Get database service
+    database_service = await get_database_service()
+    
+    # Create repository
+    repository = UserRepository(database_service)
+    
+    # Create and return service
+    return UserService(repository)
 
 # Request Context Dependencies
 

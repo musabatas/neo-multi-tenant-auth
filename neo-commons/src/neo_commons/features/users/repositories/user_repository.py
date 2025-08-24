@@ -94,6 +94,8 @@ class UserRepository:
             safe_schema = self._validate_schema_name(schema_name)
             connection_name = "admin" if safe_schema == "admin" else "shared"
             
+            logger.debug(f"Querying user {user_id.value} from {safe_schema} schema using {connection_name} connection")
+            
             async with self.database_service.get_connection(connection_name) as conn:
                 user_data = await conn.fetchrow(
                     f"""
@@ -141,11 +143,16 @@ class UserRepository:
                 )
                 
                 if user_data:
+                    logger.debug(f"Found user data with {len(user_data)} fields: {list(user_data.keys())}")
                     return dict(user_data)
+                else:
+                    logger.warning(f"No user found with ID {user_id.value} in {safe_schema}")
                 return None
                 
         except Exception as e:
             logger.error(f"Failed to get user {user_id.value} from {safe_schema}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     async def get_user_by_external_id(self, external_user_id: str, schema_name: str = "admin") -> Optional[Dict[str, Any]]:

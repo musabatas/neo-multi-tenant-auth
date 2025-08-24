@@ -1,7 +1,7 @@
 """Main authentication service - orchestrates all auth operations."""
 
 import logging
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from ....core.exceptions.auth import (
     AuthenticationError,
@@ -102,11 +102,19 @@ class AuthService:
             # Don't fail logout on errors - security best practice
     
     async def get_user_permissions(
-        self, user_id: UserId, tenant_id: TenantId
+        self, 
+        user_id: UserId, 
+        tenant_id: TenantId,
+        database_service: Optional[Any] = None
     ) -> Set[PermissionCode]:
         """Get user permissions with caching.
         
         First tries to get from cache, falls back to database if not cached.
+        
+        Args:
+            user_id: User identifier
+            tenant_id: Tenant identifier (can be None for platform admins)
+            database_service: Optional database service for loading permissions
         """
         # Try to get from cache if auth_cache_service is available
         if self.auth_cache_service:
@@ -117,10 +125,27 @@ class AuthService:
                 logger.debug(f"Retrieved {len(cached_permissions)} permissions from cache for user {user_id.value}")
                 return cached_permissions
         
-        # TODO: Load from database here
-        # For now, return empty set - this should be implemented to load from DB
-        logger.info(f"Loading permissions from database for user {user_id.value}")
-        permissions = set()  # This should load from database
+        # Load from database if service provided
+        permissions = set()
+        if database_service:
+            try:
+                from ...permissions.repositories.permission_checker import AsyncPGPermissionChecker
+                permission_checker = AsyncPGPermissionChecker(database_service)
+                
+                # Get permission codes as strings from database
+                permission_codes = await permission_checker.get_user_permissions(
+                    user_id, tenant_id
+                )
+                
+                # Convert string codes to PermissionCode objects
+                permissions = {PermissionCode(code) for code in permission_codes}
+                logger.info(f"Loaded {len(permissions)} permissions from database for user {user_id.value}")
+                
+            except Exception as e:
+                logger.error(f"Failed to load permissions from database: {e}")
+                permissions = set()
+        else:
+            logger.warning("No database service provided, returning empty permissions")
         
         # Cache the permissions if auth_cache_service is available
         if self.auth_cache_service and permissions:
@@ -131,11 +156,19 @@ class AuthService:
         return permissions
     
     async def get_user_roles(
-        self, user_id: UserId, tenant_id: TenantId
+        self, 
+        user_id: UserId, 
+        tenant_id: TenantId,
+        database_service: Optional[Any] = None
     ) -> Set[RoleCode]:
         """Get user roles with caching.
         
         First tries to get from cache, falls back to database if not cached.
+        
+        Args:
+            user_id: User identifier
+            tenant_id: Tenant identifier (can be None for platform admins)
+            database_service: Optional database service for loading roles
         """
         # Try to get from cache if auth_cache_service is available
         if self.auth_cache_service:
@@ -146,10 +179,27 @@ class AuthService:
                 logger.debug(f"Retrieved {len(cached_roles)} roles from cache for user {user_id.value}")
                 return cached_roles
         
-        # TODO: Load from database here
-        # For now, return empty set - this should be implemented to load from DB
-        logger.info(f"Loading roles from database for user {user_id.value}")
-        roles = set()  # This should load from database
+        # Load from database if service provided
+        roles = set()
+        if database_service:
+            try:
+                from ...permissions.repositories.permission_checker import AsyncPGPermissionChecker
+                permission_checker = AsyncPGPermissionChecker(database_service)
+                
+                # Get role objects from database
+                role_objects = await permission_checker.get_user_roles(
+                    user_id, tenant_id
+                )
+                
+                # Extract role codes from role objects
+                roles = {role.code for role in role_objects}
+                logger.info(f"Loaded {len(roles)} roles from database for user {user_id.value}")
+                
+            except Exception as e:
+                logger.error(f"Failed to load roles from database: {e}")
+                roles = set()
+        else:
+            logger.warning("No database service provided, returning empty roles")
         
         # Cache the roles if auth_cache_service is available
         if self.auth_cache_service and roles:
@@ -271,20 +321,3 @@ class AuthService:
             logger.error(f"Password change error for user {user_id.value}: {e}")
             raise AuthenticationError("Password change service temporarily unavailable")
     
-    async def get_user_permissions(
-        self, user_id: UserId, realm_id: RealmId
-    ) -> Dict:
-        """Get user permissions and roles."""
-        try:
-            # This would typically fetch from the permission system
-            # For now, return basic structure
-            return {
-                "user_id": user_id.value,
-                "realm_id": realm_id.value,
-                "roles": [],
-                "permissions": [],
-                "message": "Permission retrieval not yet implemented",
-            }
-        except Exception as e:
-            logger.error(f"Error getting permissions for user {user_id.value}: {e}")
-            raise AuthenticationError("Permission service temporarily unavailable")

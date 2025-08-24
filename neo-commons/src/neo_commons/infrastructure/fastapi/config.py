@@ -147,7 +147,13 @@ class DocsConfig:
         "search_hot_key": "k",  # SearchHotKey.K
         "servers": [],
         "default_open_all_tags": False,
-        "authentication": {},
+        "authentication": {
+            "bearerToken": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        },
         "hide_client_button": False,
         "scalar_theme": "",  # Custom CSS theme
         "scalar_favicon_url": "https://fastapi.tiangolo.com/img/favicon.png"

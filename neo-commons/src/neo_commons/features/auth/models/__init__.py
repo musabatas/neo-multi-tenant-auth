@@ -1,5 +1,21 @@
 """Authentication API models."""
 
+from .admin_models import (
+    AdminLoginRequest,
+    AdminLoginResponse,
+    AdminLogoutRequest,
+    AdminTokenResponse,
+    AdminUserResponse,
+    EmailVerificationResponse,
+    RemoveTOTPRequest,
+    RemoveTOTPResponse,
+    RequiredActionsResponse,
+    SendEmailVerificationRequest,
+    SendRequiredActionsRequest,
+    UserCredentialsResponse,
+    create_admin_login_response,
+    create_admin_user_response_from_context,
+)
 from .requests import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -22,7 +38,7 @@ from .responses import (
 )
 
 __all__ = [
-    # Request models
+    # Base Request models
     "LoginRequest",
     "RegisterRequest", 
     "RefreshTokenRequest",
@@ -31,7 +47,7 @@ __all__ = [
     "LogoutRequest",
     "ChangePasswordRequest",
     
-    # Response models
+    # Base Response models
     "TokenResponse",
     "UserProfileResponse",
     "LoginResponse",
@@ -41,4 +57,20 @@ __all__ = [
     "PasswordResetResponse",
     "SessionInfoResponse",
     "UserValidationResponse",
+    
+    # Admin models
+    "AdminLoginRequest",
+    "AdminLoginResponse",
+    "AdminLogoutRequest", 
+    "AdminTokenResponse",
+    "AdminUserResponse",
+    "EmailVerificationResponse",
+    "RemoveTOTPRequest",
+    "RemoveTOTPResponse",
+    "RequiredActionsResponse",
+    "SendEmailVerificationRequest",
+    "SendRequiredActionsRequest",
+    "UserCredentialsResponse",
+    "create_admin_login_response",
+    "create_admin_user_response_from_context",
 ]

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import jwt
 from jwt.exceptions import (
@@ -47,22 +47,24 @@ class JWTValidator(JWTValidatorProtocol):
         realm_manager: RealmManagerProtocol,
         user_mapper: UserMapperProtocol,
         public_key_cache: Optional[PublicKeyCacheProtocol] = None,
+        database_service=None,
     ):
         """Initialize JWT validator."""
         self.realm_manager = realm_manager
         self.user_mapper = user_mapper
         self.public_key_cache = public_key_cache
+        self.database_service = database_service
     
     async def validate_token(self, token: str, realm_id: RealmId) -> AuthContext:
         """Validate JWT token and return auth context."""
         logger.debug(f"Validating token for realm {realm_id.value}")
         
-        # Get realm configuration
-        realm = await self.realm_manager.get_realm_by_id(realm_id)
-        if not realm or not realm.config:
-            raise TokenValidationError(f"Realm configuration not found: {realm_id.value}")
-        
-        config = realm.config
+        # Get realm configuration and realm object (supports both custom and database-stored realms)
+        try:
+            config = await self.realm_manager.get_realm_config_by_id(realm_id)
+            realm = await self.realm_manager.get_realm_by_id(realm_id)
+        except Exception as e:
+            raise TokenValidationError(f"Realm configuration not found: {realm_id.value}") from e
         
         try:
             # Get public key for signature verification
@@ -95,15 +97,30 @@ class JWTValidator(JWTValidatorProtocol):
                 raise TokenValidationError("Token missing 'sub' claim")
             
             # Map Keycloak user to platform user
+            # For platform admin (no tenant), use None for tenant_id
             platform_user_id = await self.user_mapper.map_keycloak_to_platform(
                 keycloak_user_id,
-                realm.tenant_id,
+                realm.tenant_id,  # This can be None for platform admin
             )
             
-            # Extract roles and permissions from token
-            roles, permissions = await self._extract_authorization_data(claims, realm.tenant_id)
+            # Load roles and permissions from database ONLY
+            logger.info(f"Database service availability: {self.database_service is not None}")
+            if self.database_service:
+                # Load from database (ONLY source for roles and permissions)
+                logger.info(f"Loading database permissions for user {platform_user_id.value}, tenant: {realm.tenant_id}")
+                try:
+                    roles, permissions, permission_metadata = await self._load_database_permissions(platform_user_id, realm.tenant_id)
+                    logger.info(f"Database loading result: {len(roles)} roles, {len(permissions)} permissions")
+                except Exception as e:
+                    logger.error(f"Database permission loading failed: {e}")
+                    # No fallback - empty roles and permissions if database fails
+                    roles, permissions, permission_metadata = set(), set(), []
+            else:
+                # No database service - no roles or permissions
+                logger.warning("No database service available - user will have no roles or permissions")
+                roles, permissions, permission_metadata = set(), set(), []
             
-            # Create auth context
+            # Create auth context with permission metadata
             auth_context = AuthContext.from_token_claims(
                 claims=claims,
                 user_id=platform_user_id,
@@ -113,6 +130,10 @@ class JWTValidator(JWTValidatorProtocol):
                 roles=roles,
                 permissions=permissions,
             )
+            
+            # Store rich permission metadata in auth context metadata
+            if permission_metadata:
+                auth_context.metadata['rich_permissions'] = permission_metadata
             
             logger.info(f"Created auth context for user {platform_user_id.value}")
             return auth_context
@@ -182,15 +203,16 @@ class JWTValidator(JWTValidatorProtocol):
         """Get public key for realm with caching."""
         # Try cache first
         if self.public_key_cache:
-            cached_key = await self.public_key_cache.get_cached_public_key(realm_id)
+            cached_key = await self.public_key_cache.get_public_key(realm_id)
             if cached_key:
                 logger.debug(f"Using cached public key for realm {realm_id.value}")
                 return cached_key
         
         # Get realm configuration
-        realm = await self.realm_manager.get_realm_by_id(realm_id)
-        if not realm or not realm.config:
-            raise PublicKeyError(f"Realm not found: {realm_id.value}")
+        try:
+            config = await self.realm_manager.get_realm_config_by_id(realm_id)
+        except Exception as e:
+            raise PublicKeyError(f"Realm configuration not found: {realm_id.value}") from e
         
         try:
             # Get public key from Keycloak
@@ -199,13 +221,13 @@ class JWTValidator(JWTValidatorProtocol):
             # This is a simplified approach - in production, you might want to
             # use a dedicated service or the OpenID adapter
             admin_adapter = KeycloakAdminAdapter(
-                server_url=realm.config.server_url,
+                server_url=config.server_url,
                 username="admin",  # This would come from configuration
                 password="admin",  # This would come from configuration
             )
             
             async with admin_adapter:
-                jwks = await admin_adapter.get_realm_jwks(realm.config.realm_name)
+                jwks = await admin_adapter.get_realm_jwks(config.realm_name)
                 
                 # Extract the RSA public key
                 for key in jwks.get("keys", []):
@@ -217,7 +239,7 @@ class JWTValidator(JWTValidatorProtocol):
                             await self.public_key_cache.cache_public_key(
                                 realm_id,
                                 public_key,
-                                realm.config.public_key_ttl,
+                                config.public_key_ttl,
                             )
                         
                         logger.debug(f"Retrieved public key for realm {realm_id.value}")
@@ -262,42 +284,36 @@ class JWTValidator(JWTValidatorProtocol):
         except Exception as e:
             raise PublicKeyError(f"Cannot convert JWK to PEM: {e}") from e
     
-    async def _extract_authorization_data(
+
+    async def _load_database_permissions(
         self, 
-        claims: Dict,
-        tenant_id: TenantId,
-    ) -> tuple[Set[RoleCode], Set[PermissionCode]]:
-        """Extract roles and permissions from token claims."""
-        roles = set()
-        permissions = set()
-        
-        # Extract realm roles
-        realm_access = claims.get("realm_access", {})
-        for role in realm_access.get("roles", []):
-            try:
-                roles.add(RoleCode(role))
-            except ValueError:
-                logger.warning(f"Invalid role code: {role}")
-        
-        # Extract client roles
-        resource_access = claims.get("resource_access", {})
-        for client_id, client_data in resource_access.items():
-            for role in client_data.get("roles", []):
-                try:
-                    roles.add(RoleCode(f"{client_id}:{role}"))
-                except ValueError:
-                    logger.warning(f"Invalid client role code: {client_id}:{role}")
-        
-        # Extract custom permissions (if present in token)
-        custom_permissions = claims.get("permissions", [])
-        for perm in custom_permissions:
-            try:
-                permissions.add(PermissionCode(perm))
-            except ValueError:
-                logger.warning(f"Invalid permission code: {perm}")
-        
-        # TODO: Load additional permissions from database based on roles
-        # This would involve querying the permissions service
-        
-        logger.debug(f"Extracted {len(roles)} roles and {len(permissions)} permissions")
-        return roles, permissions
+        user_id: UserId, 
+        tenant_id: Optional[TenantId]
+    ) -> tuple[Set[RoleCode], Set[PermissionCode], List[Dict]]:
+        """Load roles and permissions from database using injected database service."""
+        try:
+            from ...users.services.user_permission_service import UserPermissionService
+            
+            permission_service = UserPermissionService(self.database_service)
+            
+            # Get user auth context from database
+            user_auth_context = await permission_service.get_user_auth_context(
+                user_id, tenant_id
+            )
+            
+            # Convert database results to AuthContext format
+            db_roles = {RoleCode(role_code) for role_code in user_auth_context['roles']['codes']}
+            
+            # Extract permission codes for AuthContext checking functionality
+            db_permission_codes = {PermissionCode(perm['code']) for perm in user_auth_context['permissions']}
+            
+            # Store full permission details in metadata for response
+            permission_metadata = user_auth_context['permissions']
+            
+            logger.debug(f"Loaded {len(db_roles)} roles and {len(db_permission_codes)} permissions from database")
+            return db_roles, db_permission_codes, permission_metadata
+            
+        except Exception as e:
+            logger.error(f"Failed to load database permissions for user {user_id.value}: {e}")
+            # Fallback to empty sets if database loading fails
+            return set(), set(), []

@@ -99,7 +99,8 @@ class AuthCacheService:
         cached_data = json.dumps(permission_list)
         
         await self.cache_service.set(key, cached_data, ttl)
-        logger.debug(f"Cached {len(permissions)} permissions for user {user_id.value} in tenant {tenant_id.value}")
+        tenant_display = tenant_id.value if tenant_id else "platform"
+        logger.debug(f"Cached {len(permissions)} permissions for user {user_id.value} in tenant {tenant_display}")
     
     # ========== User Roles Cache ==========
     
@@ -150,7 +151,8 @@ class AuthCacheService:
         cached_data = json.dumps(role_list)
         
         await self.cache_service.set(key, cached_data, ttl)
-        logger.debug(f"Cached {len(roles)} roles for user {user_id.value} in tenant {tenant_id.value}")
+        tenant_display = tenant_id.value if tenant_id else "platform"
+        logger.debug(f"Cached {len(roles)} roles for user {user_id.value} in tenant {tenant_display}")
     
     # ========== Complete User Data Cache ==========
     
@@ -196,7 +198,8 @@ class AuthCacheService:
         
         cached_data = json.dumps(user_data)
         await self.cache_service.set(key, cached_data, ttl)
-        logger.debug(f"Cached user data for user {user_id.value} in tenant {tenant_id.value}")
+        tenant_display = tenant_id.value if tenant_id else "platform"
+        logger.debug(f"Cached user data for user {user_id.value} in tenant {tenant_display}")
     
     # ========== Auth Context Cache ==========
     
@@ -327,7 +330,8 @@ class AuthCacheService:
             if await self.cache_service.delete(key):
                 count += 1
         
-        logger.info(f"Invalidated {count} cache entries for user {user_id.value} in tenant {tenant_id.value}")
+        tenant_display = tenant_id.value if tenant_id else "platform"
+        logger.info(f"Invalidated {count} cache entries for user {user_id.value} in tenant {tenant_display}")
         return count
     
     async def invalidate_user_permissions(self,
@@ -398,19 +402,23 @@ class AuthCacheService:
     
     def _build_permissions_key(self, user_id: UserId, tenant_id: TenantId) -> str:
         """Build cache key for user permissions."""
-        return f"auth:permissions:{user_id.value}:{tenant_id.value}"
+        tenant_value = tenant_id.value if tenant_id else "platform"
+        return f"auth:permissions:{user_id.value}:{tenant_value}"
     
     def _build_roles_key(self, user_id: UserId, tenant_id: TenantId) -> str:
         """Build cache key for user roles."""
-        return f"auth:roles:{user_id.value}:{tenant_id.value}"
+        tenant_value = tenant_id.value if tenant_id else "platform"
+        return f"auth:roles:{user_id.value}:{tenant_value}"
     
     def _build_user_data_key(self, user_id: UserId, tenant_id: TenantId) -> str:
         """Build cache key for user data."""
-        return f"auth:user_data:{user_id.value}:{tenant_id.value}"
+        tenant_value = tenant_id.value if tenant_id else "platform"
+        return f"auth:user_data:{user_id.value}:{tenant_value}"
     
     def _build_auth_context_key(self, user_id: UserId, tenant_id: TenantId) -> str:
         """Build cache key for auth context."""
-        return f"auth:context:{user_id.value}:{tenant_id.value}"
+        tenant_value = tenant_id.value if tenant_id else "platform"
+        return f"auth:context:{user_id.value}:{tenant_value}"
     
     # ========== Health and Monitoring ==========
     

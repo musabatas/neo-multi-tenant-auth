@@ -1,7 +1,7 @@
 """Authentication context entity."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 
 from ....core.value_objects.identifiers import (
@@ -21,7 +21,7 @@ class AuthContext:
     # User identifiers
     user_id: UserId
     keycloak_user_id: KeycloakUserId
-    tenant_id: TenantId
+    tenant_id: Optional[TenantId]  # Optional for platform admins
     realm_id: RealmId
     
     # User information
@@ -154,7 +154,7 @@ class AuthContext:
         return {
             'user_id': self.user_id.value,
             'keycloak_user_id': self.keycloak_user_id.value,
-            'tenant_id': self.tenant_id.value,
+            'tenant_id': self.tenant_id.value if self.tenant_id else None,
             'realm_id': self.realm_id.value,
             'email': self.email,
             'username': self.username,
@@ -194,7 +194,7 @@ class AuthContext:
         return cls(
             user_id=UserId(data['user_id']),
             keycloak_user_id=KeycloakUserId(data['keycloak_user_id']),
-            tenant_id=TenantId(data['tenant_id']),
+            tenant_id=TenantId(data['tenant_id']) if data['tenant_id'] else None,
             realm_id=RealmId(data['realm_id']),
             email=data.get('email'),
             username=data.get('username'),
@@ -235,18 +235,24 @@ class AuthContext:
         scope_str = claims.get('scope', '')
         scopes = set(scope_str.split()) if scope_str else set()
         
-        # Extract session info
-        session_id = claims.get('session_state')
+        # Extract session info - try multiple possible session claim names
+        session_id = (
+            claims.get('session_state') or
+            claims.get('sid') or
+            claims.get('sessionId') or
+            claims.get('session_id') or
+            claims.get('jti')  # JWT ID can be used as session identifier
+        )
         
         # Parse timestamps
         authenticated_at = None
         expires_at = None
         
         if 'iat' in claims:
-            authenticated_at = datetime.utcfromtimestamp(claims['iat'])
+            authenticated_at = datetime.fromtimestamp(claims['iat'], timezone.utc)
         
         if 'exp' in claims:
-            expires_at = datetime.utcfromtimestamp(claims['exp'])
+            expires_at = datetime.fromtimestamp(claims['exp'], timezone.utc)
         
         return cls(
             user_id=user_id,

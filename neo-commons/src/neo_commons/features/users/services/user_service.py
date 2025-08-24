@@ -63,15 +63,24 @@ class UserService:
     async def get_complete_user_data(self, user_id: UserId, schema_name: str = "admin") -> Optional[Dict[str, Any]]:
         """Get complete user data including all public fields from the users table."""
         try:
+            logger.debug(f"Getting complete user data for {user_id.value} from schema {schema_name}")
             user_data = await self.user_repository.get_user_by_id(user_id, schema_name)
+            
             if not user_data:
+                logger.warning(f"No user data found for {user_id.value} in schema {schema_name}")
                 return None
             
+            logger.debug(f"Raw user data keys: {list(user_data.keys())}")
+            
             # Convert database values to API-friendly format
-            return self._format_user_data(user_data)
+            formatted_data = self._format_user_data(user_data)
+            logger.debug(f"Formatted user data for {user_id.value}")
+            return formatted_data
         
         except Exception as e:
             logger.error(f"Failed to get complete user data for {user_id.value}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
     async def get_complete_user_by_external_id(self, external_user_id: str, schema_name: str = "admin") -> Optional[Dict[str, Any]]:
