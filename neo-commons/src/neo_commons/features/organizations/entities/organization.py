@@ -51,6 +51,9 @@ class Organization:
     verified_at: Optional[datetime] = None
     verification_documents: List[str] = field(default_factory=list)
     
+    # Metadata for extensibility
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
     # Audit fields
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -148,3 +151,30 @@ class Organization:
         if country_code is not None:
             self.country_code = country_code
         self.updated_at = datetime.now(timezone.utc)
+    
+    def set_metadata(self, key: str, value: Any) -> None:
+        """Set metadata value."""
+        self.metadata[key] = value
+        self.updated_at = datetime.now(timezone.utc)
+    
+    def get_metadata(self, key: str, default: Any = None) -> Any:
+        """Get metadata value."""
+        return self.metadata.get(key, default)
+    
+    def update_metadata(self, metadata_updates: Dict[str, Any]) -> None:
+        """Update multiple metadata values."""
+        self.metadata.update(metadata_updates)
+        self.updated_at = datetime.now(timezone.utc)
+    
+    def remove_metadata(self, key: str) -> Any:
+        """Remove metadata key and return its value."""
+        value = self.metadata.pop(key, None)
+        if value is not None:
+            self.updated_at = datetime.now(timezone.utc)
+        return value
+    
+    def clear_metadata(self) -> None:
+        """Clear all metadata."""
+        if self.metadata:
+            self.metadata.clear()
+            self.updated_at = datetime.now(timezone.utc)

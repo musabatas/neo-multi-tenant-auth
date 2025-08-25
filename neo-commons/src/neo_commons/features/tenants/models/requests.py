@@ -31,7 +31,7 @@ class TenantCreateRequest(BaseModel):
         return v
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "organization_id": "01234567-89ab-cdef-0123-456789abcdef",
                 "slug": "acme-corp",
@@ -58,7 +58,7 @@ class TenantUpdateRequest(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "name": "Acme Corporation - Updated",
                 "description": "Updated description",
@@ -80,7 +80,7 @@ class TenantProvisionRequest(BaseModel):
     provisioning_options: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional provisioning options")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "provision_database": True,
                 "provision_keycloak": True,
@@ -102,7 +102,7 @@ class TenantConfigRequest(BaseModel):
     merge_existing: Optional[bool] = Field(True, description="Merge with existing configurations")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "configs": {
                     "max_users": 100,

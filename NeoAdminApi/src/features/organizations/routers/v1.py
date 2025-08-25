@@ -1,236 +1,70 @@
-"""Organization API v1 endpoints."""
+"""Organizations API v1 router using neo-commons.
 
-from typing import Optional
-from uuid import UUID
+This module integrates neo-commons organization routers with NeoAdminApi-specific 
+database configuration and dependency injection.
+"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import FastAPI
+from neo_commons.features.organizations import (
+    organization_router,
+    organization_admin_router,
+    get_organization_repository,
+    get_organization_service,
+    get_basic_organization_service,
+    get_admin_organization_service
+)
+from neo_commons.features.organizations.repositories import OrganizationDatabaseRepository
+from ..adapters import DatabaseServiceAdapter
+from neo_commons.features.organizations.services import OrganizationService
 
-from neo_commons.core.value_objects.identifiers import OrganizationId
 
-from ....common.dependencies import get_organization_service, get_request_context
-from ..models.request import OrganizationCreateRequest, OrganizationUpdateRequest
-from ..models.response import OrganizationListResponse, OrganizationResponse
-from ..services.organization_service import OrganizationService
-
-router = APIRouter()
-
-
-@router.get("", response_model=OrganizationListResponse)
-async def list_organizations(
-    skip: int = Query(0, ge=0, description="Number of items to skip"),
-    limit: int = Query(50, ge=1, le=100, description="Number of items to return"),
-    search: Optional[str] = Query(None, description="Search term"),
-    active_only: bool = Query(True, description="Show only active organizations"),
-    org_service: OrganizationService = Depends(get_organization_service),
-) -> OrganizationListResponse:
-    """List organizations with pagination and filtering.
+# Create our specific dependencies for NeoAdminApi
+async def get_admin_organization_repository():
+    """Get organization repository configured for admin schema."""
+    from ....common.dependencies import get_database_service
     
-    Requires platform administrator permissions.
-    """
-    try:
-        organizations = await org_service.list_organizations(
-            skip=skip,
-            limit=limit,
-            search=search,
-            active_only=active_only,
-        )
-        
-        total = await org_service.count_organizations(
-            search=search,
-            active_only=active_only,
-        )
-        
-        return OrganizationListResponse(
-            organizations=[
-                OrganizationResponse.from_entity(org) for org in organizations
-            ],
-            total=total,
-            skip=skip,
-            limit=limit,
-        )
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list organizations: {str(e)}"
-        ) from e
+    database_service = await get_database_service()
+    # Use adapter to bridge DatabaseService and DatabaseRepository interfaces
+    database_adapter = DatabaseServiceAdapter(database_service, connection_name="admin")
+    return OrganizationDatabaseRepository(database_adapter, schema="admin")
 
 
-@router.post("", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
-async def create_organization(
-    request: OrganizationCreateRequest,
-    org_service: OrganizationService = Depends(get_organization_service),
-) -> OrganizationResponse:
-    """Create a new organization.
+async def get_admin_organization_service_impl():
+    """Get organization service configured for admin operations."""
+    repository = await get_admin_organization_repository()
+    # No cache for simplicity in admin API
+    return OrganizationService(repository, cache=None)
+
+
+# Create routers with dependency overrides
+def setup_organization_routers(app: FastAPI) -> None:
+    """Setup organization routers with NeoAdminApi-specific dependencies."""
     
-    Note: Authentication disabled during neo-commons integration.
-    """
-    try:
-        organization = await org_service.create_organization(
-            name=request.name,
-            slug=request.slug,
-            legal_name=request.legal_name,
-            tax_id=request.tax_id,
-            business_type=request.business_type,
-            industry=request.industry,
-            company_size=request.company_size,
-            website_url=request.website_url,
-            primary_contact_id=request.primary_contact_id,
-        )
-        
-        return OrganizationResponse.from_entity(organization)
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        ) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create organization: {str(e)}"
-        ) from e
-
-
-@router.get("/{organization_id}", response_model=OrganizationResponse)
-async def get_organization(
-    organization_id: UUID,
-    org_service: OrganizationService = Depends(get_organization_service),
-) -> OrganizationResponse:
-    """Get organization by ID.
+    # Override neo-commons dependencies with our implementations
+    app.dependency_overrides.update({
+        get_organization_repository: get_admin_organization_repository,
+        get_organization_service: get_admin_organization_service_impl,
+        get_basic_organization_service: get_admin_organization_service_impl,
+        get_admin_organization_service: get_admin_organization_service_impl,
+    })
     
-    Requires platform administrator permissions.
-    """
-    try:
-        org_id = OrganizationId(str(organization_id))
-        organization = await org_service.get_organization(org_id)
-        
-        if not organization:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found"
-            )
-        
-        return OrganizationResponse.from_entity(organization)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get organization: {str(e)}"
-        ) from e
-
-
-@router.put("/{organization_id}", response_model=OrganizationResponse)
-async def update_organization(
-    organization_id: UUID,
-    request: OrganizationUpdateRequest,
-    org_service: OrganizationService = Depends(get_organization_service),
-) -> OrganizationResponse:
-    """Update organization.
+    # Include both routers - they serve different purposes with no overlap
+    # Basic router: CRUD operations at /organizations/
+    app.include_router(
+        organization_router, 
+        prefix="/api/v1"
+    )
     
-    Note: Authentication disabled during neo-commons integration.
-    """
-    try:
-        org_id = OrganizationId(str(organization_id))
-        
-        updated_organization = await org_service.update_organization(
-            org_id,
-            name=request.name,
-            legal_name=request.legal_name,
-            website_url=request.website_url,
-            business_type=request.business_type,
-            industry=request.industry,
-            is_active=request.is_active,
-        )
-        
-        return OrganizationResponse.from_entity(updated_organization)
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        ) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update organization: {str(e)}"
-        ) from e
+    # Admin router: Administrative operations at /admin/organizations/ 
+    app.include_router(
+        organization_admin_router, 
+        prefix="/api/v1"
+    )
 
 
-@router.delete("/{organization_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_organization(
-    organization_id: UUID,
-    force: bool = Query(False, description="Force delete even if tenants exist"),
-    org_service: OrganizationService = Depends(get_organization_service),
-) -> None:
-    """Delete organization.
-    
-    Requires platform administrator permissions.
-    By default, cannot delete organizations with active tenants unless force=True.
-    """
-    try:
-        org_id = OrganizationId(str(organization_id))
-        
-        success = await org_service.delete_organization(org_id, force=force)
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found"
-            )
-        
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        ) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete organization: {str(e)}"
-        ) from e
-
-
-@router.get("/{organization_id}/tenants")
-async def list_organization_tenants(
-    organization_id: UUID,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    org_service: OrganizationService = Depends(get_organization_service),
-):
-    """List tenants for an organization.
-    
-    Requires platform administrator permissions.
-    """
-    try:
-        org_id = OrganizationId(str(organization_id))
-        
-        # Check if organization exists
-        organization = await org_service.get_organization(org_id)
-        if not organization:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Organization not found"
-            )
-        
-        tenants = await org_service.list_organization_tenants(
-            org_id, skip=skip, limit=limit
-        )
-        
-        total = await org_service.count_organization_tenants(org_id)
-        
-        return {
-            "tenants": tenants,
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list organization tenants: {str(e)}"
-        ) from e
+# Export the routers for direct use if needed
+__all__ = [
+    "setup_organization_routers",
+    "get_admin_organization_repository", 
+    "get_admin_organization_service_impl"
+]

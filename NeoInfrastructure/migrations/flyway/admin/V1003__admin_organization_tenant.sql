@@ -31,6 +31,7 @@ CREATE TABLE admin.organizations (
     logo_url VARCHAR(2048),
     brand_colors JSONB DEFAULT '{}',
     is_active BOOLEAN DEFAULT true,
+    metadata JSONB DEFAULT '{}',
     verified_at TIMESTAMPTZ,
     verification_documents TEXT[],
     created_at TIMESTAMPTZ DEFAULT NOW(),

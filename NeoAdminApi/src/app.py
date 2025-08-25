@@ -117,8 +117,9 @@ def create_app() -> FastAPI:
     from .features.auth.routers.admin_auth_router import router as admin_auth_router
     app.include_router(admin_auth_router, prefix="/api/v1")
     
-    from .features.organizations.routers.v1 import router as orgs_router  
-    app.include_router(orgs_router, prefix="/api/v1/organizations", tags=["Organizations"])
+    # Setup organizations using neo-commons routers with dependency injection
+    from .features.organizations.routers.v1 import setup_organization_routers
+    setup_organization_routers(app)
     
     from .features.tenants.routers.v1 import router as tenants_router
     app.include_router(tenants_router, prefix="/api/v1/tenants", tags=["Tenants"])

@@ -1,5 +1,5 @@
-"""Organizations feature module.
+"""Organizations feature for NeoAdminApi.
 
-Handles organization CRUD operations, organization-tenant relationships,
-and organization lifecycle management using neo-commons services.
+This feature integrates neo-commons organization functionality for platform administration.
+Uses neo-commons routers with dependency override to provide database configuration.
 """

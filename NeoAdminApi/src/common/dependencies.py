@@ -35,19 +35,8 @@ async def get_database_service():
     return await DatabaseManager.get_instance()
 
 
-async def get_organization_service():
-    """Get organization service with dependency injection."""
-    from ..features.organizations.services.organization_service import OrganizationService
-    from ..features.organizations.repositories.organization_repository import OrganizationRepository
-    
-    # Get database service
-    database_service = await get_database_service()
-    
-    # Create repository
-    repository = OrganizationRepository(database_service)
-    
-    # Create and return service
-    return OrganizationService(repository)
+# Organization service is handled through neo-commons dependency injection
+# See features/organizations/routers/v1.py for implementation
 
 async def get_auth_service():
     """Get auth service with centralized configuration."""

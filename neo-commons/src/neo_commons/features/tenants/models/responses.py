@@ -45,7 +45,7 @@ class TenantResponse(BaseModel):
     is_suspended: bool = Field(..., description="Is tenant suspended")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "01234567-89ab-cdef-0123-456789abcdef",
                 "organization_id": "01234567-89ab-cdef-0123-456789abcdef",
@@ -76,7 +76,7 @@ class TenantListResponse(BaseModel):
     size: int = Field(..., description="Page size")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "tenants": [],
                 "total": 25,
@@ -97,7 +97,7 @@ class TenantStatusResponse(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for status change")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "id": "01234567-89ab-cdef-0123-456789abcdef",
                 "slug": "acme-corp",
@@ -119,7 +119,7 @@ class TenantConfigResponse(BaseModel):
     last_updated: Optional[datetime] = Field(None, description="Last configuration update")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "tenant_id": "01234567-89ab-cdef-0123-456789abcdef",
                 "configs": {
@@ -149,7 +149,7 @@ class TenantHealthResponse(BaseModel):
     auth_healthy: bool = Field(..., description="Authentication service")
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "tenant_id": "01234567-89ab-cdef-0123-456789abcdef",
                 "slug": "acme-corp",
