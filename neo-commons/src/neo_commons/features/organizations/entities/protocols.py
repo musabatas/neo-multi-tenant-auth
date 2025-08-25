@@ -9,6 +9,7 @@ from typing import Protocol, runtime_checkable, List, Optional, Dict, Any
 from datetime import datetime
 
 from ....core.value_objects import OrganizationId, UserId
+from ....features.pagination.entities import OffsetPaginationRequest, OffsetPaginationResponse
 from .organization import Organization
 
 
@@ -83,41 +84,95 @@ class OrganizationRepository(Protocol):
     async def slug_exists(self, slug: str, exclude_id: Optional[OrganizationId] = None) -> bool:
         """Check if slug is already taken."""
         ...
+    
+    # Batch operations for performance optimization
+    @abstractmethod
+    async def find_by_ids(self, organization_ids: List[OrganizationId]) -> List[Organization]:
+        """Find multiple organizations by IDs in a single query to prevent N+1."""
+        ...
+    
+    @abstractmethod
+    async def batch_save(self, organizations: List[Organization]) -> List[Organization]:
+        """Save multiple organizations in batch for improved performance."""
+        ...
+    
+    @abstractmethod
+    async def batch_update(self, organizations: List[Organization]) -> List[Organization]:
+        """Update multiple organizations in batch for improved performance."""
+        ...
+    
+    @abstractmethod
+    async def batch_exists(self, organization_ids: List[OrganizationId]) -> Dict[OrganizationId, bool]:
+        """Check existence of multiple organizations in a single query."""
+        ...
+    
+    @abstractmethod
+    async def batch_find_by_ids(self, organization_ids: List[OrganizationId]) -> Dict[OrganizationId, Optional[Organization]]:
+        """Batch get organizations by IDs returning dict with ID mapping."""
+        ...
+    
+    # Pagination operations
+    @abstractmethod
+    async def find_paginated(self, pagination: OffsetPaginationRequest) -> OffsetPaginationResponse[Organization]:
+        """Find organizations with standardized pagination."""
+        ...
+    
+    @abstractmethod
+    async def find_active_paginated(self, page: int, per_page: int, order_by: str) -> tuple[List[Organization], int]:
+        """Find active organizations with legacy pagination format."""
+        ...
+    
+    # Light vs Full data queries for performance optimization
+    @abstractmethod
+    async def find_active_light(self, limit: int, offset: int) -> List[Organization]:
+        """Find active organizations with light data (9 fields)."""
+        ...
+    
+    @abstractmethod
+    async def find_active_full(self, limit: int, offset: int) -> List[Organization]:
+        """Find active organizations with full data (20+ fields)."""
+        ...
+    
+    @abstractmethod
+    async def search_light(self, query: str, filters: Optional[Dict[str, Any]], limit: int, offset: int) -> List[Organization]:
+        """Search organizations with light data."""
+        ...
+    
+    @abstractmethod
+    async def search_full(self, query: str, filters: Optional[Dict[str, Any]], limit: int, offset: int) -> List[Organization]:
+        """Search organizations with full data."""
+        ...
+    
+    # Admin operations with include_deleted parameter
+    @abstractmethod
+    async def find_active_light_admin(self, include_deleted: bool, limit: int, offset: int) -> List[Organization]:
+        """Find active organizations with light data including deleted ones for admins."""
+        ...
+    
+    @abstractmethod
+    async def find_active_full_admin(self, include_deleted: bool, limit: int, offset: int) -> List[Organization]:
+        """Find active organizations with full data including deleted ones for admins."""
+        ...
+    
+    @abstractmethod
+    async def search_light_admin(self, query: str, filters: Optional[Dict[str, Any]], include_deleted: bool, limit: int, offset: int) -> List[Organization]:
+        """Search organizations with light data including deleted ones for admins."""
+        ...
+    
+    @abstractmethod
+    async def search_full_admin(self, query: str, filters: Optional[Dict[str, Any]], include_deleted: bool, limit: int, offset: int) -> List[Organization]:
+        """Search organizations with full data including deleted ones for admins."""
+        ...
+    
+    # Metadata operations
+    @abstractmethod
+    async def search_by_metadata(self, metadata_filters: Dict[str, Any], limit: int, offset: int) -> List[Organization]:
+        """Search organizations by metadata filters."""
+        ...
 
 
-@runtime_checkable
-class OrganizationCache(Protocol):
-    """Protocol for organization caching operations."""
-    
-    @abstractmethod
-    async def get(self, organization_id: OrganizationId) -> Optional[Organization]:
-        """Get cached organization."""
-        ...
-    
-    @abstractmethod
-    async def get_by_slug(self, slug: str) -> Optional[Organization]:
-        """Get cached organization by slug."""
-        ...
-    
-    @abstractmethod
-    async def set(self, organization: Organization, ttl: Optional[int] = None) -> bool:
-        """Cache organization."""
-        ...
-    
-    @abstractmethod
-    async def delete(self, organization_id: OrganizationId) -> bool:
-        """Remove organization from cache."""
-        ...
-    
-    @abstractmethod
-    async def delete_by_slug(self, slug: str) -> bool:
-        """Remove organization from cache by slug."""
-        ...
-    
-    @abstractmethod
-    async def clear_user_organizations(self, user_id: UserId) -> bool:
-        """Clear cached organizations for a user (as primary contact)."""
-        ...
+# OrganizationCache protocol removed - organizations are not cached
+# Database queries are sufficient for the occasional access patterns
 
 
 @runtime_checkable
@@ -176,6 +231,11 @@ class OrganizationNotificationService(Protocol):
     @abstractmethod
     async def notify_organization_deactivated(self, organization: Organization, reason: Optional[str]) -> bool:
         """Notify about organization deactivation."""
+        ...
+    
+    @abstractmethod
+    async def on_organization_metadata_updated(self, organization: Organization) -> bool:
+        """Notify about organization metadata updates."""
         ...
 
 

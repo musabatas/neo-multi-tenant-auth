@@ -52,7 +52,6 @@ from .error_handling import (
     handle_organization_search_error,
     handle_organization_validation_error,
     handle_organization_stats_error,
-    handle_organization_cache_error,
 )
 
 # Factory patterns have been simplified - use direct entity construction instead
@@ -112,7 +111,6 @@ __all__ = [
     "handle_organization_search_error",
     "handle_organization_validation_error",
     "handle_organization_stats_error",
-    "handle_organization_cache_error",
     
     # Factory utilities - simplified to direct entity construction
     # "OrganizationFactory",

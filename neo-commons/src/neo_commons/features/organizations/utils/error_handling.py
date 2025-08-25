@@ -359,14 +359,3 @@ def handle_organization_service_errors(func: Callable) -> Callable:
             logger.error(f"Service error in {func.__name__}: {e}")
             raise
     return wrapper
-
-
-def handle_organization_cache_error(func: Callable) -> Callable:
-    """Decorator specifically for organization cache errors with non-raising behavior."""
-    return organization_error_handler(
-        "organization cache operation", 
-        reraise=False, 
-        default_return=None,
-        log_level=logging.WARNING,
-        context_fields={"operation_type": "cache"}
-    )(func)

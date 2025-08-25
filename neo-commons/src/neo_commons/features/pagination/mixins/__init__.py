@@ -2,10 +2,12 @@
 
 from .repository import (
     PaginatedRepositoryMixin,
-    CursorPaginatedRepositoryMixin
+    CursorPaginatedRepositoryMixin,
+    PaginationOptimizationConfig
 )
 
 __all__ = [
     "PaginatedRepositoryMixin", 
-    "CursorPaginatedRepositoryMixin"
+    "CursorPaginatedRepositoryMixin",
+    "PaginationOptimizationConfig"
 ]

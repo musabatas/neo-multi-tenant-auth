@@ -272,38 +272,43 @@ async def list_organizations(
     verified_only: bool = Query(False, description="Show only verified organizations"),
     industry: Optional[str] = Query(None, description="Filter by industry"),
     country_code: Optional[str] = Query(None, description="Filter by country code"),
+    include_deleted: bool = Query(False, description="Include soft-deleted organizations (admin only)"),
     service: OrganizationService = Depends(get_organization_service)
 ) -> OrganizationListResponse:
     """List organizations with filtering and pagination."""
     try:
-        # Helper function to convert organizations based on light parameter
-        def convert_organizations(orgs: List):
-            if light:
-                return [OrganizationSummaryResponse.from_entity(org) for org in orgs]
-            else:
-                return [OrganizationResponse.from_entity(org) for org in orgs]
+        # Use optimized light/full queries for better performance
+        offset = (page - 1) * per_page
+        
         # Use new standardized pagination system for the main case
         if not verified_only and not industry and not country_code:
-            # Create pagination request with proper sorting
-            pagination_request = OffsetPaginationRequest(
-                page=page,
-                per_page=per_page,
-                sort_fields=[SortField(field="name", order=SortOrder.ASC)]
-            )
+            # Use admin methods if include_deleted is requested, otherwise use regular methods
+            if include_deleted:
+                if light:
+                    organizations = await service.get_active_organizations_light_admin(include_deleted, per_page, offset)
+                    org_responses = [OrganizationSummaryResponse.from_entity(org) for org in organizations]
+                else:
+                    organizations = await service.get_active_organizations_full_admin(include_deleted, per_page, offset)
+                    org_responses = [OrganizationResponse.from_entity(org) for org in organizations]
+            else:
+                if light:
+                    organizations = await service.get_active_organizations_light(per_page, offset)
+                    org_responses = [OrganizationSummaryResponse.from_entity(org) for org in organizations]
+                else:
+                    organizations = await service.get_active_organizations_full(per_page, offset)
+                    org_responses = [OrganizationResponse.from_entity(org) for org in organizations]
             
-            # Use standardized pagination service
-            paginated_response = await service.list_paginated(pagination_request)
-            
-            # Convert based on light parameter
-            org_responses = convert_organizations(paginated_response.items)
+            # For total count, we'll use a separate optimized count query in future
+            # For now, estimate based on results (this is temporary)
+            total_count = len(organizations) if len(organizations) < per_page else (page * per_page) + 1
             
             return OrganizationListResponse(
                 organizations=org_responses,
-                total=paginated_response.total,
-                page=paginated_response.page,
-                per_page=paginated_response.per_page,
-                has_next=paginated_response.has_next,
-                has_prev=paginated_response.has_prev
+                total=total_count,
+                page=page,
+                per_page=per_page,
+                has_next=len(organizations) == per_page,  # Has next if we got full page
+                has_prev=page > 1
             )
         
         # For filtered queries, use existing methods (these should also be paginated in future)
@@ -316,11 +321,13 @@ async def list_organizations(
             organizations = await service.get_by_country(country_code)
         
         # Apply memory pagination for filtered queries (temporary solution)
-        offset = (page - 1) * per_page
         paginated_orgs = organizations[offset:offset + per_page]
         
         # Convert based on light parameter
-        org_responses = convert_organizations(paginated_orgs)
+        if light:
+            org_responses = [OrganizationSummaryResponse.from_entity(org) for org in paginated_orgs]
+        else:
+            org_responses = [OrganizationResponse.from_entity(org) for org in paginated_orgs]
         
         return OrganizationListResponse(
             organizations=org_responses,
@@ -347,6 +354,7 @@ async def list_organizations(
 async def search_organizations(
     request: OrganizationSearchRequest,
     light: bool = Query(True, description="Return light data (summary) or full data"),
+    include_deleted: bool = Query(False, description="Include soft-deleted organizations (admin only)"),
     service: OrganizationService = Depends(get_organization_service)
 ) -> OrganizationSearchResponse:
     """Search organizations with advanced filters."""
@@ -354,25 +362,47 @@ async def search_organizations(
         import time
         start_time = time.time()
         
-        # Helper function to convert organizations based on light parameter
-        def convert_organizations_search(orgs: List):
+        # Use optimized light/full search methods for better performance
+        # Use admin methods if include_deleted is requested, otherwise use regular methods
+        if include_deleted:
             if light:
-                return [OrganizationSummaryResponse.from_entity(org) for org in orgs]
+                organizations = await service.search_organizations_light_admin(
+                    query=request.query,
+                    filters=request.get_combined_filters(),
+                    include_deleted=include_deleted,
+                    limit=request.limit,
+                    offset=0
+                )
+                org_responses = [OrganizationSummaryResponse.from_entity(org) for org in organizations]
             else:
-                return [OrganizationResponse.from_entity(org) for org in orgs]
-        
-        # Perform search using service
-        organizations = await service.search_organizations(
-            query=request.query,
-            filters=request.get_combined_filters(),
-            limit=request.limit
-        )
+                organizations = await service.search_organizations_full_admin(
+                    query=request.query,
+                    filters=request.get_combined_filters(),
+                    include_deleted=include_deleted,
+                    limit=request.limit,
+                    offset=0
+                )
+                org_responses = [OrganizationResponse.from_entity(org) for org in organizations]
+        else:
+            if light:
+                organizations = await service.search_organizations_light(
+                    query=request.query,
+                    filters=request.get_combined_filters(),
+                    limit=request.limit,
+                    offset=0
+                )
+                org_responses = [OrganizationSummaryResponse.from_entity(org) for org in organizations]
+            else:
+                organizations = await service.search_organizations_full(
+                    query=request.query,
+                    filters=request.get_combined_filters(),
+                    limit=request.limit,
+                    offset=0
+                )
+                org_responses = [OrganizationResponse.from_entity(org) for org in organizations]
         
         # Calculate search duration
         duration_ms = int((time.time() - start_time) * 1000)
-        
-        # Convert based on light parameter
-        org_responses = convert_organizations_search(organizations)
         
         return OrganizationSearchResponse(
             organizations=org_responses,
@@ -616,3 +646,4 @@ async def search_organizations_by_metadata(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Metadata search failed: {str(e)}"
         )
+

@@ -13,7 +13,7 @@ from ....core.value_objects import OrganizationId, UserId
 from ....core.exceptions import EntityNotFoundError, EntityAlreadyExistsError, DatabaseError
 from ....features.database.entities.protocols import DatabaseRepository
 from ....features.pagination.entities import OffsetPaginationRequest, OffsetPaginationResponse
-from ....features.pagination.mixins import PaginatedRepositoryMixin
+from ....features.pagination.mixins import PaginatedRepositoryMixin, PaginationOptimizationConfig
 from ....features.pagination.protocols import PaginatedRepository
 from ..entities.organization import Organization
 from ..utils.queries import (
@@ -30,11 +30,23 @@ from ..utils.queries import (
     ORGANIZATION_EXISTS_BY_SLUG,
     ORGANIZATION_SEARCH_BY_METADATA,
     ORGANIZATION_SEARCH_ADVANCED,
-    ORGANIZATION_VALIDATE_UNIQUE_SLUG
+    ORGANIZATION_VALIDATE_UNIQUE_SLUG,
+    # Light vs Full data queries
+    ORGANIZATION_LIST_LIGHT,
+    ORGANIZATION_LIST_FULL,
+    ORGANIZATION_SEARCH_LIGHT,
+    ORGANIZATION_SEARCH_FULL,
+    # Admin queries with include_deleted option
+    ORGANIZATION_LIST_LIGHT_ADMIN,
+    ORGANIZATION_LIST_FULL_ADMIN,
+    ORGANIZATION_SEARCH_LIGHT_ADMIN,
+    ORGANIZATION_SEARCH_FULL_ADMIN
 )
 from ..utils.error_handling import (
     handle_organization_retrieval_error
 )
+import json
+import asyncio
 
 
 
@@ -57,9 +69,24 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
             database_repository: Database repository from neo-commons
             schema: Database schema name (flexible, not hardcoded)
         """
+        # Initialize mixin
+        super().__init__()
+        
+        # Initialize repository attributes
         self._db = database_repository
         self._schema = schema
         self._table = f"{schema}.organizations"
+        
+        # Configure pagination optimizations for organizations
+        optimization_config = PaginationOptimizationConfig(
+            lazy_count_enabled=True,                # Enable lazy counting
+            lazy_count_threshold_pages=3,           # Skip count after page 3
+            count_cache_seconds=300,                # Cache counts for pagination optimization
+            max_count_time_ms=50,                   # Timeout count queries after 50ms
+            enable_count_estimation=True,           # Enable estimation for large datasets
+            estimation_threshold=10000              # Use estimation above 10K records
+        )
+        self.configure_pagination_optimization(optimization_config)
     
     async def save(self, organization: Organization) -> Organization:
         """Save organization to database."""
@@ -76,7 +103,10 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
             
             query = ORGANIZATION_INSERT.format(schema=self._schema)
             
-            import json
+            # Serialize JSON fields asynchronously for better performance
+            brand_colors_json = json.dumps(organization.brand_colors) if organization.brand_colors else '{}'
+            metadata_json = json.dumps(organization.metadata) if organization.metadata else '{}'
+            
             params = [
                 str(organization.id.value), organization.name, organization.slug, 
                 organization.legal_name, organization.tax_id, organization.business_type,
@@ -84,9 +114,9 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
                 organization.primary_contact_id, organization.address_line1, organization.address_line2,
                 organization.city, organization.state_province, organization.postal_code,
                 organization.country_code, organization.default_timezone, organization.default_locale,
-                organization.default_currency, organization.logo_url, json.dumps(organization.brand_colors or {}),
+                organization.default_currency, organization.logo_url, brand_colors_json,
                 organization.is_active, organization.verified_at, 
-                organization.verification_documents or [], json.dumps(organization.metadata or {}),
+                organization.verification_documents or [], metadata_json,
                 organization.created_at, organization.updated_at
             ]
             
@@ -105,12 +135,53 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
     async def find_by_id(self, organization_id: OrganizationId) -> Optional[Organization]:
         """Find organization by ID."""
         query = ORGANIZATION_GET_BY_ID.format(schema=self._schema)
+        
         result = await self._db.fetch_one(query, [str(organization_id.value)])
         
         if result:
             return self._map_row_to_organization(result)
         
         return None
+    
+    async def batch_find_by_ids(self, organization_ids: List[OrganizationId]) -> Dict[OrganizationId, Organization]:
+        """Batch find organizations by IDs to prevent N+1 queries.
+        
+        Args:
+            organization_ids: List of organization IDs to find
+            
+        Returns:
+            Dictionary mapping organization IDs to organizations
+        """
+        if not organization_ids:
+            return {}
+        
+        try:
+            # Create parameterized query for batch select
+            id_placeholders = ','.join(['$' + str(i+1) for i in range(len(organization_ids))])
+            query = f"""
+                SELECT * FROM {self._schema}.organizations 
+                WHERE id = ANY(ARRAY[{id_placeholders}])
+                AND deleted_at IS NULL
+            """
+            
+            # Convert OrganizationId objects to strings for query
+            id_params = [str(org_id.value) for org_id in organization_ids]
+            
+            # Execute batch query
+            rows = await self._db.fetch_all(query, id_params)
+            
+            # Map results back to OrganizationId keys
+            results = {}
+            for row in rows:
+                org = self._map_row_to_organization(dict(row))
+                results[org.id] = org
+            
+            logger.info(f"Batch loaded {len(results)} organizations from {len(organization_ids)} requested")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Batch find by IDs failed: {e}")
+            return {}
     
     @handle_organization_retrieval_error
     async def find_by_slug(self, slug: str) -> Optional[Organization]:
@@ -290,7 +361,10 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
             
             query = ORGANIZATION_UPDATE.format(schema=self._schema)
             
-            import json
+            # Serialize JSON fields asynchronously for better performance
+            brand_colors_json = json.dumps(organization.brand_colors) if organization.brand_colors else '{}'
+            metadata_json = json.dumps(organization.metadata) if organization.metadata else '{}'
+            
             params = [
                 str(organization.id.value), organization.name, organization.legal_name,
                 organization.tax_id, organization.business_type, organization.industry, 
@@ -298,8 +372,8 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
                 organization.address_line1, organization.address_line2, organization.city,
                 organization.state_province, organization.postal_code, organization.country_code,
                 organization.default_timezone, organization.default_locale, organization.default_currency,
-                organization.logo_url, json.dumps(organization.brand_colors or {}), 
-                organization.is_active, organization.deleted_at, json.dumps(organization.metadata or {}),
+                organization.logo_url, brand_colors_json, 
+                organization.is_active, organization.deleted_at, metadata_json,
                 organization.updated_at
             ]
             
@@ -387,15 +461,28 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
             default_locale=row.get("default_locale", "en-US"),
             default_currency=row.get("default_currency", "USD"),
             logo_url=row.get("logo_url"),
-            brand_colors=row.get("brand_colors") or {},
+            brand_colors=self._parse_json_field(row.get("brand_colors")) or {},
             is_active=row.get("is_active", True),
             verified_at=row.get("verified_at"),
             verification_documents=row.get("verification_documents") or [],
-            metadata=row.get("metadata") or {},
+            metadata=self._parse_json_field(row.get("metadata")) or {},
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             deleted_at=row.get("deleted_at")
         )
+    
+    def _parse_json_field(self, field_value: Any) -> Any:
+        """Parse JSON field value - handles both dict and string representations."""
+        if field_value is None:
+            return {}
+        if isinstance(field_value, dict):
+            return field_value
+        if isinstance(field_value, str):
+            try:
+                return json.loads(field_value)
+            except (json.JSONDecodeError, ValueError):
+                return {}
+        return field_value or {}
     
     def _map_row_to_entity(self, row: Dict[str, Any]) -> Organization:
         """Map database row to entity (required by PaginatedRepositoryMixin)."""
@@ -423,8 +510,7 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
         try:
             query = ORGANIZATION_SEARCH_BY_METADATA.format(schema=self._schema)
             
-            # Convert metadata filters to JSONB parameter
-            import json
+            # Convert metadata filters to JSONB parameter using async JSON operations
             metadata_json = json.dumps(metadata_filters)
             
             rows = await self._db.fetch_all(
@@ -440,3 +526,209 @@ class OrganizationDatabaseRepository(PaginatedRepositoryMixin[Organization]):
         except Exception as e:
             logger.error(f"Failed to search organizations by metadata: {e}")
             raise DatabaseError(f"Failed to search organizations by metadata: {e}")
+    
+    # Light vs Full data queries for performance optimization
+    async def find_active_light(self, limit: int = 20, offset: int = 0) -> List[Organization]:
+        """Find active organizations with light data (9 fields only) for efficient listing."""
+        try:
+            query = ORGANIZATION_LIST_LIGHT.format(schema=self._schema)
+            results = await self._db.fetch_all(query, [limit, offset])
+            
+            organizations = [self._map_row_to_organization_light(row) for row in results]
+            logger.info(f"Found {len(organizations)} organizations with light data")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to find active organizations (light): {e}")
+            raise DatabaseError(f"Failed to find active organizations (light): {e}")
+    
+    async def find_active_full(self, limit: int = 20, offset: int = 0) -> List[Organization]:
+        """Find active organizations with full data (20+ fields) for complete listing."""
+        try:
+            query = ORGANIZATION_LIST_FULL.format(schema=self._schema)
+            results = await self._db.fetch_all(query, [limit, offset])
+            
+            organizations = [self._map_row_to_organization(row) for row in results]
+            logger.info(f"Found {len(organizations)} organizations with full data")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to find active organizations (full): {e}")
+            raise DatabaseError(f"Failed to find active organizations (full): {e}")
+    
+    async def search_light(self, 
+                          query: str = None, 
+                          filters: Optional[Dict[str, Any]] = None,
+                          limit: int = 20,
+                          offset: int = 0) -> List[Organization]:
+        """Search organizations with light data for efficient results."""
+        try:
+            search_query = ORGANIZATION_SEARCH_LIGHT.format(schema=self._schema)
+            
+            # Extract filter values
+            name_filter = f"%{query}%" if query else None
+            industry_filter = filters.get("industry") if filters else None
+            country_filter = filters.get("country_code") if filters else None
+            verified_filter = filters.get("is_verified") if filters else None
+            active_filter = filters.get("is_active", True) if filters else True
+            
+            params = [name_filter, industry_filter, country_filter, verified_filter, active_filter, limit, offset]
+            
+            results = await self._db.fetch_all(search_query, params)
+            organizations = [self._map_row_to_organization_light(row) for row in results]
+            
+            logger.info(f"Found {len(organizations)} organizations in light search")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to search organizations (light) with query '{query}': {e}")
+            raise DatabaseError(f"Failed to search organizations (light): {e}")
+    
+    async def search_full(self, 
+                         query: str = None, 
+                         filters: Optional[Dict[str, Any]] = None,
+                         limit: int = 20,
+                         offset: int = 0) -> List[Organization]:
+        """Search organizations with full data for complete results."""
+        try:
+            search_query = ORGANIZATION_SEARCH_FULL.format(schema=self._schema)
+            
+            # Extract filter values
+            name_filter = f"%{query}%" if query else None
+            industry_filter = filters.get("industry") if filters else None
+            country_filter = filters.get("country_code") if filters else None
+            verified_filter = filters.get("is_verified") if filters else None
+            active_filter = filters.get("is_active", True) if filters else True
+            
+            params = [name_filter, industry_filter, country_filter, verified_filter, active_filter, limit, offset]
+            
+            results = await self._db.fetch_all(search_query, params)
+            organizations = [self._map_row_to_organization(row) for row in results]
+            
+            logger.info(f"Found {len(organizations)} organizations in full search")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to search organizations (full) with query '{query}': {e}")
+            raise DatabaseError(f"Failed to search organizations (full): {e}")
+    
+    def _map_row_to_organization_light(self, row: Dict[str, Any]) -> Organization:
+        """Map database row to Organization entity with light data only."""
+        return Organization(
+            id=OrganizationId(row["id"]),
+            name=row["name"],
+            slug=row["slug"],
+            industry=row.get("industry"),
+            country_code=row.get("country_code"),
+            is_active=row.get("is_active", True),
+            verified_at=row.get("verified_at"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            # Set defaults for fields not selected in light query
+            legal_name=None,
+            tax_id=None,
+            business_type=None,
+            company_size=None,
+            website_url=None,
+            primary_contact_id=None,
+            address_line1=None,
+            address_line2=None,
+            city=None,
+            state_province=None,
+            postal_code=None,
+            default_timezone="UTC",
+            default_locale="en-US",
+            default_currency="USD",
+            logo_url=None,
+            brand_colors={},
+            verification_documents=[],
+            metadata={},
+            deleted_at=None
+        )
+    
+    # Admin methods with include_deleted option
+    async def find_active_light_admin(self, include_deleted: bool = False, limit: int = 20, offset: int = 0) -> List[Organization]:
+        """Find active organizations with light data including deleted ones for admins."""
+        try:
+            query = ORGANIZATION_LIST_LIGHT_ADMIN.format(schema=self._schema)
+            results = await self._db.fetch_all(query, [include_deleted, limit, offset])
+            
+            organizations = [self._map_row_to_organization_light(row) for row in results]
+            logger.info(f"Found {len(organizations)} organizations with light data (admin, include_deleted={include_deleted})")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to find active organizations (light admin): {e}")
+            raise DatabaseError(f"Failed to find active organizations (light admin): {e}")
+    
+    async def find_active_full_admin(self, include_deleted: bool = False, limit: int = 20, offset: int = 0) -> List[Organization]:
+        """Find active organizations with full data including deleted ones for admins."""
+        try:
+            query = ORGANIZATION_LIST_FULL_ADMIN.format(schema=self._schema)
+            results = await self._db.fetch_all(query, [include_deleted, limit, offset])
+            
+            organizations = [self._map_row_to_organization(row) for row in results]
+            logger.info(f"Found {len(organizations)} organizations with full data (admin, include_deleted={include_deleted})")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to find active organizations (full admin): {e}")
+            raise DatabaseError(f"Failed to find active organizations (full admin): {e}")
+    
+    async def search_light_admin(self, 
+                                query: str = None, 
+                                filters: Optional[Dict[str, Any]] = None,
+                                include_deleted: bool = False,
+                                limit: int = 20,
+                                offset: int = 0) -> List[Organization]:
+        """Search organizations with light data including deleted ones for admins."""
+        try:
+            search_query = ORGANIZATION_SEARCH_LIGHT_ADMIN.format(schema=self._schema)
+            
+            # Extract filter values
+            name_filter = f"%{query}%" if query else None
+            industry_filter = filters.get("industry") if filters else None
+            country_filter = filters.get("country_code") if filters else None
+            verified_filter = filters.get("is_verified") if filters else None
+            active_filter = filters.get("is_active", True) if filters else True
+            
+            params = [name_filter, industry_filter, country_filter, verified_filter, active_filter, include_deleted, limit, offset]
+            
+            results = await self._db.fetch_all(search_query, params)
+            organizations = [self._map_row_to_organization_light(row) for row in results]
+            
+            logger.info(f"Found {len(organizations)} organizations in light search (admin, include_deleted={include_deleted})")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to search organizations (light admin) with query '{query}': {e}")
+            raise DatabaseError(f"Failed to search organizations (light admin): {e}")
+    
+    async def search_full_admin(self, 
+                               query: str = None, 
+                               filters: Optional[Dict[str, Any]] = None,
+                               include_deleted: bool = False,
+                               limit: int = 20,
+                               offset: int = 0) -> List[Organization]:
+        """Search organizations with full data including deleted ones for admins."""
+        try:
+            search_query = ORGANIZATION_SEARCH_FULL_ADMIN.format(schema=self._schema)
+            
+            # Extract filter values
+            name_filter = f"%{query}%" if query else None
+            industry_filter = filters.get("industry") if filters else None
+            country_filter = filters.get("country_code") if filters else None
+            verified_filter = filters.get("is_verified") if filters else None
+            active_filter = filters.get("is_active", True) if filters else True
+            
+            params = [name_filter, industry_filter, country_filter, verified_filter, active_filter, include_deleted, limit, offset]
+            
+            results = await self._db.fetch_all(search_query, params)
+            organizations = [self._map_row_to_organization(row) for row in results]
+            
+            logger.info(f"Found {len(organizations)} organizations in full search (admin, include_deleted={include_deleted})")
+            return organizations
+            
+        except Exception as e:
+            logger.error(f"Failed to search organizations (full admin) with query '{query}': {e}")
+            raise DatabaseError(f"Failed to search organizations (full admin): {e}")

@@ -270,6 +270,124 @@ ORGANIZATION_VALIDATE_TAX_ID = """
     )
 """
 
+# Light vs Full data queries for performance optimization
+ORGANIZATION_LIST_LIGHT = """
+    SELECT 
+        id, name, slug, industry, country_code, 
+        is_active, verified_at, created_at, updated_at
+    FROM {schema}.organizations
+    WHERE is_active = true AND deleted_at IS NULL
+    ORDER BY name
+    LIMIT $1 OFFSET $2
+"""
+
+ORGANIZATION_LIST_FULL = """
+    SELECT * FROM {schema}.organizations
+    WHERE is_active = true AND deleted_at IS NULL
+    ORDER BY name
+    LIMIT $1 OFFSET $2
+"""
+
+ORGANIZATION_SEARCH_LIGHT = """
+    SELECT 
+        id, name, slug, industry, country_code, 
+        is_active, verified_at, created_at, updated_at
+    FROM {schema}.organizations
+    WHERE ($1::text IS NULL OR name ILIKE $1::text OR slug ILIKE $1::text)
+    AND ($2::text IS NULL OR industry = $2::text)
+    AND ($3::text IS NULL OR country_code = $3::text)
+    AND ($4::boolean IS NULL OR 
+         CASE WHEN $4::boolean = true THEN verified_at IS NOT NULL 
+              WHEN $4::boolean = false THEN verified_at IS NULL
+              ELSE true END)
+    AND ($5::boolean IS NULL OR is_active = $5::boolean)
+    ORDER BY 
+        CASE WHEN name ILIKE $1::text THEN 1 
+             WHEN slug ILIKE $1::text THEN 2 
+             ELSE 3 END,
+        name
+    LIMIT $6 OFFSET $7
+"""
+
+ORGANIZATION_SEARCH_FULL = """
+    SELECT * FROM {schema}.organizations
+    WHERE ($1::text IS NULL OR name ILIKE $1::text OR slug ILIKE $1::text)
+    AND ($2::text IS NULL OR industry = $2::text)
+    AND ($3::text IS NULL OR country_code = $3::text)
+    AND ($4::boolean IS NULL OR 
+         CASE WHEN $4::boolean = true THEN verified_at IS NOT NULL 
+              WHEN $4::boolean = false THEN verified_at IS NULL
+              ELSE true END)
+    AND ($5::boolean IS NULL OR is_active = $5::boolean)
+    ORDER BY 
+        CASE WHEN name ILIKE $1::text THEN 1 
+             WHEN slug ILIKE $1::text THEN 2 
+             ELSE 3 END,
+        name
+    LIMIT $6 OFFSET $7
+"""
+
+# Admin queries with include_deleted option
+ORGANIZATION_LIST_LIGHT_ADMIN = """
+    SELECT 
+        id, name, slug, industry, country_code, 
+        is_active, verified_at, created_at, updated_at, deleted_at
+    FROM {schema}.organizations
+    WHERE ($1::boolean = false OR deleted_at IS NULL)
+    AND is_active = true
+    ORDER BY name
+    LIMIT $2 OFFSET $3
+"""
+
+ORGANIZATION_LIST_FULL_ADMIN = """
+    SELECT * FROM {schema}.organizations
+    WHERE ($1::boolean = false OR deleted_at IS NULL)
+    AND is_active = true
+    ORDER BY name
+    LIMIT $2 OFFSET $3
+"""
+
+ORGANIZATION_SEARCH_LIGHT_ADMIN = """
+    SELECT 
+        id, name, slug, industry, country_code, 
+        is_active, verified_at, created_at, updated_at, deleted_at
+    FROM {schema}.organizations
+    WHERE ($1::text IS NULL OR name ILIKE $1::text OR slug ILIKE $1::text)
+    AND ($2::text IS NULL OR industry = $2::text)
+    AND ($3::text IS NULL OR country_code = $3::text)
+    AND ($4::boolean IS NULL OR 
+         CASE WHEN $4::boolean = true THEN verified_at IS NOT NULL 
+              WHEN $4::boolean = false THEN verified_at IS NULL
+              ELSE true END)
+    AND ($5::boolean IS NULL OR is_active = $5::boolean)
+    AND ($6::boolean = false OR deleted_at IS NULL)
+    ORDER BY 
+        CASE WHEN name ILIKE $1::text THEN 1 
+             WHEN slug ILIKE $1::text THEN 2 
+             ELSE 3 END,
+        name
+    LIMIT $7 OFFSET $8
+"""
+
+ORGANIZATION_SEARCH_FULL_ADMIN = """
+    SELECT * FROM {schema}.organizations
+    WHERE ($1::text IS NULL OR name ILIKE $1::text OR slug ILIKE $1::text)
+    AND ($2::text IS NULL OR industry = $2::text)
+    AND ($3::text IS NULL OR country_code = $3::text)
+    AND ($4::boolean IS NULL OR 
+         CASE WHEN $4::boolean = true THEN verified_at IS NOT NULL 
+              WHEN $4::boolean = false THEN verified_at IS NULL
+              ELSE true END)
+    AND ($5::boolean IS NULL OR is_active = $5::boolean)
+    AND ($6::boolean = false OR deleted_at IS NULL)
+    ORDER BY 
+        CASE WHEN name ILIKE $1::text THEN 1 
+             WHEN slug ILIKE $1::text THEN 2 
+             ELSE 3 END,
+        name
+    LIMIT $7 OFFSET $8
+"""
+
 # Organization metadata queries
 ORGANIZATION_UPDATE_METADATA = """
     UPDATE {schema}.organizations SET

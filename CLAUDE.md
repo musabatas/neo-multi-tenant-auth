@@ -519,7 +519,7 @@ The system uses a **two-phase migration approach**:
 14. **Cache aggressively** but implement proper invalidation
 15. **Document API endpoints** with OpenAPI/Scalar following tag naming conventions
 16. **Use consistent OpenAPI tag naming** - Follow standardized tag organization and naming
-17. **Enforce file size limits** - Split files exceeding 400 lines using SOLID principles
+17. **Enforce file size limits** - Split files exceeding 400 lines using SOLID principles if splitting file is better for readability and maintainability, else keep file under 400 lines
 18. **Validate performance requirements** - Monitor sub-millisecond permission check targets
 
 ### Feature Development Guidelines

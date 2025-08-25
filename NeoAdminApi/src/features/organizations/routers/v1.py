@@ -32,8 +32,8 @@ async def get_admin_organization_repository():
 async def get_admin_organization_service_impl():
     """Get organization service configured for admin operations."""
     repository = await get_admin_organization_repository()
-    # No cache for simplicity in admin API
-    return OrganizationService(repository, cache=None)
+    # No cache needed - organizations use database queries directly
+    return OrganizationService(repository)
 
 
 # Create routers with dependency overrides

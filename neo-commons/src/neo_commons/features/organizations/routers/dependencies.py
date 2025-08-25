@@ -10,7 +10,7 @@ these dependencies with their own implementations for full functionality.
 from typing import Optional
 
 
-# Note: Services will need to provide their own database and cache dependencies
+# Note: Services will need to provide their own database dependencies
 # These are placeholder functions that services should override
 
 def get_database_repository():
@@ -22,15 +22,6 @@ def get_database_repository():
     raise NotImplementedError(
         "Services must provide their own database repository dependency"
     )
-
-
-def get_cache_service():
-    """Placeholder for cache service dependency.
-    
-    Services should override this dependency to provide their actual
-    cache service implementation.
-    """
-    return None  # Cache is optional
 
 
 def get_organization_repository():
@@ -68,9 +59,4 @@ def get_admin_organization_service():
     )
 
 
-def get_organization_cache():
-    """Placeholder for organization cache dependency.
-    
-    Services should override this to provide configured cache.
-    """
-    return None  # Cache is optional
+# Organization cache removed - database queries are sufficient for occasional access patterns
