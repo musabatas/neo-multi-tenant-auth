@@ -392,12 +392,34 @@ CREATE TABLE tenant_template.invitations (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ============================================================================
+-- SETTINGS (Tenant-specific configuration and preferences)
+-- ============================================================================
+
+CREATE TABLE tenant_template.settings (
+    id UUID PRIMARY KEY DEFAULT platform_common.uuid_generate_v7(),
+    key VARCHAR(255) NOT NULL UNIQUE,
+    value JSONB NOT NULL DEFAULT '{}',
+    description TEXT,
+    category VARCHAR(100) DEFAULT 'general',
+    is_public BOOLEAN DEFAULT false,
+    is_required BOOLEAN DEFAULT false,
+    validation_schema JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Indexes for invitations
 CREATE INDEX idx_tenant_invitations_email ON tenant_template.invitations(email);
 CREATE INDEX idx_tenant_invitations_token ON tenant_template.invitations(invitation_token);
 CREATE INDEX idx_tenant_invitations_status ON tenant_template.invitations(status);
 CREATE INDEX idx_tenant_invitations_invited_by ON tenant_template.invitations(invited_by);
 CREATE INDEX idx_tenant_invitations_expires ON tenant_template.invitations(expires_at);
+
+-- Indexes for settings
+CREATE INDEX idx_tenant_settings_key ON tenant_template.settings(key);
+CREATE INDEX idx_tenant_settings_category ON tenant_template.settings(category);
+CREATE INDEX idx_tenant_settings_public ON tenant_template.settings(is_public);
 
 -- ============================================================================
 -- TRIGGERS FOR UPDATED_AT

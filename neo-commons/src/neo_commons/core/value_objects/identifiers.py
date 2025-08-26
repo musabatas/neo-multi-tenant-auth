@@ -696,3 +696,124 @@ ConfigurableRegionId = AdvancedRegionId
 ConfigurableRealmId = AdvancedRealmId
 ConfigurableKeycloakUserId = AdvancedKeycloakUserId
 ConfigurableTokenId = AdvancedTokenId
+
+
+# Event-related value objects
+from uuid import UUID, uuid4
+
+@dataclass(frozen=True)
+class EventId(ValueObject):
+    """Event identifier value object."""
+    value: UUID
+    
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"EventId must be a valid UUID, got: {self.value}")
+
+@dataclass(frozen=True) 
+class WebhookEndpointId(ValueObject):
+    """Webhook endpoint identifier value object."""
+    value: UUID
+    
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"WebhookEndpointId must be a valid UUID, got: {self.value}")
+
+@dataclass(frozen=True)
+class WebhookEventTypeId(ValueObject):
+    """Webhook event type identifier value object."""
+    value: UUID
+    
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"WebhookEventTypeId must be a valid UUID, got: {self.value}")
+
+@dataclass(frozen=True)
+class WebhookDeliveryId(ValueObject):
+    """Webhook delivery identifier value object."""
+    value: UUID
+    
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"WebhookDeliveryId must be a valid UUID, got: {self.value}")
+
+@dataclass(frozen=True)
+class WebhookSubscriptionId(ValueObject):
+    """Webhook subscription identifier value object."""
+    value: UUID
+    
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"WebhookSubscriptionId must be a valid UUID, got: {self.value}")
+
+@dataclass(frozen=True)
+class EventType(ValueObject):
+    """Event type value object (e.g., 'organization.created')."""
+    value: str
+    
+    def __post_init__(self):
+        if not isinstance(self.value, str):
+            raise ValueError("EventType must be a string")
+        
+        if not self.value or not self.value.strip():
+            raise ValueError("EventType cannot be empty")
+            
+        # Event type format: category.action (e.g., organization.created)
+        if '.' not in self.value or self.value.count('.') != 1:
+            raise ValueError("EventType must be in format 'category.action'")
+        
+        # Clean and validate format
+        clean_value = self.value.strip().lower()
+        if not re.match(r'^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$', clean_value):
+            raise ValueError("EventType must contain only lowercase letters, numbers, and underscores")
+        
+        object.__setattr__(self, 'value', clean_value)
+    
+    @property
+    def category(self) -> str:
+        """Get event category (part before the dot)."""
+        return self.value.split('.')[0]
+    
+    @property  
+    def action(self) -> str:
+        """Get event action (part after the dot)."""
+        return self.value.split('.')[1]
+
+@dataclass(frozen=True)
+class ActionId(ValueObject):
+    """Event action identifier value object."""
+    value: UUID
+    
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"ActionId must be a valid UUID, got: {self.value}")
+
+@dataclass(frozen=True)
+class ActionExecutionId(ValueObject):
+    """Action execution identifier value object."""
+    value: UUID
+    
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"ActionExecutionId must be a valid UUID, got: {self.value}")

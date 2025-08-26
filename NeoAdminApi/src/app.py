@@ -127,6 +127,10 @@ def create_app() -> FastAPI:
     from .features.system.routers.v1 import router as system_router
     app.include_router(system_router, prefix="/api/v1/system")
     
+    # Event management
+    from .features.events.routers.event_actions import router as event_actions_router
+    app.include_router(event_actions_router, prefix="/api/v1/event-actions", tags=["Event Actions"])
+    
     # Add debug endpoint to check auth factory status
     @app.get("/debug/auth-status")
     async def debug_auth_status():

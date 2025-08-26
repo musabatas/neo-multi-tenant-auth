@@ -47,6 +47,15 @@ from .identifiers import (
     ConfigurableRealmId,
     ConfigurableKeycloakUserId,
     ConfigurableTokenId,
+    # Event-related value objects
+    EventId,
+    WebhookEndpointId,
+    WebhookEventTypeId,
+    WebhookDeliveryId,
+    WebhookSubscriptionId,
+    EventType,
+    ActionId,
+    ActionExecutionId,
 )
 
 __all__ = [
@@ -89,6 +98,15 @@ __all__ = [
     "ConfigurableDatabaseConnectionId",
     "ConfigurableRegionId",
     "ConfigurableRealmId",
-    "ConfigurableKeycloakUserId",
+    "ConfigurableKeycloakUserId", 
     "ConfigurableTokenId",
+    # Event-related value objects
+    "EventId",
+    "WebhookEndpointId",
+    "WebhookEventTypeId", 
+    "WebhookDeliveryId",
+    "WebhookSubscriptionId",
+    "EventType",
+    "ActionId",
+    "ActionExecutionId",
 ]

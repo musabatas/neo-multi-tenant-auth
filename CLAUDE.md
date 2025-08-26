@@ -267,46 +267,87 @@ The platform uses Flyway for enterprise-grade migration management with Python o
 - ✅ **Protocol-Based Design**: @runtime_checkable interfaces for dependency injection
 - ⚠️ **Authentication**: Available but not yet integrated (auth disabled in AdminAPI)
 
-### Library Structure (Feature-First + Clean Core Architecture)
+### Library Structure (Maximum Separation Architecture)
 
 ```
 neo-commons/
-├── core/                    # Clean Core - Only value objects, exceptions & shared contracts
-│   ├── value_objects/      # Immutable types (UserId, TenantId, PermissionCode)
-│   ├── exceptions/         # Domain exceptions and HTTP mapping
-│   └── shared/             # Cross-cutting domain objects (RequestContext)
-├── features/               # Feature-First - Business capabilities
-│   ├── cache/              # Cache management feature
-│   │   ├── entities/       # Cache domain entities and protocols
-│   │   ├── services/       # Cache business logic
-│   │   └── adapters/       # Redis/Memory cache implementations
-│   ├── database/           # Database management feature  
-│   │   ├── entities/       # Connection entities and protocols
-│   │   ├── services/       # Database orchestration
-│   │   └── repositories/   # AsyncPG implementations
-│   ├── permissions/        # RBAC permission system
-│   │   ├── entities/       # Permission/Role domain entities
-│   │   ├── services/       # Permission checking logic
-│   │   └── repositories/   # Permission data access
-│   ├── users/              # User management
-│   ├── organizations/      # Organization management
-│   ├── tenants/            # Tenant management  
-│   └── teams/              # Team management
-├── infrastructure/         # Infrastructure-level concerns
-│   ├── configuration/      # Application configuration management
-│   ├── middleware/         # FastAPI middleware for cross-cutting concerns
-│   ├── database/           # Low-level database utilities
-│   └── protocols/          # Infrastructure contracts
-├── config/                 # Configuration management (legacy - being phased out)
-└── utils/                  # Utility functions (UUIDv7, etc.)
+├── core/                           # Clean Core - Only value objects, exceptions & shared contracts
+│   ├── value_objects/             # Immutable types (UserId, TenantId, PermissionCode)
+│   ├── exceptions/                # Domain exceptions and HTTP mapping
+│   └── shared/                    # Cross-cutting domain objects (RequestContext)
+├── features/                      # Feature modules with maximum separation
+│   ├── cache/                     # Cache management feature
+│   │   ├── module.py             # Module registration & DI
+│   │   ├── domain/               # Pure cache business logic
+│   │   │   ├── entities/         # Cache entities (one per file)
+│   │   │   ├── value_objects/    # Cache-specific values
+│   │   │   └── exceptions/       # Cache-specific exceptions
+│   │   ├── application/          # Cache use cases
+│   │   │   ├── commands/         # Write operations (set, delete, clear)
+│   │   │   ├── queries/          # Read operations (get, exists, stats)
+│   │   │   └── protocols/        # Cache contracts
+│   │   ├── infrastructure/       # External cache implementations
+│   │   │   ├── repositories/     # Redis, Memory implementations
+│   │   │   └── adapters/         # External cache services
+│   │   ├── api/                  # Reusable cache API components
+│   │   │   ├── routers/          # Cache management endpoints
+│   │   │   └── models/           # Cache request/response models
+│   │   └── extensions/           # Cache extension points
+│   ├── database/                 # Database management feature
+│   │   ├── module.py
+│   │   ├── domain/
+│   │   │   ├── entities/         # Connection, Pool entities
+│   │   │   └── value_objects/    # ConnectionString, DatabaseName
+│   │   ├── application/
+│   │   │   ├── commands/         # Connect, disconnect, migrate
+│   │   │   ├── queries/          # Get connections, health checks
+│   │   │   └── protocols/        # Database contracts
+│   │   ├── infrastructure/
+│   │   │   ├── repositories/     # AsyncPG implementations
+│   │   │   └── adapters/         # Multiple DB adapters
+│   │   └── api/
+│   │       └── routers/          # Database management endpoints
+│   ├── permissions/              # RBAC permission system
+│   │   ├── module.py
+│   │   ├── domain/
+│   │   │   ├── entities/         # Permission, Role, Team entities
+│   │   │   ├── value_objects/    # PermissionCode, RoleCode
+│   │   │   └── events/           # Permission granted/revoked events
+│   │   ├── application/
+│   │   │   ├── commands/         # Grant, revoke, assign permissions
+│   │   │   ├── queries/          # Check permissions, list roles
+│   │   │   └── validators/       # Permission validation rules
+│   │   ├── infrastructure/
+│   │   │   ├── repositories/     # Permission data access
+│   │   │   └── adapters/         # External auth providers
+│   │   └── api/
+│   │       ├── routers/          # Permission management endpoints
+│   │       └── models/           # Permission request/response models
+│   ├── users/                    # User management (follows same pattern)
+│   ├── organizations/            # Organization management (follows same pattern)
+│   ├── tenants/                  # Tenant management (follows same pattern)
+│   ├── teams/                    # Team management (follows same pattern)
+│   └── events/                   # Event system (follows same pattern)
+├── platform/                    # Platform services (NEW - Module system)
+│   ├── module.py                # Base module interface
+│   ├── container.py             # Service container with override support
+│   ├── bootstrap.py             # Auto-discovery and initialization
+│   └── extensions.py            # Extension system
+├── infrastructure/              # Platform-level infrastructure
+│   ├── configuration/           # Application configuration management
+│   ├── middleware/              # FastAPI middleware for cross-cutting concerns
+│   ├── database/                # Low-level database utilities
+│   └── protocols/               # Infrastructure contracts
+└── utils/                       # Utility functions (UUIDv7, logging, etc.)
 ```
 
 ### Architecture Design Principles
 
-#### Feature-First Organization
-- **Feature Modules**: Each business capability (cache, database, permissions) is self-contained
-- **Clean Boundaries**: Features communicate through well-defined protocols and shared value objects
-- **Domain-Driven**: Features follow DDD patterns with entities, services, and repositories
+#### Maximum Separation Architecture
+- **One File = One Purpose**: Each file handles exactly one concern (creation, validation, notification, etc.)
+- **Perfect Modularity**: Features are completely self-contained with clear API boundaries
+- **Command/Query Separation**: Write operations separated from read operations at file level
+- **Domain Purity**: Domain layer contains only business logic, free from infrastructure concerns
 
 #### Clean Core Pattern
 - **Minimal Core**: Core contains only essential value objects, exceptions, and shared contracts
@@ -315,8 +356,13 @@ neo-commons/
 
 #### Protocol-Based Integration
 - **@runtime_checkable Protocols**: Enable flexible dependency injection and testing
-- **Contract Separation**: Domain protocols in entities, infrastructure protocols in infrastructure
-- **Implementation Independence**: Swap implementations without changing business logic
+- **Contract Separation**: Application protocols for domain contracts, infrastructure protocols for technical contracts
+- **Implementation Independence**: Swap implementations without changing business logic at granular file level
+
+#### Reusable API Components
+- **Role-Based Routers**: Admin, tenant, public, internal routers for cross-service usage
+- **Shared Models**: Request/response models reused across multiple services
+- **Extension Points**: Hooks and validators for customization at every operation
 
 ### Database Usage (Current Implementation)
 
@@ -367,50 +413,247 @@ DB_ENCRYPTION_KEY="your-32-char-encryption-key"
 
 **Implementation Pattern**:
 ```python
-# Service with dependency injection
-async def get_organization_service():
-    database_service = await get_database_service()
-    repository = OrganizationRepository(database_service)
-    return OrganizationService(repository)
+# Maximum separation with command/query pattern
+from neo_commons.features.organizations.application.commands import CreateOrganizationCommand
+from neo_commons.features.organizations.application.queries import GetOrganizationQuery
+from neo_commons.platform.container import get_container
+
+# Use specific commands for write operations
+async def create_organization_endpoint(request: CreateOrganizationRequest):
+    container = get_container()
+    command = await container.get(CreateOrganizationCommand)
+    return await command.execute(request.to_domain())
+
+# Use specific queries for read operations  
+async def get_organization_endpoint(org_id: str):
+    container = get_container()
+    query = await container.get(GetOrganizationQuery) 
+    return await query.execute(OrganizationId(org_id))
 ```
+
+### Neo-Commons Perfect Architecture Guidelines
+
+#### Maximum Separation Principle
+**Every file should have a single responsibility** - Follow enterprise patterns from Google, Netflix, Amazon, and Meta for perfect modularity:
+
+1. **One File = One Purpose**: Each file handles exactly one concern or operation
+2. **Perfect Testability**: Test each file in complete isolation
+3. **Perfect Override**: Override any functionality at granular level
+4. **Perfect Maintenance**: Bug in X? Look at X file only
+5. **Perfect Collaboration**: No merge conflicts, clear ownership
+
+#### Perfect Feature File Structure (Template)
+```
+neo-commons/src/neo_commons/features/{feature}/
+├── __init__.py
+├── module.py                           # Module registration & DI
+│
+├── domain/                             # Pure business logic
+│   ├── entities/
+│   │   ├── __init__.py
+│   │   ├── {feature}.py               # Main entity only
+│   │   ├── {sub_entity}.py            # Each sub-entity separate
+│   │   └── {other_entity}.py          # One entity per file
+│   ├── value_objects/
+│   │   ├── __init__.py
+│   │   ├── {feature}_id.py            # Just ID logic
+│   │   ├── {feature}_name.py          # Just name validation
+│   │   └── {feature}_status.py        # Just status values
+│   ├── events/
+│   │   ├── __init__.py
+│   │   ├── {feature}_created.py       # Just creation event
+│   │   ├── {feature}_updated.py       # Just update event
+│   │   └── {feature}_deleted.py       # Just deletion event
+│   └── exceptions/
+│       ├── __init__.py
+│       ├── {feature}_not_found.py     # Just this exception
+│       └── invalid_{feature}.py       # Just validation exceptions
+│
+├── application/                       # Use cases - one per file
+│   ├── protocols/                     # Contracts
+│   │   ├── __init__.py
+│   │   ├── {feature}_repository.py   # Just repository contract
+│   │   ├── {feature}_service.py      # Just service contract
+│   │   └── validation_service.py     # Just validation contract
+│   ├── commands/                      # Write operations
+│   │   ├── __init__.py
+│   │   ├── create_{feature}.py       # ONLY creation logic
+│   │   ├── update_{feature}.py       # ONLY update logic
+│   │   ├── delete_{feature}.py       # ONLY deletion logic
+│   │   └── update_{sub_feature}.py   # ONLY sub-feature update
+│   ├── queries/                       # Read operations
+│   │   ├── __init__.py
+│   │   ├── get_{feature}.py          # ONLY get single
+│   │   ├── search_{feature}s.py      # ONLY search logic
+│   │   └── get_{feature}_history.py  # ONLY history
+│   ├── validators/                    # Validation rules
+│   │   ├── __init__.py
+│   │   ├── {feature}_validator.py    # ONLY main validation
+│   │   ├── {sub_feature}_validator.py # ONLY sub-feature validation
+│   │   └── name_validator.py         # ONLY name validation
+│   └── handlers/                      # Event handlers
+│       ├── __init__.py
+│       ├── {feature}_created_handler.py    # ONLY creation handling
+│       └── {feature}_updated_handler.py    # ONLY update handling
+│
+├── infrastructure/                    # External concerns
+│   ├── repositories/
+│   │   ├── __init__.py
+│   │   ├── asyncpg_{feature}_repository.py    # ONLY PostgreSQL repo
+│   │   └── redis_{feature}_cache.py          # ONLY Redis caching
+│   ├── adapters/                      # External services
+│   │   ├── __init__.py
+│   │   ├── email_notification_adapter.py     # ONLY email notifications
+│   │   └── analytics_tracking_adapter.py     # ONLY analytics tracking
+│   ├── queries/                       # Raw SQL
+│   │   ├── __init__.py
+│   │   ├── {feature}_select_queries.py      # ONLY SELECT queries
+│   │   ├── {feature}_insert_queries.py      # ONLY INSERT queries
+│   │   └── {feature}_update_queries.py      # ONLY UPDATE queries
+│   └── factories/
+│       ├── __init__.py
+│       └── {feature}_factory.py             # ONLY creation factory
+│
+├── api/                               # Reusable API components
+│   ├── models/
+│   │   ├── requests/                  # Request models
+│   │   │   ├── __init__.py
+│   │   │   ├── create_{feature}_request.py  # ONLY creation request
+│   │   │   ├── update_{feature}_request.py  # ONLY update request
+│   │   │   └── delete_{feature}_request.py  # ONLY deletion request
+│   │   └── responses/                 # Response models
+│   │       ├── __init__.py
+│   │       ├── {feature}_response.py        # ONLY main response
+│   │       └── {sub_feature}_response.py    # ONLY sub-feature response
+│   ├── routers/                       # API endpoints
+│   │   ├── __init__.py
+│   │   ├── {feature}_crud_router.py         # ONLY CRUD operations
+│   │   ├── {feature}_{sub_feature}_router.py # ONLY sub-feature endpoints
+│   │   ├── admin_{feature}_router.py        # ONLY admin operations
+│   │   ├── tenant_{feature}_router.py       # ONLY tenant operations
+│   │   └── public_{feature}_router.py       # ONLY public operations
+│   ├── dependencies/                  # DI dependencies
+│   │   ├── __init__.py
+│   │   ├── {feature}_dependencies.py        # ONLY main dependencies
+│   │   └── validation_dependencies.py       # ONLY validation dependencies
+│   └── middleware/
+│       ├── __init__.py
+│       ├── {feature}_auth_middleware.py     # ONLY feature auth
+│       └── audit_logging_middleware.py      # ONLY audit logging
+│
+└── extensions/                        # Extension points
+    ├── hooks/
+    │   ├── __init__.py
+    │   ├── pre_create_hooks.py         # ONLY pre-creation hooks
+    │   ├── post_create_hooks.py        # ONLY post-creation hooks
+    │   └── pre_update_hooks.py         # ONLY pre-update hooks
+    └── validators/
+        ├── __init__.py
+        ├── custom_name_validators.py    # ONLY name validation extensions
+        └── tenant_specific_validators.py # ONLY tenant validation extensions
+```
+
+#### Benefits of Maximum Separation
+1. **Perfect Testability**: Test each file in complete isolation
+2. **Perfect Overrides**: Override any functionality at granular level (e.g., only email notifications, only name validation)
+3. **Perfect Maintenance**: Bug location is obvious - one file, one purpose
+4. **Perfect Team Collaboration**: No merge conflicts, clear file ownership
+5. **Perfect Modularity**: Import exactly what you need, nothing more
+6. **Perfect Performance**: Override only what's slow, keep everything else
+
+#### Implementation Guidelines
+**Always follow maximum separation:**
+- **Never mix responsibilities** in a single file
+- **Split large services** into command/query/validation files
+- **Separate domain concerns** (entities, value objects, events, exceptions)
+- **Isolate external adapters** (email, analytics, notifications)
+- **Create focused routers** (CRUD, admin, tenant, public)
+- **Use single-purpose validators** (name, format, business rules)
+
+#### Comprehensive Analysis Requirements
+**Before modifying neo-commons, agents MUST:**
+1. **Read ALL relevant files** - Never skip files, completeness is critical for shared library analysis
+2. **Validate DRY principles** - Identify code duplication and ensure proper abstraction
+3. **Check dynamic configuration** - Verify services can inject configurations at runtime
+4. **Review override mechanisms** - Ensure services can override functionality through protocols
+5. **Identify bottlenecks** - Performance, architectural, scalability, and configuration issues
+6. **Apply maximum separation** - Ensure each file has single responsibility
+
+#### Feature Category Analysis
+When working with neo-commons features, analyze these categories and apply maximum separation:
+- **Domain Layer**: Entities, value objects, events, exceptions (one per file, pure business logic)
+- **Application Layer**: Commands, queries, validators, handlers, protocols (one responsibility per file)
+- **Infrastructure Layer**: Repositories, adapters, queries, factories (one external concern per file)
+- **API Layer**: Role-based routers, focused models, specific dependencies (reusable across services)
+- **Extension Layer**: Hooks, validators, handlers (granular override points)
 
 ### Neo-Commons Development Patterns
 
 #### Creating New Features
 ```python
-# 1. Create feature directory structure
-features/
-├── my_feature/
-│   ├── entities/          # Domain objects and protocols
-│   ├── services/          # Business logic
-│   ├── repositories/      # Data access (if needed)
-│   └── __init__.py        # Export public interface
+# 1. Create maximum separation structure following template
+features/my_feature/
+├── module.py                           # Module registration & DI
+├── domain/
+│   ├── entities/my_entity.py          # ONLY entity logic
+│   ├── value_objects/my_entity_id.py  # ONLY ID validation
+│   └── exceptions/my_entity_not_found.py # ONLY this exception
+├── application/
+│   ├── commands/create_my_entity.py   # ONLY creation logic
+│   ├── queries/get_my_entity.py       # ONLY retrieval logic
+│   ├── validators/my_entity_validator.py # ONLY validation logic
+│   └── protocols/my_entity_repository.py # ONLY repository contract
+├── infrastructure/
+│   ├── repositories/asyncpg_my_entity_repository.py # ONLY PostgreSQL impl
+│   └── adapters/external_service_adapter.py # ONLY external service
+├── api/
+│   ├── routers/admin_my_entity_router.py # ONLY admin endpoints
+│   ├── models/requests/create_my_entity_request.py # ONLY creation request
+│   └── models/responses/my_entity_response.py # ONLY response model
+└── extensions/
+    └── hooks/post_create_hooks.py     # ONLY post-creation hooks
 
-# 2. Define domain entities with protocols
-@dataclass
-class MyEntity:
-    id: EntityId
-    name: str
+# 2. Implement focused components
+@dataclass(frozen=True)
+class MyEntityId:
+    value: str
+    
+    def __post_init__(self):
+        if not self.value:
+            raise ValueError("MyEntity ID cannot be empty")
 
-@runtime_checkable  
-class MyEntityRepository(Protocol):
-    async def save(self, entity: MyEntity) -> MyEntity: ...
-
-# 3. Implement service with dependency injection
-class MyFeatureService:
+# 3. Single-purpose command
+class CreateMyEntityCommand:
     def __init__(self, repository: MyEntityRepository):
         self._repository = repository
+    
+    async def execute(self, data: CreateMyEntityData) -> MyEntity:
+        # ONLY creation logic here
+        entity = MyEntity.create(data)
+        return await self._repository.save(entity)
 ```
 
 #### Adding to Existing Features
 ```python
-# Always check existing feature structure first
-from neo_commons.features.permissions.entities import Permission
-from neo_commons.features.permissions.services import PermissionService
+# Add new single-purpose files to existing features
+# Example: Adding validation to organizations feature
 
-# Extend existing services, don't duplicate
-class ExtendedPermissionService(PermissionService):
-    async def advanced_check(self, ...): ...
+# Create new validator file
+# neo_commons/features/organizations/application/validators/branding_validator.py
+class BrandingValidator:
+    async def validate_logo_format(self, logo_data: bytes) -> ValidationResult:
+        # ONLY logo format validation
+        pass
+    
+    async def validate_color_scheme(self, colors: Dict[str, str]) -> ValidationResult:
+        # ONLY color scheme validation  
+        pass
+
+# Register in module.py
+class OrganizationsModule(Module):
+    async def configure(self, container: ServiceContainer):
+        container.register(BrandingValidator, BrandingValidator)
+        # Existing registrations...
 ```
 
 #### Core Value Objects
@@ -433,21 +676,24 @@ class NewValueObject:
 
 ### Architecture Implementation Status
 
-#### ✅ Completed (Clean Core + Feature-First)
+#### ✅ Completed (Maximum Separation Architecture)
 - **Core Architecture**: Clean Core with value objects, exceptions, shared contracts
-- **Feature Organization**: 6 feature modules (cache, database, permissions, users, organizations, teams)
-- **Protocol-Based Design**: @runtime_checkable protocols for dependency injection
-- **Import Structure**: Validated import paths and circular dependency prevention
+- **Feature Organization**: 7 feature modules with maximum separation (cache, database, permissions, users, organizations, teams, events)
+- **Protocol-Based Design**: @runtime_checkable protocols for dependency injection at granular level
+- **Platform System**: Module registration, service container, auto-discovery, extension points
+- **API Reusability**: Role-based routers (admin, tenant, public, internal) for cross-service usage
 
-#### 🔄 In Progress  
-- **Configuration Migration**: Moving from legacy config/ to infrastructure/configuration/
-- **Repository Modernization**: Updating hardcoded schema references to dynamic configuration
-- **Service Integration**: Full feature service integration across all APIs
+#### 🔄 Currently Implementing
+- **Maximum Separation Migration**: Converting existing features to command/query/domain separation
+- **API Layer Enhancement**: Building reusable API components across all features  
+- **Extension Points**: Adding hooks and validators for granular customization
+- **Module System**: Implementing auto-discovery and dependency injection containers
 
 #### 📋 Next Steps
-- **NeoTenantApi Integration**: Implement feature-based architecture
-- **Performance Validation**: Sub-millisecond permission check targets
-- **Legacy Cleanup**: Remove deprecated config patterns
+- **Cross-Service Integration**: Deploy reusable API components across NeoAdminApi, NeoTenantApi
+- **Performance Validation**: Sub-millisecond permission checks with maximum separation
+- **Testing Framework**: Implement isolated testing for each single-purpose file
+- **Documentation**: Complete feature-specific documentation following maximum separation patterns
 
 
 ## Important Implementation Notes
@@ -524,10 +770,44 @@ The system uses a **two-phase migration approach**:
 
 ### Feature Development Guidelines
 19. **Feature Isolation** - Features should be self-contained with minimal cross-feature dependencies
-20. **Protocol Contracts** - Define protocols in entities/ for domain contracts, infrastructure/ for technical contracts  
-21. **Service Orchestration** - Complex workflows belong in feature services, not repositories
-22. **Repository Focus** - Repositories handle only data access, no business logic
-23. **Entity Validation** - Domain validation belongs in entities, technical validation in infrastructure
+20. **Maximum Separation** - Apply single responsibility principle: one file = one purpose (creation, validation, notification, etc.)
+21. **Protocol Contracts** - Define protocols in application/protocols/ for clean contracts
+22. **Command/Query Separation** - Split write operations (commands/) from read operations (queries/)
+23. **Domain Layer Purity** - Keep domain/ free from infrastructure concerns
+24. **Granular Override Points** - Enable overriding at file level for maximum flexibility
+25. **Focused Testing** - Each file should be testable in complete isolation
+26. **API Layer Reusability** - Create role-based routers (admin, tenant, public, internal) for cross-service usage
+
+### Neo-Commons Quality Standards
+27. **DRY Principle Compliance** - Eliminate code duplication, extract common patterns, ensure proper abstraction
+28. **Dynamic Configuration Support** - Services must accept runtime configuration injection, no hardcoded values
+29. **Override Capability** - All functionality must be overridable through protocol interfaces at granular file level
+30. **Performance Standards** - Sub-millisecond permission checks, efficient connection pooling, optimized caching
+31. **Bottleneck Prevention** - Avoid synchronous operations, singleton patterns, and static configurations
+32. **Maximum Separation Compliance** - Every file must have single responsibility following the perfect feature structure template
+33. **Testability Standards** - Each file must be testable in complete isolation with clear mocking boundaries
+34. **API Reusability Standards** - Create reusable API components that work across all services (admin, tenant, public, internal)
+
+### Neo-Commons Bottleneck Categories
+**Performance Bottlenecks:**
+- Synchronous database operations in async contexts
+- Inefficient SQL queries or missing indexes
+- Unoptimized cache access patterns
+
+**Architectural Bottlenecks:**
+- Tight coupling between features
+- Hard dependencies on specific implementations
+- Circular dependencies between modules
+
+**Scalability Bottlenecks:**
+- Singleton patterns preventing horizontal scaling
+- Resource contention in shared components
+- Memory leaks in long-running processes
+
+**Configuration Bottlenecks:**
+- Static configuration requiring restarts
+- Hardcoded database schema names
+- Missing environment-specific overrides
 
 ### OpenAPI Tag Naming & Organization Standards
 
@@ -761,14 +1041,50 @@ Task: "Use codebase-db-investigator to analyze existing user-related code in neo
 Task: "Use codebase-db-investigator to analyze how database connections are currently managed in neo-commons. Show me the connection management patterns, encryption handling, and repository implementations."
 ```
 
+### Using neo-commons-analyzer Agent
+
+**Purpose**: Comprehensive architectural analysis of the neo-commons shared library for DRY compliance, dynamic configuration, override mechanisms, and bottleneck identification.
+
+**When to use:**
+- Before major neo-commons refactoring or enhancement
+- When adding new shared features across multiple services
+- For architecture quality reviews and technical debt assessment
+- When investigating performance issues in shared components
+- Before implementing new override mechanisms or configuration patterns
+
+**Example usage:**
+```bash
+# Comprehensive architecture review
+Task: "Use neo-commons-analyzer to review the entire neo-commons library for DRY principle compliance, dynamic configuration capabilities, and potential bottlenecks."
+
+# Feature-specific analysis
+Task: "Use neo-commons-analyzer to analyze the permissions feature in neo-commons. Check for code duplication, configuration flexibility, override mechanisms, and performance bottlenecks."
+
+# Pre-enhancement analysis
+Task: "Use neo-commons-analyzer to review the database feature before adding new connection pooling functionality. Identify existing patterns and potential architectural issues."
+```
+
+**Agent Process:**
+1. **File Discovery**: Lists ALL files in target neo-commons feature areas
+2. **Comprehensive Reading**: Reads every file completely (never skip files)
+3. **DRY Analysis**: Identifies code duplication and abstraction opportunities
+4. **Configuration Review**: Validates dynamic configuration capabilities
+5. **Override Assessment**: Checks protocol-based extension mechanisms
+6. **Bottleneck Identification**: Finds performance, architectural, and scalability issues
+7. **Documentation**: Creates structured review reports with actionable recommendations
+
 ### Critical Implementation Rules
 
 1. **Never duplicate existing functionality** - Always check neo-commons first
-2. **Implement generic/reusable functionality in neo-commons** - If requested task is generic or reusable across services, implement it in neo-commons and use it in the service
-3. **Follow existing patterns** - Use codebase-db-investigator to understand current implementation patterns
-4. **Respect architecture boundaries** - Features in feature modules, core only for value objects/exceptions
-5. **Validate database operations** - Ensure schema names are dynamic, use UUIDv7, follow asyncpg patterns
-6. **Update CLAUDE.md only for critical findings** - Add important architectural decisions or patterns that will guide future development
+2. **Follow maximum separation principle** - One file = one purpose, apply perfect feature structure template
+3. **Implement generic/reusable functionality in neo-commons** - If requested task is generic or reusable across services, implement it in neo-commons and use it in the service  
+4. **Apply single responsibility at file level** - Split commands, queries, validators, handlers, adapters into separate files
+5. **Create reusable API components** - Build role-based routers (admin, tenant, public, internal) for cross-service usage
+6. **Follow existing patterns** - Use codebase-db-investigator to understand current implementation patterns
+7. **Respect architecture boundaries** - Domain pure, application orchestrates, infrastructure adapts, API routes
+8. **Enable granular overrides** - Every file should be overridable independently for maximum flexibility
+9. **Validate database operations** - Ensure schema names are dynamic, use UUIDv7, follow asyncpg patterns
+10. **Update CLAUDE.md only for critical findings** - Add important architectural decisions or patterns that will guide future development
 
 ### Knowledge Documentation Rules
 
