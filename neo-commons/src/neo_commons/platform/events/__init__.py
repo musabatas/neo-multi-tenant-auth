@@ -12,83 +12,85 @@ maximum separation and single responsibility.
 from .core import (
     # Entities
     DomainEvent,
-    EventAction,
-    ActionExecution,
     WebhookEndpoint,
     WebhookDelivery,
     
     # Value Objects
     EventId,
-    ActionId,
-    ActionStatus,
-    HandlerType,
-    ActionPriority,
-    ExecutionMode,
     EventType,
-    ActionCondition,
     WebhookEndpointId,
     WebhookDeliveryId,
     DeliveryStatus,
     
     # Protocols
     EventDispatcher,
-    ActionExecutor,
     DeliveryService,
     EventRepository,
-    ActionRepository,
+    NotificationService,
+    WebhookRepository,
+    MessageQueue,
     
     # Platform Domain Events
     EventDispatched,
-    ActionExecuted,
     WebhookDelivered,
-    ActionFailed,
     DeliveryFailed,
     
     # Platform Exceptions
     EventDispatchFailed,
-    ActionExecutionFailed,
     WebhookDeliveryFailed,
     InvalidEventConfiguration,
+    EventValidationFailed,
+    EventHandlerFailed,
 )
+
+# Note: Application layer imports disabled until action dependencies are resolved
+# from .application import (
+#     # Commands (write operations) - temporarily commented out due to action dependencies
+#     # DispatchEventCommand,
+#     # DispatchEventData, 
+#     # DispatchEventResult,
+#     # ...
+# )
+
+# Note: Action-related commands, queries, and validators have been moved to platform/actions module
 
 __all__ = [
     # Entities
     "DomainEvent",
-    "EventAction", 
-    "ActionExecution",
     "WebhookEndpoint",
     "WebhookDelivery",
     
     # Value Objects
     "EventId",
-    "ActionId", 
-    "ActionStatus",
-    "HandlerType",
-    "ActionPriority",
-    "ExecutionMode",
     "EventType",
-    "ActionCondition",
     "WebhookEndpointId",
     "WebhookDeliveryId",
     "DeliveryStatus",
     
     # Protocols
     "EventDispatcher",
-    "ActionExecutor", 
     "DeliveryService",
     "EventRepository",
-    "ActionRepository",
+    "NotificationService",
+    "WebhookRepository",
+    "MessageQueue",
     
     # Platform Domain Events
     "EventDispatched",
-    "ActionExecuted",
     "WebhookDelivered",
-    "ActionFailed",
     "DeliveryFailed",
     
     # Platform Exceptions
     "EventDispatchFailed",
-    "ActionExecutionFailed",
     "WebhookDeliveryFailed",
     "InvalidEventConfiguration",
+    "EventValidationFailed",
+    "EventHandlerFailed",
+    
+    # Note: Application layer exports temporarily disabled until action dependencies are resolved
+    # These will be re-enabled once the action functionality is properly separated
+    
+    # Application Commands, Queries, Validators, and Services will be available after cleanup is complete
+    
+    # Note: Action-related exports have been moved to platform/actions module
 ]

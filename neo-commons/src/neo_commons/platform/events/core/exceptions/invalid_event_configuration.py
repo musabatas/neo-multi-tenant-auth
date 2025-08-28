@@ -7,7 +7,7 @@ It inherits from core ValidationError for DRY compliance.
 from typing import Any, Dict, Optional
 
 from .....core.exceptions import ValidationError
-from ..value_objects import ActionId, EventId
+from ..value_objects import EventId
 
 
 class InvalidEventConfiguration(ValidationError):
@@ -21,7 +21,7 @@ class InvalidEventConfiguration(ValidationError):
         self,
         message: str,
         configuration_type: Optional[str] = None,
-        action_id: Optional[ActionId] = None,
+        action_id: Optional[str] = None,
         event_id: Optional[EventId] = None,
         field_name: Optional[str] = None,
         field_value: Optional[Any] = None,
@@ -47,7 +47,7 @@ class InvalidEventConfiguration(ValidationError):
         if configuration_type:
             enhanced_details["configuration_type"] = configuration_type
         if action_id:
-            enhanced_details["action_id"] = str(action_id)
+            enhanced_details["action_id"] = action_id
         if event_id:
             enhanced_details["event_id"] = str(event_id)
         if field_name:

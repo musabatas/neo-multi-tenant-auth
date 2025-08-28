@@ -6,10 +6,12 @@ configurable runtime validation via ConfigurationProtocol.
 """
 
 import re
+from uuid import UUID, uuid4
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Pattern, Union, Callable
 from abc import ABC, abstractmethod
 from ..shared.application import ConfigurationProtocol
+from ...utils import generate_uuid_v7
 
 
 # Validation framework
@@ -312,12 +314,28 @@ class ValueObject(ABC):
 # Basic identifier value objects (simple validation)
 @dataclass(frozen=True)
 class UserId:
-    """User identifier value object with basic validation."""
-    value: str
+    """User identifier value object with UUIDv7 support."""
+    value: UUID
     
     def __post_init__(self):
-        if not self.value or not isinstance(self.value, str):
-            raise ValueError("User ID must be a non-empty string")
+        if not isinstance(self.value, UUID):
+            try:
+                object.__setattr__(self, 'value', UUID(self.value))
+            except (ValueError, TypeError):
+                raise ValueError(f"UserId must be a valid UUID, got: {self.value}")
+    
+    @classmethod
+    def generate(cls) -> 'UserId':
+        """Generate a new UserId using UUIDv7 for time-ordering."""
+        return cls(generate_uuid_v7())
+    
+    def __str__(self) -> str:
+        """String representation."""
+        return str(self.value)
+    
+    def __repr__(self) -> str:
+        """Detailed representation."""
+        return f"UserId(value={self.value!r})"
 
 
 @dataclass(frozen=True)

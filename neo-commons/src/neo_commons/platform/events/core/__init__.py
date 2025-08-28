@@ -10,8 +10,6 @@ and no business logic or external dependencies.
 # Core domain entities
 from .entities import (
     DomainEvent,
-    EventAction,
-    ActionExecution,
     WebhookEndpoint,
     WebhookDelivery
 )
@@ -19,13 +17,7 @@ from .entities import (
 # Core value objects
 from .value_objects import (
     EventId,
-    ActionId,
-    ActionStatus,
-    HandlerType,
-    ActionPriority,
-    ExecutionMode,
     EventType,
-    ActionCondition,
     WebhookEndpointId,
     WebhookDeliveryId,
     DeliveryStatus
@@ -34,67 +26,59 @@ from .value_objects import (
 # Platform protocols
 from .protocols import (
     EventDispatcher,
-    ActionExecutor,
     DeliveryService,
     EventRepository,
-    ActionRepository
+    NotificationService,
+    WebhookRepository,
+    MessageQueue
 )
 
 # Platform domain events
 from .events import (
     EventDispatched,
-    ActionExecuted,
     WebhookDelivered,
-    ActionFailed,
     DeliveryFailed
 )
 
 # Platform exceptions
 from .exceptions import (
     EventDispatchFailed,
-    ActionExecutionFailed,
     WebhookDeliveryFailed,
-    InvalidEventConfiguration
+    InvalidEventConfiguration,
+    EventValidationFailed,
+    EventHandlerFailed
 )
 
 __all__ = [
     # Entities
     "DomainEvent",
-    "EventAction", 
-    "ActionExecution",
     "WebhookEndpoint",
     "WebhookDelivery",
     
     # Value Objects
     "EventId",
-    "ActionId",
-    "ActionStatus",
-    "HandlerType",
-    "ActionPriority",
-    "ExecutionMode",
     "EventType",
-    "ActionCondition",
     "WebhookEndpointId",
     "WebhookDeliveryId",
     "DeliveryStatus",
     
     # Protocols
     "EventDispatcher",
-    "ActionExecutor",
     "DeliveryService",
     "EventRepository",
-    "ActionRepository",
+    "NotificationService",
+    "WebhookRepository",
+    "MessageQueue",
     
     # Platform Domain Events
     "EventDispatched",
-    "ActionExecuted",
     "WebhookDelivered", 
-    "ActionFailed",
     "DeliveryFailed",
     
     # Platform Exceptions
     "EventDispatchFailed",
-    "ActionExecutionFailed",
     "WebhookDeliveryFailed",
     "InvalidEventConfiguration",
+    "EventValidationFailed",
+    "EventHandlerFailed",
 ]

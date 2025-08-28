@@ -1,0 +1,864 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**NeoMultiTenant** - Enterprise-grade multi-tenant platform built with Python FastAPI, PostgreSQL 17+, Redis, and Keycloak. Features ultra-scalability, comprehensive RBAC with custom permissions, and sub-millisecond permission checks.
+
+### Technology Stack
+- **API**: Python 3.13+ with FastAPI (async)
+- **Authentication**: Keycloak (external IAM) with automatic user ID mapping
+- **Database**: PostgreSQL 17+ with asyncpg
+- **Caching**: Redis with automatic invalidation
+- **RBAC + Permissions**: Custom PostgreSQL-based with intelligent caching. Permission-Based Access Control (PBAC)
+
+## Development Standards & Best Practices
+
+### Essential Technical Standards
+1. **Always use neo-commons first** - Check shared library before creating new functionality
+2. **Protocol-based dependency injection** - Use @runtime_checkable Protocol interfaces
+3. **Follow Feature-First + Clean Core** - Feature modules with Clean Core containing only value objects, exceptions, and shared contracts
+4. **Use asyncpg** for database operations, never use ORMs for performance paths
+5. **Configure schemas dynamically** - Never hardcode database schema names, always use `{schema_name}` placeholders in queries
+6. **Neo-commons schema-intensive design** - All repository queries use schema placeholders resolved at service layer, never hardcode schemas
+7. **Use UUIDv7** for all UUID generation (time-ordered)
+8. **Handle user ID mapping** - Automatic Keycloak-to-platform user ID resolution
+9. **Cache aggressively** - Redis for permissions with proper invalidation
+10. **Use structured logging** - Include tenant_id, user_id, request_id context
+11. **Never commit to main** - Always work in feature branches and create PRs
+
+### Key Architecture Components
+
+- **NeoInfrastructure**: Database migrations, Docker infrastructure, multi-region PostgreSQL setup
+- **neo-commons**: Shared library with authentication, caching, database operations, and utilities
+- **NeoAdminApi**: Platform administration API (Port 8001)
+- **NeoTenantApi**: Tenant-specific API (Port 8002)
+- **NeoAdmin**: Admin dashboard React/Next.js (Port 3001)
+- **NeoTenantFrontend**: Tenant frontend React/Next.js (Port 3003)
+- **NeoTenantAdmin**: Tenant admin interface React/Next.js (Port 3002)
+- **NeoMarketingFrontend**: Marketing website React/Next.js (Port 3000)
+
+### Service Ports Summary
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Deployment API | 8000 | Migration management API |
+| Admin API | 8001 | Platform administration |
+| Tenant API | 8002 | Tenant operations |
+| Marketing Site | 3000 | Public website |
+| Admin Dashboard | 3001 | Platform admin UI |
+| Tenant Admin | 3002 | Tenant admin UI |
+| Tenant Frontend | 3003 | End-user application |
+| PostgreSQL US | 5432 | US region database |
+| PostgreSQL EU | 5433 | EU region database |
+| pgAdmin | 5050 | Database management UI |
+| Redis | 6379 | Cache & sessions |
+| Keycloak | 8080 | Identity & access |
+| RedisInsight | 8001 | Redis management UI |
+
+
+### Multi-Region Database Architecture
+
+```
+US East Region (Primary):
+- neofast_admin (Global platform management)
+- neofast_shared_us (Tenant templates)
+- neofast_analytics_us (Analytics)
+
+EU West Region (GDPR):
+- neofast_shared_eu (Tenant templates)
+- neofast_analytics_eu (Analytics)
+```
+
+## Common Development Commands
+
+### Infrastructure Management
+
+```bash
+# Deploy complete infrastructure with migrations
+cd NeoInfrastructure
+./deploy.sh                    # Deploy infrastructure + run migrations
+./deploy.sh --seed            # Deploy + seed initial data
+
+# Alternative deployment from root
+./deploy.dev.sh               # Master deployment script
+
+# Infrastructure control
+./stop.sh                     # Stop all services
+./reset.sh                    # Reset and rebuild everything
+
+# View logs
+docker-compose -f docker/docker-compose.infrastructure.yml logs -f
+docker-compose -f migrations/docker-compose.api.yml logs -f
+```
+
+### Database Migrations
+
+```bash
+cd NeoInfrastructure/migrations
+
+# Deploy all migrations (automated via API)
+# Migrations run automatically when starting the deployment API
+
+# Manual migration commands (if needed)
+docker exec neo-deployment-api python /app/orchestrator/enhanced_migration_manager.py
+
+# Check migration status
+curl http://localhost:8000/api/v1/migrations/status
+
+# View Flyway migration history
+docker exec neo-postgres-us-east psql -U postgres -d neofast_admin -c "SELECT * FROM flyway_schema_history ORDER BY installed_rank;"
+```
+
+### Running Tests
+
+```bash
+# Infrastructure tests
+cd NeoInfrastructure
+pytest migrations/tests/
+
+# API tests (when services are implemented)
+cd NeoAdminApi
+pytest tests/
+
+cd NeoTenantApi  
+pytest tests/
+
+# Frontend tests
+cd NeoAdmin
+npm test
+npm run test:e2e
+
+cd NeoTenantFrontend
+npm test
+npm run test:e2e
+```
+
+## Keycloak Integration (High-Level)
+
+- Prefer multi-realm (one realm per tenant) for strong isolation in enterprise setups
+- Never use the master realm for application users
+- Cache realm public keys and verify tokens per-tenant context
+- Sync basic user data into PostgreSQL upon authentication; keep tenant_id authoritative
+- Load permissions from DB (roles, direct, team) and cache in Redis per-tenant
+
+### Deployment API Endpoints
+
+The Deployment API (port 8000) provides programmatic control over migrations:
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# API documentation
+open http://localhost:8000/docs
+
+# Migration status
+curl http://localhost:8000/api/v1/migrations/status
+
+# Apply migrations
+curl -X POST http://localhost:8000/api/v1/migrations/apply
+
+# Dynamic migration status
+curl http://localhost:8000/api/v1/migrations/dynamic/status
+
+# Apply dynamic migrations
+curl -X POST http://localhost:8000/api/v1/migrations/dynamic/apply
+```
+
+### API Test Users
+
+Use these users to test the API endpoints:
+
+```bash
+Super Admin:
+username: test
+password: 12345678
+
+Platform Admin:
+username: musab
+password: 12345678
+```
+
+
+### Development Workflow
+
+```bash
+# Start only infrastructure
+cd NeoInfrastructure
+./scripts/start-infrastructure.sh
+
+# Fix common issues
+./scripts/keycloak/fix-keycloak-ssl.sh       # SSL issues
+./scripts/keycloak/keycloak-disable-ssl.sh   # Disable SSL for dev
+
+# Health checks
+./scripts/utilities/health-check.sh
+./scripts/utilities/verify-schema-separation.sh
+
+# Run seed data separately
+./scripts/deployment/run-seeds.sh
+
+# Check container logs
+docker logs neo-deployment-api -f
+docker logs neo-postgres-us-east -f
+docker logs neo-keycloak -f
+```
+
+## Code Architecture
+
+### Database Structure
+
+The platform uses Flyway for enterprise-grade migration management with Python orchestration:
+
+#### Migration Organization
+- **Admin Migrations** (`flyway/admin/`): Platform-wide admin database (V1001-V1008)
+- **Platform Common** (`flyway/platform/`): Common functions and types (V0001)
+- **Regional Migrations** (`flyway/regional/`): Region-specific databases
+  - `shared/`: Tenant template schemas (V2001)
+  - `analytics/`: Analytics databases (V3001)
+
+#### Key Admin Tables
+- `admin.regions`: Geographic deployment regions
+- `admin.database_connections`: Central database registry
+- `admin.organizations`: Customer organizations
+- `admin.tenants`: Tenant instances with region assignment
+- `admin.subscription_plans`: Available plans and features
+- `admin.platform_users`: Platform administrators
+- `admin.platform_roles`: System-wide roles and permissions
+
+#### Tenant Template Schema
+- `tenant_template.users`: Tenant users with Keycloak integration
+- `tenant_template.roles`: Tenant-specific roles
+- `tenant_template.permissions`: Fine-grained permissions
+- `tenant_template.teams`: Hierarchical team structure
+
+### Service Architecture Patterns
+
+#### API Services (FastAPI)
+- Use asyncpg for database operations (no ORMs for performance)
+- Repository pattern for data access
+- Service layer for business logic
+- Comprehensive error handling
+- Structured logging with context
+
+#### Frontend Services (React/Next.js)
+- TypeScript for type safety
+- Component-based architecture
+- State management (Redux/Zustand)
+- API client with interceptors
+- Responsive design with Tailwind CSS
+
+### Security Considerations
+
+- **Never use Keycloak master realm** for application users
+- **All database connections** managed via admin.database_connections table
+- **Tenant isolation** enforced at database and API levels
+- **JWT validation** with realm-specific public keys
+- **Audit logging** for all sensitive operations
+
+## Neo-Commons Shared Library
+
+**neo-commons** is the enterprise-grade shared library providing unified database, authentication, and utilities. **NeoAdminApi is fully integrated** with automatic connection management and password encryption.
+
+### Current Integration Status
+
+- ✅ **Database Service**: Auto-loads connections from admin.database_connections table on startup
+- ✅ **Connection Management**: Centralized registry with health monitoring and failover
+- ✅ **Password Encryption**: Automatic Fernet encryption/decryption for database passwords
+- ✅ **Protocol-Based Design**: @runtime_checkable interfaces for dependency injection
+- ⚠️ **Authentication**: Available but not yet integrated (auth disabled in AdminAPI)
+
+neo-commons/
+├── core/                           # Clean Core - Only value objects, exceptions & shared contracts
+│   ├── value_objects/             # Immutable types (UserId, TenantId, PermissionCode)
+│   ├── exceptions/                # Domain exceptions and HTTP mapping
+│   └── shared/                    # Cross-cutting domain objects (RequestContext)
+├── features/                      # Feature modules with maximum separation
+│   ├── cache/                     # Cache management feature
+│   │   ├── module.py             # Module registration & DI
+│   │   ├── domain/               # Pure cache business logic
+│   │   │   ├── entities/         # Cache entities (one per file)
+│   │   │   ├── value_objects/    # Cache-specific values
+│   │   │   ├── events/           # Cache events (one per file)
+│   │   │   └── exceptions/       # Cache-specific exceptions
+│   │   ├── application/          # Cache use cases
+│   │   │   ├── commands/         # Write operations (set, delete, clear)
+│   │   │   ├── queries/          # Read operations (get, exists, stats)
+│   │   │   ├── protocols/        # Cache contracts
+│   │   │   ├── validators/       # Cache validation rules
+│   │   │   └── handlers/         # Cache event handlers
+│   │   ├── infrastructure/       # External cache implementations
+│   │   │   ├── repositories/     # Redis, Memory implementations
+│   │   │   ├── adapters/         # External cache services
+│   │   │   ├── queries/          # Raw cache queries
+│   │   │   └── factories/        # Cache creation factories
+│   │   ├── api/                  # Reusable cache API components
+│   │   │   ├── routers/          # Cache management endpoints
+│   │   │   ├── models/
+│   │   │   │   ├── requests/     # Cache request models
+│   │   │   │   └── responses/    # Cache response models
+│   │   │   ├── dependencies/     # Cache DI dependencies
+│   │   │   └── middleware/       # Cache-specific middleware
+│   │   └── extensions/           # Cache extension points
+│   │       ├── hooks/            # Cache hooks
+│   │       └── validators/       # Custom cache validators
+│   ├── database/                 # Database management feature
+│   │   ├── module.py
+│   │   ├── domain/
+│   │   │   ├── entities/         # Connection, Pool entities
+│   │   │   ├── value_objects/    # ConnectionString, DatabaseName
+│   │   │   ├── events/           # Database events
+│   │   │   └── exceptions/       # Database exceptions
+│   │   ├── application/
+│   │   │   ├── commands/         # Connect, disconnect, migrate
+│   │   │   ├── queries/          # Get connections, health checks
+│   │   │   ├── protocols/        # Database contracts
+│   │   │   ├── validators/       # Database validation rules
+│   │   │   └── handlers/         # Database event handlers
+│   │   ├── infrastructure/
+│   │   │   ├── repositories/     # AsyncPG implementations
+│   │   │   ├── adapters/         # Multiple DB adapters
+│   │   │   ├── queries/          # Raw SQL queries
+│   │   │   └── factories/        # Database factories
+│   │   ├── api/
+│   │   │   ├── routers/          # Database management endpoints
+│   │   │   ├── models/
+│   │   │   │   ├── requests/     # Database request models
+│   │   │   │   └── responses/    # Database response models
+│   │   │   ├── dependencies/     # Database DI dependencies
+│   │   │   └── middleware/       # Database middleware
+│   │   └── extensions/
+│   │       ├── hooks/            # Database hooks
+│   │       └── validators/       # Custom database validators
+│   └── permissions/              # RBAC permission system (follows same complete pattern)
+│   └── users/                    # User management (follows same complete pattern)
+│   └── organizations/            # Organization management (follows same complete pattern)
+│   └── tenants/                  # Tenant management (follows same complete pattern)
+│   └── teams/                    # Team management (follows same complete pattern)
+│   └── events/                   # Event system (follows same complete pattern)
+├── platform/                    # Platform services (Module system)
+│   ├── module.py                # Base module interface
+│   ├── container.py             # Service container with override support
+│   ├── bootstrap.py             # Auto-discovery and initialization
+│   └── extensions.py            # Extension system
+├── infrastructure/              # Platform-level infrastructure
+│   ├── configuration/           # Application configuration management
+│   ├── middleware/              # FastAPI middleware for cross-cutting concerns
+│   ├── database/                # Low-level database utilities
+│   └── protocols/               # Infrastructure contracts
+└── utils/                       # Utility functions (UUIDv7, logging, etc.)
+
+### Architecture Design Principles
+
+#### Maximum Separation Architecture
+- **One File = One Purpose**: Each file handles exactly one concern (creation, validation, notification, etc.)
+- **Perfect Modularity**: Features are completely self-contained with clear API boundaries
+- **Command/Query Separation**: Write operations separated from read operations at file level
+- **Domain Purity**: Domain layer contains only business logic, free from infrastructure concerns
+
+#### Clean Core Pattern
+- **Minimal Core**: Core contains only essential value objects, exceptions, and shared contracts
+- **No Business Logic**: Core has no feature-specific logic or external dependencies  
+- **Dependency Direction**: Features depend on core, never the reverse
+
+#### Protocol-Based Integration
+- **@runtime_checkable Protocols**: Enable flexible dependency injection and testing
+- **Contract Separation**: Application protocols for domain contracts, infrastructure protocols for technical contracts
+- **Implementation Independence**: Swap implementations without changing business logic at granular file level
+
+#### Reusable API Components
+- **Role-Based Routers**: Admin, tenant, public, internal routers for cross-service usage
+- **Shared Models**: Request/response models reused across multiple services
+- **Extension Points**: Hooks and validators for customization at every operation
+
+### Database Usage (Current Implementation)
+
+#### Get Database Service
+```python
+from ....common.dependencies import get_database_service
+
+@router.get("/data")
+async def get_data(db_service = Depends(get_database_service)):
+    # Database service is auto-configured with all connections
+    connections = await db_service.connection_registry.get_all_connections()
+    return {"total_connections": len(connections)}
+```
+
+#### Execute Database Queries
+```python
+# Get specific connection and execute queries
+async with db_service.get_connection("admin") as conn:
+    result = await conn.fetchrow("SELECT * FROM admin.organizations WHERE id = $1", org_id)
+    return dict(result) if result else None
+
+# Use connection manager for multiple operations
+connection_manager = db_service.connection_manager
+results = await connection_manager.execute_query("admin", "SELECT COUNT(*) FROM admin.tenants")
+```
+
+#### Environment Configuration
+```bash
+# .env file - SSL disabled for development
+ADMIN_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/neofast_admin?sslmode=disable"
+DB_ENCRYPTION_KEY="your-32-char-encryption-key"
+```
+
+#### Available Connections
+- **admin**: Main admin database (auto-loaded from environment)
+- **neofast-admin-primary**: Docker admin database  
+- **neofast-shared-us-primary**: US region shared database
+- **neofast-shared-eu-primary**: EU region shared database
+- **neofast-analytics-us**: US analytics database
+- **neofast-analytics-eu**: EU analytics database
+
+### Current Service Architecture
+
+**NeoAdminApi Services**:
+- **Database Service**: Singleton pattern with auto-loading, health monitoring, connection pooling
+- **Organization Service**: Uses database dependency injection with repository pattern  
+- **System Service**: Health checks, connection management, cache operations
+
+**Implementation Pattern**:
+```python
+# Maximum separation with command/query pattern
+from neo_commons.features.organizations.application.commands import CreateOrganizationCommand
+from neo_commons.features.organizations.application.queries import GetOrganizationQuery
+from neo_commons.platform.container import get_container
+
+# Use specific commands for write operations
+async def create_organization_endpoint(request: CreateOrganizationRequest):
+    container = get_container()
+    command = await container.get(CreateOrganizationCommand)
+    return await command.execute(request.to_domain())
+
+# Use specific queries for read operations  
+async def get_organization_endpoint(org_id: str):
+    container = get_container()
+    query = await container.get(GetOrganizationQuery) 
+    return await query.execute(OrganizationId(org_id))
+```
+
+### Neo-Commons Perfect Architecture Guidelines
+
+#### Maximum Separation Principle
+**Every file should have a single responsibility** - Follow enterprise patterns from Google, Netflix, Amazon, and Meta for perfect modularity:
+
+1. **One File = One Purpose**: Each file handles exactly one concern or operation
+2. **Perfect Testability**: Test each file in complete isolation
+3. **Perfect Override**: Override any functionality at granular level
+4. **Perfect Maintenance**: Bug in X? Look at X file only
+5. **Perfect Collaboration**: No merge conflicts, clear ownership
+
+### Feature Structure Template (Maximum Separation)
+
+Each feature follows this structure for perfect modularity:
+
+```
+features/{feature}/
+├── module.py                           # Module registration & DI
+├── domain/                             # Pure business logic
+│   ├── entities/{feature}.py          # Main entity only (one entity per file)
+│   ├── value_objects/{feature}_id.py  # ID validation (one value object per file)
+│   ├── events/{feature}_created.py    # Creation event (one event per file)
+│   └── exceptions/{feature}_not_found.py # Specific exceptions (one per file)
+├── application/                       # Use cases - one per file
+│   ├── protocols/{feature}_repository.py # Repository contract
+│   ├── commands/create_{feature}.py   # ONLY creation logic
+│   ├── queries/get_{feature}.py       # ONLY get single
+│   ├── validators/{feature}_validator.py # ONLY main validation
+│   └── handlers/{feature}_created_handler.py # ONLY creation handling
+├── infrastructure/                    # External concerns
+│   ├── repositories/asyncpg_{feature}_repository.py # ONLY PostgreSQL repo
+│   ├── adapters/email_notification_adapter.py # ONLY email notifications
+│   └── queries/{feature}_select_queries.py # ONLY SELECT queries
+├── api/                               # Reusable API components
+│   ├── models/requests/create_{feature}_request.py # ONLY creation request
+│   ├── models/responses/{feature}_response.py # ONLY main response
+│   ├── routers/admin_{feature}_router.py # ONLY admin operations
+│   └── dependencies/{feature}_dependencies.py # ONLY main dependencies
+└── extensions/                        # Extension points
+    ├── hooks/pre_create_hooks.py      # ONLY pre-creation hooks
+    └── validators/custom_name_validators.py # ONLY name validation extensions
+```
+
+#### Benefits of Maximum Separation
+1. **Perfect Testability**: Test each file in complete isolation
+2. **Perfect Overrides**: Override any functionality at granular level (e.g., only email notifications, only name validation)
+3. **Perfect Maintenance**: Bug location is obvious - one file, one purpose
+4. **Perfect Team Collaboration**: No merge conflicts, clear file ownership
+5. **Perfect Modularity**: Import exactly what you need, nothing more
+6. **Perfect Performance**: Override only what's slow, keep everything else
+
+**Key Principle: One file = one purpose** - Apply single responsibility at file level for maximum flexibility and testability.
+
+
+
+### Neo-Commons Development Patterns
+
+**Creating New Features**: Follow the maximum separation template above. Each component (entity, command, query, validator, repository) gets its own file.
+
+**Adding to Existing Features**: Create new single-purpose files in appropriate directories (validators/, commands/, queries/, etc.) and register in module.py.
+
+**Core Value Objects**: Use existing value objects from `neo_commons.core.value_objects` (UserId, TenantId, OrganizationId, PermissionCode, RoleCode). Create new ones only in core/value_objects/ with proper validation.
+
+## Important Implementation Notes
+
+### Database Connection Management
+Only the admin database connection is configured in environment variables. All other database connections (regional, analytics, tenant-specific) are dynamically managed through the `admin.database_connections` table for:
+- Centralized credential management
+- Health monitoring and failover
+- Dynamic scaling without restarts
+- Multi-region intelligent routing
+
+### Migration Execution
+The system uses a **two-phase migration approach**:
+
+**Phase 1 - Startup Migrations (Automatic)**:
+- Runs automatically when deployment API starts
+- Handles admin database only: platform_common + admin schemas
+- Uses Flyway configuration files in `/app/flyway/conf/`
+
+**Phase 2 - Dynamic Migrations (API-triggered)**:
+- Handles ALL regional databases (shared + analytics)
+- Uses dynamic configuration from `admin.database_connections` table
+- Dependency resolver ensures correct order: platform_common → tenant_template
+- Triggered via: `POST /api/v1/migrations/dynamic`
+
+**Key API Endpoints**:
+- Admin migrations status: `GET /api/v1/migrations/status`
+- Dynamic migrations: `POST /api/v1/migrations/dynamic`
+- Migration status: `GET /api/v1/migrations/dynamic/status`
+- Tenant migrations: `POST /api/v1/tenants/{tenant_id}/migrate`
+
+### Migration Files Naming Convention
+- **V0001-V0999**: Platform common schemas and functions
+- **V1001-V1999**: Admin database schemas
+- **V2001-V2999**: Regional shared databases
+- **V3001-V3999**: Analytics databases
+- **V4001+**: Future expansion
+
+### Multi-Tenancy Strategies
+1. **Schema-based**: Each tenant gets a PostgreSQL schema in shared database
+2. **Database-based**: Each tenant gets dedicated database
+3. **Hybrid**: Mix based on tenant tier and requirements
+
+### Keycloak Integration
+- **Multi-Realm Mode**: One realm per tenant (enterprise)
+- **Realm Pattern**: `tenant-{slug}` (e.g., tenant-acme)
+- **User Sync**: Automatic sync to PostgreSQL on authentication
+- **Permission Loading**: Cached in Redis with tenant isolation
+
+### Architecture & Code Quality Standards
+12. **Feature Isolation** - Features should be self-contained with minimal cross-feature dependencies
+13. **Maximum Separation** - Apply single responsibility principle: one file = one purpose (creation, validation, notification, etc.)
+14. **Protocol Contracts** - Define protocols in application/protocols/ for clean contracts
+15. **Command/Query Separation** - Split write operations (commands/) from read operations (queries/)
+16. **Domain Layer Purity** - Keep domain/ free from infrastructure concerns
+17. **Granular Override Points** - Enable overriding at file level for maximum flexibility
+18. **Focused Testing** - Each file should be testable in complete isolation
+19. **API Layer Reusability** - Create role-based routers (admin, tenant, public, internal) for cross-service usage
+20. **DRY Principle Compliance** - Eliminate code duplication, extract common patterns, ensure proper abstraction
+21. **Dynamic Configuration Support** - Services must accept runtime configuration injection, no hardcoded values
+22. **Override Capability** - All functionality must be overridable through protocol interfaces at granular file level
+
+### Performance & Security Standards
+23. **Sub-millisecond permission checks** - Monitor performance targets with caching
+24. **Efficient connection pooling** - Optimize database connections and caching
+25. **Bottleneck Prevention** - Avoid synchronous operations, singleton patterns, and static configurations
+26. **Input validation** - Use Pydantic models with strict constraints
+27. **Parameterized queries only** - Never format SQL with user input
+28. **Authorization enforcement** - Validate at repository/service boundary
+29. **Audit logging** - Log all sensitive operations with context
+30. **Cache invalidation** - Implement proper invalidation for write paths
+31. **Transaction boundaries** - Define clear boundaries with rollback on exceptions
+
+### File & Documentation Standards
+32. **Enforce file size limits** - Split files exceeding 400 lines using SOLID principles if splitting improves readability and maintainability
+33. **Consistent OpenAPI tag naming** - Follow standardized tag organization and naming
+34. **Comprehensive error handling** - Implement appropriate status codes and error responses
+35. **Update migrations** - Use Flyway naming conventions (V{number}__{description}.sql)
+
+### OpenAPI Tag Naming & Organization Standards
+
+**Tag Naming Convention:**
+- **First letter capitalized** for all tags (e.g., "System", "Database", "Authentication")
+- **Use singular form** unless referring to collections (e.g., "User" not "Users", but "Organizations" for multiple orgs)
+- **Be descriptive and specific** (e.g., "Database Management" not just "DB")
+- **Follow domain-driven naming** aligned with feature boundaries
+
+**Tag Organization Hierarchy:**
+```yaml
+# Core Platform Tags (Administrative)
+- System           # Health, info, maintenance endpoints
+- Database         # Connection management, stats
+- Cache            # Cache management and operations  
+- Authentication   # Auth, tokens, session management
+- Authorization    # Permissions, roles, RBAC
+
+# Business Domain Tags  
+- Organizations    # Organization management
+- Tenants         # Tenant administration and operations
+- Users           # User management (platform and tenant)
+- Teams           # Team structures and hierarchies
+- Subscriptions   # Billing, plans, quotas
+
+# Integration Tags
+- Webhooks        # Webhook management and delivery
+- Notifications   # Email, SMS, push notifications
+- Reports         # Analytics and reporting
+- Audit           # Audit logs and compliance
+```
+
+**Tag Grouping with x-tag-groups Extension:**
+```yaml
+x-tag-groups:
+  - name: "Platform Administration"
+    tags: ["System", "Database", "Cache", "Authentication", "Authorization"]
+  - name: "Business Operations" 
+    tags: ["Organizations", "Tenants", "Users", "Teams", "Subscriptions"]
+  - name: "Integrations & Monitoring"
+    tags: ["Webhooks", "Notifications", "Reports", "Audit"]
+```
+
+**Implementation Rules:**
+- Router files define tags using `tags=["TagName"]` parameter
+- Main API includes `x-tag-groups` in OpenAPI configuration
+- Tag descriptions should be clear and concise
+- Related endpoints grouped under same tag for logical organization
+
+## Quick Troubleshooting
+
+### Database Connection Issues
+```bash
+# Check PostgreSQL status
+docker ps | grep postgres
+docker exec neo-postgres-us-east pg_isready -U postgres
+
+# View connection logs
+docker logs neo-postgres-us-east
+```
+
+### Migration Issues
+```bash
+# Check migration status via API
+curl http://localhost:8000/api/v1/migrations/status
+
+# View Flyway history
+docker exec neo-postgres-us-east psql -U postgres -d neofast_admin \
+  -c "SELECT version, description, success FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 10;"
+
+# Check API logs
+docker logs neo-deployment-api
+```
+
+### Redis Issues
+```bash
+# Test Redis connection
+docker exec neo-redis redis-cli -a redis ping
+
+# Clear cache if needed
+docker exec neo-redis redis-cli -a redis FLUSHDB
+```
+
+### Keycloak Issues
+```bash
+# Check Keycloak status
+curl http://localhost:8080/health/ready
+
+# Fix SSL issues
+cd NeoInfrastructure
+./scripts/keycloak/fix-keycloak-ssl.sh
+```
+
+### Deployment API Issues
+```bash
+# Check API status
+curl http://localhost:8000/health
+
+# View API logs
+docker logs neo-deployment-api -f
+
+# Restart API if needed
+cd NeoInfrastructure/migrations
+docker-compose -f docker-compose.api.yml restart
+```
+
+## Environment Variables
+
+The infrastructure uses the following key environment variables (set in `.env`):
+
+```bash
+# PostgreSQL
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_US_PORT=5432
+POSTGRES_EU_PORT=5433
+
+# Redis
+REDIS_PORT=6379
+REDIS_PASSWORD=redis
+
+# Keycloak
+KEYCLOAK_PORT=8080
+KEYCLOAK_ADMIN=admin
+KEYCLOAK_PASSWORD=admin
+
+# API Services (when deployed)
+ADMIN_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/neofast_admin
+```
+
+## Security Checklist
+
+- [ ] **CRITICAL: NEVER use `jwt.decode()` with `verify_signature=False`** - always validate JWT tokens using auth service's `validate_token()` method which checks signature, expiration, and audience against Keycloak
+- [ ] Validate all inputs with Pydantic; enforce strict constraints
+- [ ] Use parameterized queries only; never format SQL with user input
+- [ ] Enforce authorization at repository/service boundary
+- [ ] Rate limit public endpoints where appropriate
+- [ ] Write audit logs for sensitive operations (creation, deletion, access changes)
+- [ ] Avoid leaking sensitive info in errors or logs; no PII in logs
+- [ ] Implement cache invalidation for any write path affecting cached reads
+- [ ] Define transaction boundaries; rollback on exceptions
+
+## Performance Targets
+
+- Permission checks: < 1ms with cache
+- API p95 latency: < 100ms
+- Simple queries: < 10ms; complex queries: < 50ms
+- Cache hit rate for permissions: > 90%
+
+## UUIDv7 Guidance
+
+- Use UUIDv7 for identifiers to achieve time-ordered IDs improving index performance
+- Provide centralized utilities for generating UUIDv7 and extracting timestamps
+- Avoid using uuid4 directly in new code paths
+
+## Git Usage Rules
+
+1. Never work directly on `main`; create feature branches: `[type]/[description]-[ticket]`
+   - Examples: `feat/user-auth-JIRA-123`, `fix/cache-invalidation-JIRA-456`, `refactor/db-ops-JIRA-789`
+2. Run tests, lint, and type checks before committing
+3. Use conventional commits (feat, fix, refactor, docs, test, chore)
+4. Keep commits small and focused; include context in body when needed
+5. Rebase feature branches on latest main before PR; resolve conflicts locally
+6. PRs must include change summary, tests, and any breaking change notes
+7. Forbidden: force-push to main, merge without review, committing secrets/large binaries
+
+## Production Checklist (High-Level)
+
+- [ ] All Flyway migrations applied (admin, regional, tenant template)
+- [ ] Keycloak realms configured per-tenant; master realm not used
+- [ ] Public keys caching/rotation strategy established
+- [ ] Redis configured with persistence and appropriate eviction policy
+- [ ] Backups and disaster recovery plans tested (DB + Keycloak)
+- [ ] Monitoring (metrics/logging/health) wired and alerting configured
+- [ ] Security scans and load tests completed for expected scale
+
+## Important Reminders
+
+**CRITICAL**: Always use neo-commons first before creating new functionality.
+
+### Development Standards
+- Do what has been asked; nothing more, nothing less
+- NEVER create files unless they're absolutely necessary
+- ALWAYS prefer editing existing files over creating new ones
+- NEVER proactively create documentation files (*.md)
+- Never save working files to the root folder
+- Always check neo-commons first before implementing new functionality
+
+### Neo-Commons Architecture Reminders
+- **Feature-First**: Business logic goes in feature modules (cache, database, permissions, etc.)
+- **Clean Core**: Core only contains value objects, exceptions, and shared contracts
+- **Protocol-Based**: Use @runtime_checkable protocols for dependency injection
+- **Import Validation**: Import from features, not core (except value objects and exceptions)
+- **Configuration**: Use infrastructure/configuration, not legacy config/ module
+
+## AI Agent Guidelines
+
+### Pre-Implementation Requirements (MANDATORY)
+
+**Before starting any implementation task, AI agents MUST:**
+
+1. **Use codebase-db-investigator agent** to analyze existing code patterns and understand current implementation
+2. **Verify neo-commons availability** - Check if functionality already exists in shared library before creating new code
+3. **Understand database structures** - Review relevant schema files, migrations, and table relationships
+4. **Check related imports and dependencies** - Ensure compatibility with existing codebase patterns
+5. **Validate file structure** - Understand where new code should be placed following Feature-First + Clean Core architecture
+
+### Post-Implementation Verification (MANDATORY)
+
+**After completing any implementation, AI agents MUST:**
+
+1. **Verify integration works** - Check that new code integrates properly with existing systems
+2. **Validate imports and dependencies** - Ensure all imports resolve correctly and follow project patterns
+3. **Test database connectivity** - If database operations were added, verify connections work correctly
+4. **Check file organization** - Ensure code is placed in correct feature modules and follows architecture
+5. **Validate critical functionality** - Run basic tests to ensure implementation works as expected
+
+### Agent Usage Guidelines
+
+**Use codebase-db-investigator agent when:**
+- Before implementing any new feature or service
+- When modifying existing database operations
+- When adding new routes or API endpoints
+- When refactoring or changing architecture patterns
+- When uncertain about existing implementations
+
+**Use neo-commons-analyzer agent when:**
+- Before major neo-commons refactoring or enhancement
+- When adding new shared features across multiple services
+- For architecture quality reviews and technical debt assessment
+- When investigating performance issues in shared components
+- Before implementing new override mechanisms or configuration patterns
+
+### Critical Implementation Rules
+
+1. **Never duplicate existing functionality** - Always check neo-commons first
+2. **Follow maximum separation principle** - One file = one purpose, apply perfect feature structure template
+3. **Implement generic/reusable functionality in neo-commons** - If requested task is generic or reusable across services, implement it in neo-commons and use it in the service  
+4. **Apply single responsibility at file level** - Split commands, queries, validators, handlers, adapters into separate files
+5. **Create reusable API components** - Build role-based routers (admin, tenant, public, internal) for cross-service usage
+6. **Follow existing patterns** - Use codebase-db-investigator to understand current implementation patterns
+7. **Respect architecture boundaries** - Domain pure, application orchestrates, infrastructure adapts, API routes
+8. **Enable granular overrides** - Every file should be overridable independently for maximum flexibility
+9. **Validate database operations** - Ensure schema names are dynamic, use UUIDv7, follow asyncpg patterns
+10. **Update CLAUDE.md only for critical findings** - Add important architectural decisions or patterns that will guide future development
+
+### Using Gemini CLI for Large Codebase Analysis
+
+When analyzing large codebases or multiple files that might exceed context limits, use the Gemini CLI with its massive context window. Use `gemini -p` to leverage Google Gemini's large context capacity.
+
+**File and Directory Inclusion Syntax:**
+
+Use the `@` syntax to include files and directories in your Gemini prompts. The paths should be relative to WHERE you run the gemini command:
+
+**Examples:**
+```bash
+# Single file analysis
+gemini -p "@src/main.py Explain this file's purpose and structure"
+
+# Multiple files
+gemini -p "@package.json @src/index.js Analyze the dependencies used in the code"
+
+# Entire directory
+gemini -p "@src/ Summarize the architecture of this codebase"
+
+# Current directory and subdirectories
+gemini -p "@./ Give me an overview of this entire project"
+```
+
+**When to Use Gemini CLI:**
+- Analyzing entire codebases or large directories
+- Comparing multiple large files
+- Need to understand project-wide patterns or architecture
+- Current context window is insufficient for the task
+- Working with files totaling more than 100KB
+- Verifying if specific features, patterns, or security measures are implemented
+- Checking for the presence of certain coding patterns across the entire codebase

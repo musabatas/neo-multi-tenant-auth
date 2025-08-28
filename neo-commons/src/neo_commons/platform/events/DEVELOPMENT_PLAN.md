@@ -121,16 +121,11 @@ neo-commons/src/neo_commons/platform/events/
 │   ├── handlers/                        # Platform event handlers
 │   │   ├── __init__.py
 │   │   ├── event_dispatched_handler.py  # ONLY dispatch handling
-│   │   ├── action_executed_handler.py   # ONLY execution handling
-│   │   ├── webhook_delivered_handler.py # ONLY delivery handling
-│   │   └── action_failed_handler.py     # ONLY failure handling
+│   │   └── webhook_delivered_handler.py # ONLY delivery handling
 │   └── services/                        # Platform orchestration services
 │       ├── __init__.py
 │       ├── event_dispatcher_service.py  # Main event dispatcher
-│       ├── action_execution_service.py  # Action executor
-│       ├── webhook_delivery_service.py  # Webhook deliverer
-│       ├── action_registry_service.py   # Action registry
-│       └── monitoring_service.py        # Platform monitoring
+│       └── webhook_delivery_service.py  # Webhook deliverer
 │
 ├── infrastructure/                      # Platform implementations
 │   ├── __init__.py
@@ -182,14 +177,13 @@ neo-commons/src/neo_commons/platform/events/
 │   │   ├── requests/                    # Request models
 │   │   │   ├── __init__.py
 │   │   │   ├── dispatch_event_request.py       # Event dispatch request
-│   │   │   ├── create_action_request.py        # Action creation request
 │   │   │   ├── register_webhook_request.py     # Webhook registration request
-│   │   │   ├── configure_handler_request.py    # Handler configuration request
 │   │   │   └── search_events_request.py        # Event search request
+│   │   │   # Note: Action-related requests moved to platform/actions module
 │   │   └── responses/                   # Response models
 │   │       ├── __init__.py
 │   │       ├── event_response.py               # Event response
-│   │       ├── action_response.py              # Action response
+│   │       # Note: Action-related responses moved to platform/actions module
 │   │       ├── webhook_response.py             # Webhook response
 │   │       ├── delivery_status_response.py     # Delivery status
 │   │       └── platform_stats_response.py      # Platform statistics

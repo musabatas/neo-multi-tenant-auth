@@ -23,11 +23,13 @@ class DomainEvent:
     # Event identification
     id: EventId
     event_type: EventType
-    event_name: Optional[str] = None
     
     # Event source  
     aggregate_id: UUID  # ID of the entity that triggered the event
     aggregate_type: str  # Type of entity (organization, user, customer, order, etc.)
+    
+    # Optional event metadata
+    event_name: Optional[str] = None
     aggregate_version: int = 1  # Entity version for event ordering
     
     # Event data

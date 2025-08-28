@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<investigation timestamp="2025-08-28 18:38:47" requirement="Analyze existing neo-commons feature implementations to understand architecture patterns for file management feature design">
+  <codebase_findings>
+    <files>
+    </files>
+    <patterns>
+    </patterns>
+  </codebase_findings>
+  
+  <database_findings>
+    <schemas>
+    </schemas>
+  </database_findings>
+  
+  <framework_documentation>
+  </framework_documentation>
+  
+  <recommendations>
+  </recommendations>
+  
+  <summary>
+    <key_findings></key_findings>
+    <existing_implementations></existing_implementations>
+    <gaps></gaps>
+    <risks></risks>
+  </summary>
+</investigation>

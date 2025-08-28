@@ -5,13 +5,15 @@ Each exception represents a specific error condition with single responsibility.
 """
 
 from .event_dispatch_failed import EventDispatchFailed
-from .action_execution_failed import ActionExecutionFailed
 from .webhook_delivery_failed import WebhookDeliveryFailed
 from .invalid_event_configuration import InvalidEventConfiguration
+from .event_validation_failed import EventValidationFailed
+from .event_handler_failed import EventHandlerFailed
 
 __all__ = [
     "EventDispatchFailed",
-    "ActionExecutionFailed",
     "WebhookDeliveryFailed",
     "InvalidEventConfiguration",
+    "EventValidationFailed",
+    "EventHandlerFailed",
 ]

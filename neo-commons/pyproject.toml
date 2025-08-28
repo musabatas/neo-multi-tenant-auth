@@ -50,6 +50,10 @@ dependencies = [
     # Logging and Monitoring
     "structlog>=25.4.0,<26.0",
     "prometheus-client>=0.22.1,<1.0",
+    "psutil>=7.0.0,<8.0",
+    
+    # File Management
+    "python-magic>=0.4.27,<1.0",
 ]
 
 [project.optional-dependencies]

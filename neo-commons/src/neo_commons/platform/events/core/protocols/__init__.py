@@ -5,15 +5,17 @@ Each protocol defines a single responsibility interface for dependency injection
 """
 
 from .event_dispatcher import EventDispatcher
-from .action_executor import ActionExecutor
 from .delivery_service import DeliveryService
 from .event_repository import EventRepository
-from .action_repository import ActionRepository
+from .notification_service import NotificationService
+from .webhook_repository import WebhookRepository
+from .message_queue import MessageQueue
 
 __all__ = [
     "EventDispatcher",
-    "ActionExecutor",
     "DeliveryService",
     "EventRepository",
-    "ActionRepository",
+    "NotificationService",
+    "WebhookRepository",
+    "MessageQueue",
 ]

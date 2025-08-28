@@ -7,7 +7,7 @@ It inherits from core EventHandlingError for DRY compliance.
 from typing import Any, Dict, Optional
 
 from .....core.exceptions import EventHandlingError
-from ..value_objects import WebhookEndpointId, WebhookDeliveryId, ActionId, EventId
+from ..value_objects import WebhookEndpointId, WebhookDeliveryId, EventId
 
 
 class WebhookDeliveryFailed(EventHandlingError):
@@ -22,7 +22,7 @@ class WebhookDeliveryFailed(EventHandlingError):
         message: str,
         webhook_endpoint_id: Optional[WebhookEndpointId] = None,
         delivery_id: Optional[WebhookDeliveryId] = None,
-        action_id: Optional[ActionId] = None,
+        action_id: Optional[str] = None,
         event_id: Optional[EventId] = None,
         endpoint_url: Optional[str] = None,
         http_status_code: Optional[int] = None,
@@ -53,7 +53,7 @@ class WebhookDeliveryFailed(EventHandlingError):
         if delivery_id:
             enhanced_details["delivery_id"] = str(delivery_id)
         if action_id:
-            enhanced_details["action_id"] = str(action_id)
+            enhanced_details["action_id"] = action_id
         if event_id:
             enhanced_details["event_id"] = str(event_id)
         if endpoint_url:
