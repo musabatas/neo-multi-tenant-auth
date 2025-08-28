@@ -1,0 +1,451 @@
+create table if not exists public.roles
+(
+    id             serial
+        constraint roles_pkey
+            primary key,
+    name           varchar(50)                            not null
+        constraint roles_name_key
+            unique,
+    description    text,
+    level          integer                  default 0     not null,
+    is_system_role boolean                  default false not null,
+    metadata       jsonb                    default '{}'::jsonb,
+    created_at     timestamp with time zone default now(),
+    updated_at     timestamp with time zone default now()
+);
+
+comment on table public.roles is 'System and custom roles with hierarchical levels';
+
+create index if not exists idx_roles_level
+    on public.roles (level);
+
+create index if not exists idx_roles_is_system
+    on public.roles (is_system_role);
+
+create table if not exists public.permissions
+(
+    id          serial
+        constraint permissions_pkey
+            primary key,
+    name        varchar(100) not null
+        constraint permissions_name_key
+            unique,
+    description text,
+    resource    varchar(50)  not null,
+    action      varchar(20)  not null,
+    scope       varchar(20)              default 'all'::character varying,
+    metadata    jsonb                    default '{}'::jsonb,
+    created_at  timestamp with time zone default now()
+);
+
+comment on table public.permissions is 'Granular permissions for resources and actions';
+
+create index if not exists idx_permissions_resource
+    on public.permissions (resource);
+
+create index if not exists idx_permissions_action
+    on public.permissions (action);
+
+create index if not exists idx_permissions_resource_action
+    on public.permissions (resource, action);
+
+create table if not exists public.role_permissions
+(
+    role_id       integer not null
+        constraint role_permissions_role_id_fkey
+            references public.roles
+            on delete cascade,
+    permission_id integer not null
+        constraint role_permissions_permission_id_fkey
+            references public.permissions
+            on delete cascade,
+    granted_at    timestamp with time zone default now(),
+    expires_at    timestamp with time zone,
+    constraint role_permissions_pkey
+        primary key (role_id, permission_id)
+);
+
+comment on table public.role_permissions is 'Maps roles to their permissions';
+
+create index if not exists idx_role_permissions_role_id
+    on public.role_permissions (role_id);
+
+create index if not exists idx_role_permissions_permission_id
+    on public.role_permissions (permission_id);
+
+create index if not exists idx_role_permissions_expires_at
+    on public.role_permissions (expires_at)
+    where (expires_at IS NOT NULL);
+
+-- Create user_roles table.
+create table if not exists public.user_roles
+(
+    user_id     uuid    not null
+        constraint user_roles_user_id_fkey
+            references auth.users (id)
+        on delete cascade,
+    role_id     integer not null
+        constraint user_roles_role_id_fkey
+            references public.roles
+            on delete cascade,
+    assigned_at timestamp with time zone default now(),
+    assigned_by uuid
+        constraint user_roles_assigned_by_fkey
+            references auth.users (id),
+    expires_at  timestamp with time zone,
+    is_active   boolean                  default true,
+    metadata    jsonb                    default '{}'::jsonb,
+    constraint user_roles_pkey
+        primary key (user_id, role_id)
+);
+
+comment on table public.user_roles is 'Maps users to their assigned roles with expiration support';
+
+create index if not exists idx_user_roles_user_id
+    on public.user_roles (user_id);
+
+create index if not exists idx_user_roles_role_id
+    on public.user_roles (role_id);
+
+create index if not exists idx_user_roles_active
+    on public.user_roles (user_id, is_active)
+    where (is_active = true);
+
+create index if not exists idx_user_roles_expires_at
+    on public.user_roles (expires_at)
+    where (expires_at IS NOT NULL);
+
+create or replace function public.assign_default_role() returns trigger
+    security definer
+    language plpgsql
+as
+$$
+BEGIN
+    -- Assign default 'user' role to new users
+    INSERT INTO public.user_roles (user_id, role_id)
+    SELECT NEW.id, r.id 
+    FROM public.roles r 
+    WHERE r.name = 'user'
+    ON CONFLICT (user_id, role_id) DO NOTHING;
+    
+    RETURN NEW;
+END;
+$$;
+
+create or replace function public.user_has_permission(user_uuid uuid, permission_name text) returns boolean
+    stable
+    security definer
+    language plpgsql
+as
+$$
+DECLARE
+    has_perm BOOLEAN := false;
+BEGIN
+    -- Check if user has the permission through any active role
+    SELECT EXISTS(
+        SELECT 1
+        FROM public.user_roles ur
+        JOIN public.role_permissions rp ON ur.role_id = rp.role_id
+        JOIN public.permissions p ON rp.permission_id = p.id
+        WHERE ur.user_id = user_uuid
+          AND ur.is_active = true
+          AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+          AND (rp.expires_at IS NULL OR rp.expires_at > NOW())
+          AND p.name = permission_name
+    ) INTO has_perm;
+    
+    RETURN has_perm;
+END;
+$$;
+
+create or replace function public.user_has_role(user_uuid uuid, role_name text) returns boolean
+    stable
+    security definer
+    language plpgsql
+as
+$$
+DECLARE
+    has_role BOOLEAN := false;
+BEGIN
+    -- Check if user has the role and it's active
+    SELECT EXISTS(
+        SELECT 1
+        FROM public.user_roles ur
+        JOIN public.roles r ON ur.role_id = r.id
+        WHERE ur.user_id = user_uuid
+          AND ur.is_active = true
+          AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+          AND r.name = role_name
+    ) INTO has_role;
+    
+    RETURN has_role;
+END;
+$$;
+
+create or replace function public.get_user_max_role_level(user_uuid uuid) returns integer
+    stable
+    security definer
+    language plpgsql
+as
+$$
+DECLARE
+    max_level INTEGER := 0;
+BEGIN
+    -- Get the highest role level for the user
+    SELECT COALESCE(MAX(r.level), 0)
+    FROM public.user_roles ur
+    JOIN public.roles r ON ur.role_id = r.id
+    WHERE ur.user_id = user_uuid
+      AND ur.is_active = true
+      AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+    INTO max_level;
+    
+    RETURN max_level;
+END;
+$$;
+
+create or replace function public.get_user_permissions(user_uuid uuid)
+    returns TABLE(permission_name text, resource text, action text, scope text)
+    stable
+    security definer
+    language plpgsql
+as
+$$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT 
+        p.name::TEXT as permission_name,
+        p.resource::TEXT as resource,
+        p.action::TEXT as action,
+        p.scope::TEXT as scope
+    FROM public.user_roles ur
+    JOIN public.role_permissions rp ON ur.role_id = rp.role_id
+    JOIN public.permissions p ON rp.permission_id = p.id
+    WHERE ur.user_id = user_uuid
+      AND ur.is_active = true
+      AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+      AND (rp.expires_at IS NULL OR rp.expires_at > NOW())
+    ORDER BY 
+        p.resource::TEXT, 
+        p.action::TEXT;
+END;
+$$;
+
+comment on function public.get_user_permissions(uuid) is 'Get all permissions for a user with proper ORDER BY handling for DISTINCT queries';
+
+create or replace function public.assign_user_role(target_user_id uuid, role_name text, assigned_by_user_id uuid DEFAULT NULL::uuid, expires_at timestamp with time zone DEFAULT NULL::timestamp with time zone) returns boolean
+    security definer
+    language plpgsql
+as
+$$
+DECLARE
+    role_id_var INTEGER;
+    success BOOLEAN := false;
+BEGIN
+    -- Get role ID
+    SELECT id INTO role_id_var
+    FROM public.roles
+    WHERE name = role_name;
+    
+    IF role_id_var IS NULL THEN
+        RAISE EXCEPTION 'Role % not found', role_name;
+    END IF;
+    
+    -- Insert or update user role
+    INSERT INTO public.user_roles (user_id, role_id, assigned_by, expires_at)
+    VALUES (target_user_id, role_id_var, assigned_by_user_id, expires_at)
+    ON CONFLICT (user_id, role_id) 
+    DO UPDATE SET 
+        is_active = true,
+        assigned_by = assigned_by_user_id,
+        expires_at = EXCLUDED.expires_at,
+        assigned_at = NOW();
+    
+    success := true;
+    RETURN success;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN false;
+END;
+$$;
+
+create or replace function public.revoke_user_role(target_user_id uuid, role_name text) returns boolean
+    security definer
+    language plpgsql
+as
+$$
+DECLARE
+    success BOOLEAN := false;
+BEGIN
+    -- Deactivate the role
+    UPDATE public.user_roles ur
+    SET is_active = false
+    FROM public.roles r
+    WHERE ur.role_id = r.id
+      AND ur.user_id = target_user_id
+      AND r.name = role_name;
+    
+    success := FOUND;
+    RETURN success;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN false;
+END;
+$$;
+
+create or replace function public.get_user_claims(user_uuid uuid) returns jsonb
+    stable
+    security definer
+    language plpgsql
+as
+$$
+DECLARE
+    claims JSONB := '{}';
+    user_roles_array TEXT[];
+    user_permissions_array TEXT[];
+    max_level INTEGER;
+BEGIN
+    -- Get user roles
+    SELECT array_agg(r.name)
+    FROM public.user_roles ur
+    JOIN public.roles r ON ur.role_id = r.id
+    WHERE ur.user_id = user_uuid
+      AND ur.is_active = true
+      AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+    INTO user_roles_array;
+    
+    -- Get user permissions
+    SELECT array_agg(DISTINCT p.name)
+    FROM public.user_roles ur
+    JOIN public.role_permissions rp ON ur.role_id = rp.role_id
+    JOIN public.permissions p ON rp.permission_id = p.id
+    WHERE ur.user_id = user_uuid
+      AND ur.is_active = true
+      AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+      AND (rp.expires_at IS NULL OR rp.expires_at > NOW())
+    INTO user_permissions_array;
+    
+    -- Get max role level
+    SELECT public.get_user_max_role_level(user_uuid) INTO max_level;
+    
+    -- Build claims object
+    claims := jsonb_build_object(
+        'roles', COALESCE(user_roles_array, ARRAY[]::TEXT[]),
+        'permissions', COALESCE(user_permissions_array, ARRAY[]::TEXT[]),
+        'max_role_level', max_level,
+        'updated_at', extract(epoch from now())
+    );
+    
+    RETURN claims;
+END;
+$$;
+
+create or replace function public.custom_access_token_hook(event jsonb) returns jsonb
+    stable
+    security definer
+    SET search_path = public
+    language plpgsql
+as
+$$
+DECLARE
+    claims JSONB;
+    user_id UUID;
+BEGIN
+    -- Extract user ID from the event
+    user_id := (event->>'user_id')::UUID;
+    
+    -- Get user claims (roles, permissions, etc.)
+    SELECT public.get_user_claims(user_id) INTO claims;
+    
+    -- Return the claims in the format expected by GoTrue
+    RETURN jsonb_build_object(
+        'claims', jsonb_build_object(
+            'app_metadata', claims
+        )
+    );
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log the error and return empty claims to avoid blocking authentication
+        RAISE LOG 'Error in custom_access_token_hook for user %: %', user_id, SQLERRM;
+        RETURN jsonb_build_object(
+            'claims', jsonb_build_object(
+                'app_metadata', '{}'::jsonb
+            )
+        );
+END;
+$$;
+
+comment on function public.custom_access_token_hook(jsonb) is 'Custom access token hook for self-hosted Supabase/GoTrue - adds user roles and permissions to JWT claims';
+
+create or replace function public.test_token_claims(test_user_id uuid DEFAULT NULL::uuid) returns jsonb
+    security definer
+    language plpgsql
+as
+$$
+DECLARE
+    target_user_id UUID;
+    result JSONB;
+BEGIN
+    -- Use provided user ID or current authenticated user
+    target_user_id := COALESCE(test_user_id, auth.uid());
+    
+    IF target_user_id IS NULL THEN
+        RETURN jsonb_build_object('error', 'No user ID provided and no authenticated user');
+    END IF;
+    
+    -- Call the hook function
+    SELECT public.custom_access_token_hook(
+        jsonb_build_object('user_id', target_user_id::text)
+    ) INTO result;
+    
+    RETURN result;
+END;
+$$;
+
+comment on function public.test_token_claims(uuid) is 'Test function to manually check what claims would be added to tokens';
+
+-- Add trigger to automatically assign default role to new users
+create trigger on_auth_user_created
+    after insert on auth.users
+    for each row
+    execute function public.assign_default_role();
+
+create policy "Everyone can read roles" on public.roles
+    as permissive
+    for select
+    using (true);
+
+create policy "System roles cannot be modified" on public.roles
+    as permissive
+    for update
+    using ((NOT is_system_role) OR user_has_permission(auth.uid(), 'system.admin'::text));
+
+create policy "System roles cannot be deleted" on public.roles
+    as permissive
+    for delete
+    using ((NOT is_system_role) OR user_has_permission(auth.uid(), 'system.admin'::text));
+
+create policy "Everyone can read permissions" on public.permissions
+    as permissive
+    for select
+    using (true);
+
+create policy "Everyone can read role permissions" on public.role_permissions
+    as permissive
+    for select
+    using (true);
+
+create policy "Users can read own roles" on public.user_roles
+    as permissive
+    for select
+    using (user_id = auth.uid());
+
+create policy "Admins can read all user roles" on public.user_roles
+    as permissive
+    for select
+    using (user_has_permission(auth.uid(), 'roles.manage'::text));
+
+create policy "Admins can manage user roles" on public.user_roles
+    as permissive
+    for all
+    using (user_has_permission(auth.uid(), 'roles.manage'::text));

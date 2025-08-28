@@ -27,14 +27,19 @@ class WebhookEndpoint:
     # Identification and naming
     id: WebhookEndpointId
     name: str
-    description: Optional[str] = None
     
-    # Endpoint configuration
+    # Endpoint configuration (required fields first)
     endpoint_url: str
-    http_method: str = "POST"
     
-    # Authentication and security
+    # Authentication and security (required fields first)
     secret_token: str
+    
+    # User context (required)
+    created_by_user_id: UserId
+    
+    # Optional fields with defaults
+    description: Optional[str] = None
+    http_method: str = "POST"
     signature_header: str = "X-Webhook-Signature"
     
     # Custom headers (for API keys, etc.)
@@ -55,7 +60,6 @@ class WebhookEndpoint:
     is_verified: bool = False
     
     # Generic context
-    created_by_user_id: UserId
     context_id: Optional[UUID] = None
     
     # Timestamps

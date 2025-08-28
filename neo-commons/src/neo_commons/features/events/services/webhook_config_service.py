@@ -7,7 +7,7 @@ Supports environment variable override and runtime configuration changes.
 import os
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
