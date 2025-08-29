@@ -1,26 +1,13 @@
-"""
-API models exports for platform events system.
+"""Event API models exports.
 
-Request and response models for event system operations.
+Contains request and response models for event operations following
+Maximum Separation Architecture principle.
 """
 
-from .requests import *
-from .responses import *
+from .requests import CreateEventRequest
+from .responses import EventResponse
 
 __all__ = [
-    # Request Models
-    "DispatchEventRequest",
-    "DeliverWebhookRequest",
-    "RegisterWebhookRequest",
-    "ConfigureHandlerRequest",
-    "ArchiveEventRequest",
-    "SearchEventsRequest",
-    
-    # Response Models
+    "CreateEventRequest",
     "EventResponse",
-    "WebhookDeliveryResponse", 
-    "EventHistoryResponse",
-    "DeliveryStatsResponse",
-    "WebhookLogsResponse",
-    "SearchEventsResponse",
 ]

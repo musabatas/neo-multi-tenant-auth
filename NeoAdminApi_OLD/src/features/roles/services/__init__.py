@@ -1,3 +1,0 @@
-"""
-Services for roles feature.
-"""

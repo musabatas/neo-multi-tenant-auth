@@ -1,13 +1,16 @@
-"""Platform events infrastructure implementations.
+"""Events infrastructure layer exports.
 
-Infrastructure layer provides external implementations for platform events system.
-Following maximum separation architecture patterns.
-
-Each implementation file has single responsibility:
-- repositories/: Data access implementations (PostgreSQL, Redis, etc.)
-- adapters/: External service integrations (HTTP, email, etc.)
-- handlers/: Platform action handler implementations
-- queues/: Message queue implementations
+This module provides infrastructure implementations for event persistence,
+publishing, and processing. Follows Maximum Separation Architecture with
+single-purpose modules.
 """
 
-# Infrastructure implementations will be imported as they are created
+from .repositories.asyncpg_event_repository import AsyncPGEventRepository
+from .publishers.redis_event_publisher import RedisEventPublisher
+from .processors.redis_event_processor import RedisEventProcessor
+
+__all__ = [
+    "AsyncPGEventRepository",
+    "RedisEventPublisher", 
+    "RedisEventProcessor",
+]

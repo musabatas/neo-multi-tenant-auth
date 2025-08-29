@@ -1,96 +1,62 @@
 """
-Platform Events Infrastructure
+Events Feature Module
 
-Pure platform infrastructure providing event dispatching, action execution, 
-and delivery services to all business features.
+Provides comprehensive event-driven architecture for the NeoMultiTenant platform.
+Designed for ultimate flexibility with runtime schema discovery, dynamic event routing, 
+and unlimited extensibility.
 
-Following enterprise patterns for 
-maximum separation and single responsibility.
+Core Components:
+- Event Sourcing with full audit trail and replay capability
+- Multi-Schema support (Admin + tenant template schemas)
+- Queue Integration with Redis streams/queues
+- Dynamic Event-Action mapping via subscriptions
+- Performance monitoring and error tracking
+- Retry logic with exponential backoff
+
+Usage:
+    from neo_commons.features.events import Event, EventRepository
+    
+    # Create and store an event
+    event = Event.create(
+        event_type="tenants.created",
+        aggregate_id=tenant_id,
+        aggregate_type="tenant",
+        event_data={"name": "Acme Corp"}
+    )
+    await event_repository.save(event, schema="admin")
 """
 
-# Import everything from core to provide unified API
-from .core import (
-    # Entities
-    DomainEvent,
-    WebhookEndpoint,
-    WebhookDelivery,
-    
-    # Value Objects
-    EventId,
-    EventType,
-    WebhookEndpointId,
-    WebhookDeliveryId,
-    DeliveryStatus,
-    
-    # Protocols
-    EventDispatcher,
-    DeliveryService,
-    EventRepository,
-    NotificationService,
-    WebhookRepository,
-    MessageQueue,
-    
-    # Platform Domain Events
-    EventDispatched,
-    WebhookDelivered,
-    DeliveryFailed,
-    
-    # Platform Exceptions
-    EventDispatchFailed,
-    WebhookDeliveryFailed,
-    InvalidEventConfiguration,
-    EventValidationFailed,
-    EventHandlerFailed,
-)
-
-# Note: Application layer imports disabled until action dependencies are resolved
-# from .application import (
-#     # Commands (write operations) - temporarily commented out due to action dependencies
-#     # DispatchEventCommand,
-#     # DispatchEventData, 
-#     # DispatchEventResult,
-#     # ...
-# )
-
-# Note: Action-related commands, queries, and validators have been moved to platform/actions module
+from .domain.entities.event import Event, EventStatus, EventPriority
+from .domain.entities.event_metadata import EventMetadata  
+from .domain.value_objects.event_id import EventId
+from .domain.value_objects.event_type import EventType
+from .domain.value_objects.correlation_id import CorrelationId
+from .domain.value_objects.aggregate_reference import AggregateReference
+from .application.protocols.event_repository import EventRepositoryProtocol
+from .application.protocols.event_publisher import EventPublisherProtocol
+from .application.protocols.event_processor import EventProcessorProtocol
+from .infrastructure import AsyncPGEventRepository, RedisEventPublisher, RedisEventProcessor
+from .api import CreateEventRequest, EventResponse
 
 __all__ = [
-    # Entities
-    "DomainEvent",
-    "WebhookEndpoint",
-    "WebhookDelivery",
-    
-    # Value Objects
-    "EventId",
+    # Domain layer
+    "Event",
+    "EventStatus",
+    "EventPriority", 
+    "EventMetadata",
+    "EventId", 
     "EventType",
-    "WebhookEndpointId",
-    "WebhookDeliveryId",
-    "DeliveryStatus",
-    
-    # Protocols
-    "EventDispatcher",
-    "DeliveryService",
-    "EventRepository",
-    "NotificationService",
-    "WebhookRepository",
-    "MessageQueue",
-    
-    # Platform Domain Events
-    "EventDispatched",
-    "WebhookDelivered",
-    "DeliveryFailed",
-    
-    # Platform Exceptions
-    "EventDispatchFailed",
-    "WebhookDeliveryFailed",
-    "InvalidEventConfiguration",
-    "EventValidationFailed",
-    "EventHandlerFailed",
-    
-    # Note: Application layer exports temporarily disabled until action dependencies are resolved
-    # These will be re-enabled once the action functionality is properly separated
-    
-    # Application Commands, Queries, Validators, and Services will be available after cleanup is complete
-    
-    # Note: Action-related exports have been moved to platform/actions module
+    "CorrelationId",
+    "AggregateReference",
+    # Application layer
+    "EventRepositoryProtocol",
+    "EventPublisherProtocol",
+    "EventProcessorProtocol",
+    # Infrastructure layer
+    "AsyncPGEventRepository",
+    "RedisEventPublisher",
+    "RedisEventProcessor",
+    # API layer
+    "CreateEventRequest",
+    "EventResponse",
 ]
