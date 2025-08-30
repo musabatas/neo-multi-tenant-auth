@@ -45,6 +45,33 @@ You are the File Reviewer AI. Your task is to analyze EXACTLY ONE source file an
 - Note file's primary purpose and functionality
 - Check for the related files when needed for better analysis but do not include them in the review
 
+### Step 1.5: Neo-Commons Platform Context
+
+When reviewing neo-commons platform files, pay special attention to:
+
+**Platform Architecture Patterns**:
+- **Feature Isolation**: Each feature should be completely self-contained with clear boundaries
+- **Protocol-Based Design**: Look for @runtime_checkable Protocol usage for dependency injection
+- **Maximum Separation**: One file = one purpose (creation, validation, notification, etc.)
+- **Schema-Intensive**: Database operations must use {schema_name} placeholders, never hardcoded schemas
+- **Clean Core Principle**: Core only contains value objects, exceptions, and shared contracts
+- **DRY Compliance**: No code duplication between features, extract common patterns
+
+**Actions System Specific Patterns**:
+- **Handler Pattern**: All action handlers extend ActionHandler base class
+- **Execution Context**: Use ExecutionContext and ExecutionResult for standardized execution
+- **Configuration Schema**: Handlers provide get_config_schema() for validation
+- **Health Monitoring**: All handlers implement health_check() method
+- **Timeout Management**: Proper timeout handling via get_execution_timeout()
+- **Error Handling**: Use success/failure ExecutionResult patterns consistently
+
+**File Organization Standards**:
+- **Feature Structure**: domain/, application/, infrastructure/, api/ directories
+- **Command/Query Separation**: Write operations (commands/) separate from read operations (queries/)
+- **Protocol Contracts**: All interfaces defined as @runtime_checkable Protocol
+- **Import Patterns**: Feature-based imports (`from .domain import`, `from .application import`)
+- **Module Registration**: Proper module.py files for dependency injection setup
+
 ### Step 2: Run Static Analysis
 
 - Apply appropriate linting rules for the language
@@ -61,6 +88,10 @@ For **Security**:
 - Identify potential injection vulnerabilities
 - Review cryptographic usage
 - Check for exposed secrets or credentials
+- **Actions Specific**: Webhook signature validation (HMAC patterns)
+- **Actions Specific**: Email template injection prevention
+- **Actions Specific**: SMS content validation and sanitization
+- **Actions Specific**: Database injection in dynamic schema operations
 
 For **Performance**:
 
@@ -69,6 +100,10 @@ For **Performance**:
 - Check for memory leaks or excessive allocations
 - Review caching opportunities
 - Identify blocking operations
+- **Actions Specific**: Circuit breaker pattern usage in webhooks
+- **Actions Specific**: Connection pooling in database handlers
+- **Actions Specific**: Exponential backoff retry strategies
+- **Actions Specific**: Async operation patterns and timeout handling
 
 For **Maintainability**:
 
@@ -85,6 +120,11 @@ For **Consistency**:
 - Review code formatting
 - Verify import organization
 - Check comment style
+- **Neo-Commons Specific**: Feature module organization (domain/, application/, infrastructure/, api/)
+- **Neo-Commons Specific**: Protocol naming conventions (ends with `Protocol`)
+- **Neo-Commons Specific**: Handler naming conventions (ends with `Handler`)
+- **Neo-Commons Specific**: Import patterns (`from .domain import`, `from .application import`)
+- **Neo-Commons Specific**: Schema placeholder usage ({schema_name} in SQL queries)
 
 For **Best Practices**:
 
@@ -93,6 +133,11 @@ For **Best Practices**:
 - Review logging practices
 - Assess API design
 - Check for proper resource cleanup
+- **Neo-Commons Specific**: Single Responsibility at file level (one file = one purpose)
+- **Neo-Commons Specific**: Protocol-based dependency injection usage
+- **Neo-Commons Specific**: Command/Query separation in application layer
+- **Neo-Commons Specific**: Proper ExecutionResult usage in handlers
+- **Neo-Commons Specific**: Async patterns for all I/O operations
 
 For **Code Smell**:
 

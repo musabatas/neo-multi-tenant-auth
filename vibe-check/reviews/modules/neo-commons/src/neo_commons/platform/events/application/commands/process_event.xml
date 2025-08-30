@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/events/application/commands/process_event.py</file>
+    <language>Py</language>
+    <loc>123</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="3" open_issues="1"/>
+    <metric name="performance" score="4" open_issues="1"/>
+    <metric name="maintainability" score="4" open_issues="1"/>
+    <metric name="consistency" score="5" open_issues="0"/>
+    <metric name="best_practices" score="4" open_issues="1"/>
+    <metric name="code_smell" score="4" open_issues="1"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="MEDIUM">
+      <title>Generic ValueError for Business Logic</title>
+      <location>Lines 78, 100, 120</location>
+      <description>Using generic ValueError for business logic errors may leak sensitive information about event state or existence in error messages</description>
+      <recommendation>Create domain-specific exceptions like EventNotFoundError or EventProcessingError to avoid exposing internal state details</recommendation>
+    </issue>
+    
+    <issue category="performance" severity="LOW">
+      <title>Repeated Repository Calls</title>
+      <location>Lines 76, 98, 118</location>
+      <description>Each handler method performs a separate database call to fetch the event, even when processing multiple operations on the same event</description>
+      <recommendation>Consider adding a batch processing method or event caching for scenarios where multiple operations are performed on the same event</recommendation>
+    </issue>
+    
+    <issue category="maintainability" severity="LOW">
+      <title>Duplicate Error Handling Pattern</title>
+      <location>Lines 76-78, 98-100, 118-120</location>
+      <description>The same event-not-found check is duplicated across all handler methods without abstraction</description>
+      <recommendation>Extract common event retrieval and validation logic into a private helper method to reduce duplication</recommendation>
+    </issue>
+    
+    <issue category="best_practices" severity="LOW">
+      <title>Missing Input Validation</title>
+      <location>Lines 46, 54</location>
+      <description>Error details dictionary is not validated for potentially sensitive information that should not be stored</description>
+      <recommendation>Add validation for error_details to ensure no sensitive data (passwords, tokens, PII) is accidentally included in error logs</recommendation>
+    </issue>
+    
+    <issue category="code_smell" severity="LOW">
+      <title>Magic Boolean Parameter</title>
+      <location>Line 18</location>
+      <description>The start_processing boolean parameter in ProcessEventCommand creates ambiguous behavior - when would you not want to start processing?</description>
+      <recommendation>Either remove the boolean parameter if always true, or split into separate commands (ProcessEventCommand and CreateEventCommand) for clearer intent</recommendation>
+    </issue>
+  </issues>
+
+  <summary>Event processing command module implementing the Command pattern for event state management. Contains three command classes (ProcessEventCommand, CompleteEventProcessingCommand, FailEventProcessingCommand) and one handler class (ProcessEventCommandHandler). Follows neo-commons architecture patterns with proper separation of concerns and async database operations. Overall health is good with minor issues around error handling and code duplication.</summary>
+
+  <positive_observations>
+    <observation>Excellent adherence to neo-commons Command/Query separation pattern with commands in separate classes</observation>
+    <observation>Proper use of dataclass with __post_init__ validation following platform standards</observation>
+    <observation>Consistent async/await patterns for all database operations</observation>
+    <observation>Good type hints throughout with Protocol-based dependency injection</observation>
+    <observation>Schema-aware database operations using schema parameters as required by platform architecture</observation>
+    <observation>Clean separation of concerns between command objects and handler logic</observation>
+    <observation>Proper encapsulation of event state management through domain entity methods</observation>
+    <observation>Comprehensive Google-style docstrings for all public methods</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this command module - unit tests needed for command validation and handler logic</tests>
+    <documentation>Google-style docstrings present for all public methods with proper Args/Returns/Raises sections</documentation>
+    <configuration>No configuration files required - commands use dependency injection for repository access</configuration>
+  </context>
+
+  <checklist>
+    <item completed="true">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="true">Security review complete</item>
+    <item completed="true">Performance acceptable</item>
+  </checklist>
+</review>

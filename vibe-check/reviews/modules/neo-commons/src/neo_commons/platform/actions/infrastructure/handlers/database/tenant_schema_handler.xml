@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/database/tenant_schema_handler.py</file>
+    <language>Py</language>
+    <loc>659</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="1" open_issues="4"/>
+    <metric name="performance" score="2" open_issues="3"/>
+    <metric name="maintainability" score="3" open_issues="2"/>
+    <metric name="consistency" score="4" open_issues="1"/>
+    <metric name="best_practices" score="3" open_issues="2"/>
+    <metric name="code_smell" score="3" open_issues="2"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="HIGH">
+      <title>SQL Injection Vulnerabilities in Schema Operations</title>
+      <location>Lines 202, 205, 256, 274-283, 305-309, 329-331, 384, 409</location>
+      <description>Multiple f-string SQL injections where schema and table names are directly interpolated into SQL commands without proper escaping. Examples: f'CREATE SCHEMA "{schema_name}"', f'ALTER SCHEMA "{schema_name}" OWNER TO postgres', f'SET search_path TO "{schema_name}"'. While basic quotes are used, this is still vulnerable to schema name manipulation.</description>
+      <recommendation>Use asyncpg's quote_ident() function or parameterized queries with proper identifier quoting. Validate schema names against strict regex patterns before use.</recommendation>
+    </issue>
+
+    <issue category="security" severity="HIGH">
+      <title>Arbitrary SQL Execution in Migration Scripts</title>
+      <location>Line 415</location>
+      <description>Migration scripts from input_data are executed directly without validation or sanitization: await conn.execute(script). This allows arbitrary SQL execution if malicious scripts are provided.</description>
+      <recommendation>Implement script validation, use allowlists for DDL commands, sanitize and parse SQL before execution, or use prepared migration files instead of arbitrary script input.</recommendation>
+    </issue>
+
+    <issue category="security" severity="MEDIUM">
+      <title>Insufficient Input Validation for Critical Operations</title>
+      <location>Lines 91-96</location>
+      <description>tenant_id and tenant_slug are used for schema naming but only checked for presence, not validated for format or security. Schema names affect database security boundaries.</description>
+      <recommendation>Add strict validation for tenant_slug (alphanumeric + underscore only, length limits), validate tenant_id format, and sanitize all inputs used in schema operations.</recommendation>
+    </issue>
+
+    <issue category="security" severity="MEDIUM">
+      <title>Search Path Manipulation Vulnerability</title>
+      <location>Line 409</location>
+      <description>SET search_path directly uses user-controlled schema name without validation. This can lead to schema confusion attacks or privilege escalation.</description>
+      <recommendation>Validate schema names before setting search path, use qualified table names instead of search_path changes, or implement proper schema name sanitization.</recommendation>
+    </issue>
+
+    <issue category="performance" severity="HIGH">
+      <title>Serial Processing of Table/View/Sequence Operations</title>
+      <location>Lines 268-311, 322-333</location>
+      <description>Schema copying operations process tables, sequences, and views one by one in serial loops instead of using batch operations or parallel processing. This will be very slow for large schemas.</description>
+      <recommendation>Use asyncpg's executemany() for batch operations, implement parallel processing with asyncio.gather(), or use PostgreSQL's native bulk copy commands like pg_dump/pg_restore.</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>New Database Connections for Each Operation</title>
+      <location>Lines 184, 229, 361, 407, 455, 537</location>
+      <description>Each operation method acquires new database connections instead of reusing connections within the same operation context. This adds connection overhead.</description>
+      <recommendation>Pass database connection as parameter to private methods or use connection pooling within single operation boundaries for better resource efficiency.</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>Inefficient View Definition Processing</title>
+      <location>Line 327</location>
+      <description>View definitions are processed with simple string replacement (view_def.replace()) which is inefficient and error-prone for complex views with multiple schema references.</description>
+      <recommendation>Use SQL parsing libraries or regular expressions for more robust schema reference replacement, or use PostgreSQL's dependency tracking for proper view recreation.</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Large Monolithic Execute Method</title>
+      <location>Lines 63-170</location>
+      <description>The main execute() method is 107 lines long and handles routing to 6 different operations with complex parameter extraction and error handling. This violates single responsibility principle.</description>
+      <recommendation>Extract parameter validation and operation routing into separate methods. Consider using command pattern or strategy pattern for operation dispatch.</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Missing Error Recovery and Rollback</title>
+      <location>Lines 413-427</location>
+      <description>Migration execution continues after failures without rollback mechanisms. Failed operations may leave schema in inconsistent state with no recovery path.</description>
+      <recommendation>Implement proper transaction boundaries with rollback on failure, add migration state tracking, and provide rollback functionality for failed operations.</recommendation>
+    </issue>
+
+    <issue category="consistency" severity="LOW">
+      <title>Inconsistent Connection Usage Patterns</title>
+      <location>Lines 229, 361, 407 vs 184, 455, 537</location>
+      <description>Some methods use db_service.transaction() while others use db_service.get_connection(). The pattern is inconsistent without clear reasoning for when to use transactions vs connections.</description>
+      <recommendation>Establish clear patterns for when to use transactions (multi-step operations) vs simple connections (single queries), and document the decision criteria.</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Incomplete Backup/Restore Implementation</title>
+      <location>Lines 440-500</location>
+      <description>Backup and restore operations are placeholder implementations that don't actually perform backups. This could lead to data loss if users rely on these operations.</description>
+      <recommendation>Implement proper backup functionality using pg_dump/pg_restore, integrate with cloud storage services, or clearly document that these are placeholder implementations.</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Missing Comprehensive Error Context</title>
+      <location>Lines 160-170</location>
+      <description>Error handling catches all exceptions but provides minimal context for debugging. Database schema operations need detailed error information for troubleshooting.</description>
+      <recommendation>Add specific exception types for different failure modes, include operation context in error messages, and provide structured error details for downstream consumers.</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Hardcoded Configuration Values</title>
+      <location>Lines 504-511, 518-527</location>
+      <description>Region connection mappings and timeout values are hardcoded in methods instead of being configurable. This reduces flexibility and testability.</description>
+      <recommendation>Move connection mappings and timeouts to configuration files or handler initialization parameters. Allow runtime configuration of these values.</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="LOW">
+      <title>String Truncation Logic in Migration Results</title>
+      <location>Lines 417, 423</location>
+      <description>Migration script truncation logic is duplicated and uses magic numbers (100 characters) without clear reasoning or configuration.</description>
+      <recommendation>Extract truncation logic into a utility function with configurable length limits, or consider logging full scripts to separate debug logs.</recommendation>
+    </issue>
+  </issues>
+
+  <summary>
+    Tenant schema management handler for multi-tenant PostgreSQL operations including schema creation, template copying, migration, and backup/restore. The implementation provides comprehensive functionality but suffers from critical security vulnerabilities, particularly SQL injection risks in schema operations and arbitrary SQL execution in migrations. Performance issues include serial processing of schema objects and inefficient connection management. Code quality is reasonable with good structure but needs security hardening and error handling improvements.
+  </summary>
+
+  <positive_observations>
+    <item>Comprehensive schema operations coverage (create, copy, migrate, backup, restore)</item>
+    <item>Proper ActionHandler inheritance with consistent interface implementation</item>
+    <item>Good configuration and input/output schema definitions for API integration</item>
+    <item>Appropriate timeout management for different operation types</item>
+    <item>Transaction usage for multi-step operations like schema copying</item>
+    <item>Detailed logging for operations tracking and debugging</item>
+    <item>Health check implementation with meaningful status reporting</item>
+    <item>Support for regional database routing through connection mapping</item>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found - unit tests needed for validation, migration, and error handling scenarios</tests>
+    <documentation>Good inline documentation with comprehensive docstrings explaining configuration options and expected inputs/outputs</documentation>
+    <configuration>Well-structured JSON schemas for configuration validation with proper defaults and descriptions</configuration>
+  </context>
+
+  <checklist>
+    <item completed="false">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="false">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>

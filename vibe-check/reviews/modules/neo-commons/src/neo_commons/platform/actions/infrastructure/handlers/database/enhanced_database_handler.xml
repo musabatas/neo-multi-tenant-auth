@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/database/enhanced_database_handler.py</file>
+    <language>Py</language>
+    <loc>664</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="2" open_issues="3"/>
+    <metric name="performance" score="3" open_issues="2"/>
+    <metric name="maintainability" score="4" open_issues="1"/>
+    <metric name="consistency" score="4" open_issues="1"/>
+    <metric name="best_practices" score="3" open_issues="2"/>
+    <metric name="code_smell" score="3" open_issues="2"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="HIGH">
+      <title>SQL Injection via Direct String Replacement</title>
+      <location>Line 228, 261, 347, 431, 478</location>
+      <description>Direct string replacement for SQL placeholders creates injection vulnerabilities. The code uses processed_sql.replace(placeholder, f"${placeholder_count}") and f'SET search_path TO "{schema_name}"' without proper parameterization</description>
+      <recommendation>Use parameterized queries exclusively. Never use string formatting or replacement for SQL construction. Validate schema names against a whitelist</recommendation>
+    </issue>
+
+    <issue category="security" severity="HIGH">
+      <title>Schema Name Injection Vulnerability</title>
+      <location>Line 260, 347, 431</location>
+      <description>Schema names are directly interpolated into SQL using f'SET search_path TO "{schema_name}"' without validation or sanitization, allowing potential injection attacks</description>
+      <recommendation>Validate schema names against a predefined whitelist or use proper PostgreSQL identifier escaping</recommendation>
+    </issue>
+
+    <issue category="security" severity="MEDIUM">
+      <title>Insufficient Dangerous Operation Detection</title>
+      <location>Line 65-69</location>
+      <description>Security validation only checks for a small list of dangerous patterns using simple string matching, which can be easily bypassed with case variations or synonyms</description>
+      <recommendation>Implement comprehensive SQL parsing and use a SQL security library for proper threat detection</recommendation>
+    </issue>
+
+    <issue category="performance" severity="HIGH">
+      <title>Connection Management Inefficiency</title>
+      <location>Line 250, 257, 339, 345, 423, 429</location>
+      <description>Each operation acquires a new database connection rather than reusing connections, creating connection pool pressure and performance overhead</description>
+      <recommendation>Implement connection reuse within transaction boundaries and consider connection pooling strategies</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>Inefficient Bulk Operation Processing</title>
+      <location>Line 467-482</location>
+      <description>Bulk operations process records individually with separate SQL parsing and execution for each record, causing O(n) overhead instead of using batch operations</description>
+      <recommendation>Use asyncpg's executemany() method or COPY operations for true bulk processing</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Complex Method with Multiple Responsibilities</title>
+      <location>Line 92-204</location>
+      <description>The execute() method handles configuration extraction, SQL processing, operation routing, and result formatting - violating single responsibility principle</description>
+      <recommendation>Split into separate methods for configuration processing, SQL handling, and operation execution</recommendation>
+    </issue>
+
+    <issue category="consistency" severity="MEDIUM">
+      <title>Inconsistent Error Handling Patterns</title>
+      <location>Line 180-204</location>
+      <description>Different exception types are handled with varying levels of detail - PostgresError gets comprehensive details while generic Exception gets minimal information</description>
+      <recommendation>Standardize error handling with consistent detail levels and structured error information</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="HIGH">
+      <title>Missing Input Validation</title>
+      <location>Line 122-124</location>
+      <description>Input data from context (schema, tenant_id) is used without validation or sanitization, potentially allowing malicious input</description>
+      <recommendation>Implement comprehensive input validation with type checking and sanitization for all user-provided data</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Magic Numbers and Hardcoded Values</title>
+      <location>Line 87, 509, 511, 513, 515</location>
+      <description>Hardcoded values like batch_size limits (10000), timeout calculations, and magic numbers without configuration</description>
+      <recommendation>Move hardcoded values to configuration or constants with clear naming and documentation</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Fragile Result Parsing</title>
+      <location>Line 486-500</location>
+      <description>_parse_execute_result() uses brittle string parsing with result.split() which is PostgreSQL-specific and fragile</description>
+      <recommendation>Use asyncpg's proper result handling methods or implement more robust parsing with error handling</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Duplicate Code Pattern in Connection Handling</title>
+      <location>Line 248-264, 337-351, 421-435</location>
+      <description>Similar connection selection and schema setting logic is duplicated across multiple methods</description>
+      <recommendation>Extract connection management logic into a shared helper method to reduce duplication</recommendation>
+    </issue>
+  </issues>
+
+  <summary>Enhanced database handler implementing neo-commons integration with comprehensive operation support. Contains critical security vulnerabilities related to SQL injection through direct string replacement and schema name interpolation. Performance issues include inefficient connection management and bulk processing. Code structure shows good organization but needs security hardening and performance optimization.</summary>
+
+  <positive_observations>
+    <observation>Comprehensive configuration schema with proper JSON validation</observation>
+    <observation>Good separation of operation types with specific handling for each</observation>
+    <observation>Proper async/await patterns throughout the codebase</observation>
+    <observation>Comprehensive error handling with structured error responses</observation>
+    <observation>Good integration with neo-commons database service</observation>
+    <observation>Support for multiple return formats and dry-run capability</observation>
+    <observation>Proper transaction management with isolation level support</observation>
+    <observation>Health check implementation with connection testing</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this database handler</tests>
+    <documentation>Good class-level docstring with configuration details and comprehensive method documentation</documentation>
+    <configuration>Comprehensive JSON schema configuration with proper validation and default values</configuration>
+  </context>
+
+  <checklist>
+    <item completed="false">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="false">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>

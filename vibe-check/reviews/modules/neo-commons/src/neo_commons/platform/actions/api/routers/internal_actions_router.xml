@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/actions/api/routers/internal_actions_router.py</file>
+    <language>Py</language>
+    <loc>201</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="2" open_issues="4"/>
+    <metric name="performance" score="3" open_issues="2"/>
+    <metric name="maintainability" score="3" open_issues="3"/>
+    <metric name="consistency" score="3" open_issues="2"/>
+    <metric name="best_practices" score="2" open_issues="5"/>
+    <metric name="code_smell" score="3" open_issues="3"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="HIGH">
+      <title>Schema Parameter Injection Vulnerability</title>
+      <location>Lines 32, 80, 100, 113, 153, 180</location>
+      <description>Schema parameter exposed directly from query strings without validation, creating SQL injection vulnerabilities when used in database operations</description>
+      <recommendation>Implement schema name validation with whitelist of allowed schemas and sanitization</recommendation>
+    </issue>
+
+    <issue category="security" severity="HIGH">
+      <title>Unrestricted Internal API Access</title>
+      <location>Router definition line 21-25</location>
+      <description>Internal router lacks authentication/authorization middleware, allowing unrestricted access to sensitive service-to-service operations</description>
+      <recommendation>Add authentication middleware for service-to-service communication (API keys, mTLS, or JWT validation)</recommendation>
+    </issue>
+
+    <issue category="security" severity="HIGH">
+      <title>Raw Exception Details Exposed</title>
+      <location>Lines 74, 94, 108, 133, 175, 201</location>
+      <description>Generic exception handlers expose raw exception details to clients, potentially revealing internal system information</description>
+      <recommendation>Implement proper exception handling with sanitized error messages and internal error logging</recommendation>
+    </issue>
+
+    <issue category="security" severity="MEDIUM">
+      <title>Event Data Processing Without Validation</title>
+      <location>Lines 31, 55, 152</location>
+      <description>Event data and input data accepted as arbitrary dict without validation, potentially allowing malicious payload injection</description>
+      <recommendation>Implement input validation using Pydantic models or explicit validation rules</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>Sequential Action Execution</title>
+      <location>Lines 51-71, 159-172</location>
+      <description>Bulk operations execute actions sequentially instead of using parallel processing, causing performance bottlenecks</description>
+      <recommendation>Implement concurrent execution using asyncio.gather() or task queues for bulk operations</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>Inefficient Health Check Implementation</title>
+      <location>Lines 118-124, 185-186</location>
+      <description>Health status calculation makes separate database queries for healthy and active actions instead of using aggregation</description>
+      <recommendation>Combine queries using database aggregation functions or implement efficient single-query approach</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Missing Error Logging</title>
+      <location>Lines 68-70, 169-171</location>
+      <description>Exception handling comments indicate missing proper logging implementation, making debugging difficult</description>
+      <recommendation>Implement structured logging with context (tenant_id, action_id, error details) for error tracking</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Incomplete Handler Validation Implementation</title>
+      <location>Lines 136-146</location>
+      <description>Handler validation endpoint exists but returns NOT_IMPLEMENTED, creating dead code and misleading API documentation</description>
+      <recommendation>Either implement the validation functionality or remove the endpoint until implementation is ready</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="LOW">
+      <title>Hardcoded Health Thresholds</title>
+      <location>Lines 124, 130</location>
+      <description>Health percentage thresholds (95%, 80%) are hardcoded without configuration or documentation</description>
+      <recommendation>Extract thresholds to configuration constants with documentation explaining the meaning</recommendation>
+    </issue>
+
+    <issue category="consistency" severity="MEDIUM">
+      <title>Inconsistent Error Handling Pattern</title>
+      <location>Lines 64-71, 165-172 vs 40-74</location>
+      <description>Some operations continue on individual failures while others use different exception handling approaches</description>
+      <recommendation>Standardize error handling patterns across all endpoints with consistent failure modes</recommendation>
+    </issue>
+
+    <issue category="consistency" severity="LOW">
+      <title>Missing Schema Parameter Documentation</title>
+      <location>Query parameter definitions</location>
+      <description>Schema parameters use generic description "Database schema name" without explaining internal usage context</description>
+      <recommendation>Provide specific documentation about schema purpose and expected values for internal API</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="HIGH">
+      <title>Violation of Neo-Commons Protocol Pattern</title>
+      <location>Dependency injection usage throughout</location>
+      <description>Uses direct service injection instead of @runtime_checkable Protocol pattern required by neo-commons architecture</description>
+      <recommendation>Refactor dependencies to use Protocol interfaces following neo-commons dependency injection standards</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Missing Response Model Validation</title>
+      <location>Health status and statistics endpoints</location>
+      <description>Health status and statistics endpoints return raw dict instead of proper Pydantic response models</description>
+      <recommendation>Create dedicated response models for health status and statistics with proper validation</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Missing OpenAPI Documentation</title>
+      <location>Router configuration line 24</location>
+      <description>Internal API hidden from schema documentation makes integration and testing more difficult</description>
+      <recommendation>Consider separate internal documentation or developer-accessible schema for service integration</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>No Request Validation for Bulk Operations</title>
+      <location>Lines 150-156</location>
+      <description>Bulk execute accepts arbitrary action_ids list without size limits or validation, potentially causing resource exhaustion</description>
+      <recommendation>Implement request validation with reasonable limits and input sanitization</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="LOW">
+      <title>Missing Async Context Management</title>
+      <location>Service dependency usage</location>
+      <description>Services used without proper async context management or resource cleanup</description>
+      <recommendation>Implement proper async context management for service lifecycle and resource cleanup</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Repeated Exception Handling Pattern</title>
+      <location>All endpoint implementations</location>
+      <description>Every endpoint uses identical try/catch HTTPException pattern, violating DRY principle</description>
+      <recommendation>Extract common exception handling to middleware or decorator to reduce code duplication</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Magic Numbers in Health Calculation</title>
+      <location>Lines 124, 130, 198</location>
+      <description>Health percentage calculations use magic numbers (100, 95, 80) without named constants</description>
+      <recommendation>Define named constants for health thresholds with documentation explaining business logic</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="LOW">
+      <title>TODO Comments in Production Code</title>
+      <location>Lines 69, 139, 170</location>
+      <description>Multiple TODO comments indicate incomplete implementation in production code</description>
+      <recommendation>Address TODOs or create proper issue tracking for incomplete functionality</recommendation>
+    </issue>
+  </issues>
+
+  <summary>Internal actions router for service-to-service communication providing action execution, health monitoring, and statistics. Major security vulnerabilities include unvalidated schema parameters and missing authentication. Performance issues with sequential operations and inefficient database queries. Code follows some neo-commons patterns but violates Protocol-based dependency injection requirements.</summary>
+
+  <positive_observations>
+    <observation>Good separation of concerns with dedicated query/command services</observation>
+    <observation>Proper FastAPI response model usage with domain entity mapping</observation>
+    <observation>Comprehensive health monitoring with percentage-based status calculation</observation>
+    <observation>Bulk operation support for efficiency in multi-action scenarios</observation>
+    <observation>Event-driven architecture integration with pattern matching capabilities</observation>
+    <observation>Consistent async/await patterns throughout all endpoints</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this router. Internal API testing recommended for security and functionality validation.</tests>
+    <documentation>Basic docstrings present. Missing comprehensive API documentation due to include_in_schema=False setting.</documentation>
+    <configuration>No configuration files found. Health thresholds and limits should be externalized to configuration.</configuration>
+  </context>
+
+  <checklist>
+    <item completed="false">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="false">Documentation updated</item>
+    <item completed="false">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>

@@ -1,15 +1,163 @@
 ---
 title: Global Project Patterns
-entry_count: 7
-last_updated: 2025-08-15
+entry_count: 149
+last_updated: 2025-08-30
 ---
 
-## Project-Wide Patterns Discovered
+## Actions System Architecture Patterns
+- All handlers extend ActionHandler base class with consistent interface
+- ExecutionContext and ExecutionResult for standardized execution patterns
+- Handler configuration via get_config_schema() method with JSON schema validation
+- Health checks implemented via health_check() method returning status dict
+- Timeout management through get_execution_timeout() returning seconds
+- Error handling with success/failure ExecutionResult patterns, never raw exceptions
+- Handler naming convention: functionality + "Handler" (e.g., SendGridEmailHandler)
+- Supported action types defined via supported_action_types property list
+- Handler validation via validate_config() method before execution
+- Circuit breaker patterns for external service calls (webhooks, APIs)
+- Exponential backoff retry strategies for transient failures
+- Async operation patterns with proper timeout and cancellation handling
+- ActionType value objects use comprehensive enum validation with category classification
+- Action type categories enable logical grouping: communication, execution, data, security, integration, etc.
+- ActionExecution entities implement comprehensive state machine with proper transition validation
+- Execution tracking includes timing metrics (queue wait, execution duration, total duration)
 
-- Python packages use conditional imports with setuptools detection for installation compatibility
-- __all__ lists are explicitly maintained for public API control across modules
-- Module docstrings consistently explain purpose and functionality at package level
-- Version information imported from single source of truth (__version__.py pattern)
-- Environment-aware configuration using factory pattern for dev/prod/test environments
-- Middleware configuration uses dataclass with field defaults from environment variables
-- Security middleware implements comprehensive header coverage with environment-aware defaults for dev/prod
+## Neo-Commons Platform Architecture
+- Feature-first organization: domain/, application/, infrastructure/, api/ directories
+- Protocol-based dependency injection using @runtime_checkable Protocol
+- Maximum separation principle: one file = one purpose (creation, validation, notification)
+- Command/Query separation in application layer (commands/ vs queries/ directories)
+- Schema-intensive database operations with {schema_name} placeholders, never hardcoded
+- Clean Core principle: core/ only contains value objects, exceptions, shared contracts
+- Feature isolation with complete self-containment and clear boundaries
+- Import patterns use relative imports within features: from .domain import, from .application import
+- Module registration via module.py files for dependency injection setup
+- __init__.py files use comprehensive __all__ lists for explicit public API control
+
+## Code Quality Standards
+- Async-first: All I/O operations must be async with proper error handling
+- Type safety with comprehensive type hints and Protocol definitions
+- Documentation with Google-style docstrings including type information
+- Error handling uses custom exceptions, never exposes internal details
+- Structured logging with context (tenant_id, user_id, request_id when available)
+- Value objects use frozen dataclass pattern with comprehensive validation in __post_init__
+- Domain entities implement proper state machines with validation on state transitions
+- Event sourcing entities track comprehensive audit trails (timestamps, retry counts, processing duration)
+- SQL queries use consistent soft delete pattern with deleted_at IS NULL checks
+- Repository implementations follow consistent exception handling: EntityNotFoundError for missing entities, DatabaseError for query failures
+- JSON field parsing in repositories uses defensive programming with fallback to empty dict/object
+- Event processors implement consumer group management with proper Redis Streams acknowledgment patterns
+- Redis event publishers use XADD with maxlen for memory management and proper stream partitioning
+- Event serialization includes comprehensive metadata (timestamps, correlation_id, tenant context)
+- Query handlers use dataclass with __post_init__ validation for input sanitization and business rule enforcement
+- Query handlers follow pattern: dataclass query + separate handler class with execute() method taking query parameter
+- Command handlers implement event state transitions via domain entity methods (event.start_processing(), event.complete_processing())
+- Command handlers use optional dependencies (publisher: Protocol = None) for flexible composition patterns
+- Event retry logic includes comprehensive error recovery with state rollback on republish failures
+- EventProcessorProtocol uses ABC pattern instead of @runtime_checkable Protocol for base abstraction
+- Repository protocols should use @runtime_checkable Protocol pattern, not ABC inheritance for dependency injection consistency
+- Protocol interfaces should specify expected exceptions in docstrings for comprehensive error handling
+- Pydantic response models use comprehensive schema_extra examples for API documentation and usage guidance
+- Response models implement from_entity() class methods for clean domain-to-API layer mapping patterns
+- Event request models follow comprehensive field validation patterns with custom field validators
+- Pydantic models commonly include datetime encoders but often miss UUID encoders for complete JSON serialization
+- Domain entities use comprehensive __post_init__ validation with detailed error messages for business rule enforcement
+- Domain entities implement state modification methods with automatic updated_at timestamp management
+- Complex condition matching uses dictionary-based operators ($eq, $ne, $in, $gt, etc.) for flexible filtering logic
+- Rate limiting implementations use in-memory counters with time window management, consider Redis for distributed scenarios
+- Handler registries use comprehensive validation with detailed error reporting and metadata collection
+- Dynamic module loading requires security considerations for module import restrictions and whitelisting
+- Retry policies use comprehensive error classification (timeout, system_error, handler_error) for intelligent retry strategies
+- Repository implementations use string parsing for affected row counts (result.split()[-1]) which is fragile and PostgreSQL-specific
+- AsyncPG repositories acquire new connections for each method call rather than reusing connections for multiple operations
+- Event subscription repositories use manual parameter counting and index management for dynamic query building
+- Pattern matching in event subscriptions uses dynamic regex generation which could create ReDoS vulnerabilities
+- Subscription repositories implement comprehensive statistics gathering with aggregation queries for metrics
+- AsyncPG repositories use f-string schema interpolation without validation, creating potential injection risks
+- Repository row count verification uses brittle result.split()[-1] parsing instead of proper asyncpg result handling
+- Action executor implementations use comprehensive retry scheduling with error classification and exponential backoff strategies
+- ExecutionResult patterns include retry_scheduled boolean flag for proper retry state communication
+- Action execution tracking captures detailed timing metrics (execution_time_ms) consistently across success/failure paths
+- Action executors use indefinite handler caching without expiration, consider memory management for long-running processes
+- Dynamic handler loading via importlib.import_module requires security considerations for module path validation and whitelisting
+- Action executor timeout tasks stored in dict for cancellation cleanup, proper lifecycle management with task tracking
+- Pattern matching implementations use unbounded caches without LRU eviction, consider memory management for long-running processes
+- Dynamic regex compilation from user input without ReDoS protection requires complexity validation and execution timeouts
+- HTTPWebhookHandler implements proper HMAC sha256 signature generation for webhook authentication security
+- Webhook handlers use httpx.AsyncClient with proper context management and configurable SSL verification
+- EnhancedWebhookHandler implements comprehensive circuit breaker pattern with state management and recovery timeouts
+- Webhook handlers support multiple authentication methods (basic, bearer, API key, HMAC, JWT) with proper credential encoding
+- Circuit breaker implementations use per-URL instance caching which can cause memory leaks without cleanup mechanisms
+- Webhook payload compression uses gzip with proper Content-Encoding headers for bandwidth optimization
+- JSON serialization in webhook handlers uses default=str fallback which can be inefficient for complex object types
+- Database action handlers use direct string replacement for SQL placeholders creating injection vulnerabilities, use parameterized queries instead
+- Schema names directly interpolated into SET search_path SQL statements without validation or sanitization
+- EnhancedDatabaseHandler processes bulk operations record-by-record instead of using asyncpg executemany() or COPY operations
+- Connection management in database handlers acquires new connections for each operation rather than reusing within transaction boundaries
+- Database handlers use f-string schema name interpolation (f'CREATE SCHEMA "{name}"') creating injection vulnerabilities
+- Migration handlers execute arbitrary SQL from input_data without validation or sanitization
+- Search path manipulation uses direct string interpolation without schema name validation
+- Schema copying operations process objects serially instead of using batch operations or parallel processing
+- SMS handlers implement comprehensive E.164 phone number format validation with proper regex patterns
+- Twilio handlers use secure basic authentication with base64 encoding following API documentation standards
+- SMS/MMS handlers support optional features: webhooks, pricing controls, validity periods, phone number lookup
+- Handler health checks validate external API connectivity and authentication status
+- AWS SNS handlers implement proper AWS Signature Version 4 signing with canonical request formatting
+- AWS handlers use hardcoded message attribute indices (entry.1, entry.2) creating maintenance brittleness
+- XML response parsing in AWS handlers uses inline regex compilation causing performance overhead
+- Large handler execute() methods commonly violate single responsibility principle with 160+ line implementations
+- Template email handlers use Jinja2 with autoescape for HTML/XML but lack sandboxing for user data injection protection
+- Email handlers implement HTML-to-text conversion with basic regex patterns and manual entity replacement
+- Template handlers use shared Jinja environment instances across handler instances creating potential contention issues
+- SendGrid handlers implement comprehensive email configuration with template vs content-based message handling
+- Email handlers use basic email validation (checking "@" presence) rather than proper regex or validation libraries
+- Simple email handlers use synchronous smtplib blocking I/O operations in async context affecting performance
+- Email handlers expose sensitive SMTP configuration data (hosts, usernames) in error messages creating information disclosure risks
+- Query handlers follow consistent pattern: dataclass request + handler class with execute() method taking request parameter
+- List query operations include pagination parameters (limit, offset) with sensible defaults (50 limit, 0 offset)
+- Query filter construction uses conditional dict building pattern for optional filters before repository calls
+- Some query handlers still use class-based approach with methods instead of dataclass + handler pattern
+- Schema parameter validation needed in query methods to prevent injection vulnerabilities
+- Command handlers validate string inputs before value object construction to prevent invalid enum creation
+- Action entity construction uses comprehensive parameter sets (20+ fields) with all necessary defaults and timestamps
+- Command handlers externalize default configurations to avoid hardcoded policy values within business logic
+- Action execution commands use comprehensive ActionExecution entity initialization with 20+ fields for complete state tracking
+- Command handlers perform multiple sequential database operations without explicit transaction boundaries affecting consistency
+- ExecuteActionRequest dataclass pattern used for command input validation with optional parameters and defaults
+- Pattern validation implementations commonly use dynamic regex compilation from user input without ReDoS protection
+- Event pattern validators use unbounded input processing for pattern lists without size limits
+- Validation methods commonly violate single responsibility principle by handling multiple validation concerns in single methods
+- Action config validators use basic string matching for SQL injection detection which can be bypassed easily
+- Function name validation in validators allows module.function notation enabling potential arbitrary code execution
+- Validator classes typically lack Protocol interfaces inconsistent with neo-commons dependency injection patterns
+- Validator __init__.py files follow clean module organization with explicit __all__ exports and relative imports
+- Handler class validators use dangerous importlib.import_module() with user-controlled paths creating arbitrary code execution risks
+- Dynamic class instantiation in validators lacks security controls enabling malicious constructor code execution
+- Validation methods commonly use hardcoded limits and magic numbers without named constants or documentation
+- Action repository protocols define comprehensive interfaces with 15+ methods covering CRUD, health, and statistics operations
+- Repository protocols include schema parameters in all methods but lack schema validation for injection prevention
+- Repository protocols commonly violate single responsibility with 20+ methods handling multiple concerns (CRUD, stats, rate limiting, cleanup)
+- Action executor protocols should use @runtime_checkable Protocol instead of ABC for dependency injection consistency
+- Protocol interfaces with mixed sync/async methods may cause blocking issues in async contexts
+- Protocol docstrings referencing undefined exception types create documentation inconsistencies
+- Action execution repository protocols define comprehensive 20+ method interfaces covering CRUD, statistics, cleanup, and performance metrics in single protocol violating separation of concerns
+- Action dispatcher protocol uses ABC pattern instead of @runtime_checkable Protocol, inconsistent with neo-commons dependency injection architecture
+- ActionHandler base class uses ABC inheritance pattern which conflicts with neo-commons Protocol-based dependency injection standards
+- FastAPI routers commonly expose schema parameters directly from query strings without validation creating injection vulnerabilities
+- Admin routers typically lack authentication/authorization middleware allowing unrestricted access to sensitive operations
+- FastAPI error handling patterns expose raw exception details to clients creating information disclosure vulnerabilities
+- Internal service routers commonly lack authentication middleware despite handling sensitive service-to-service operations
+- Bulk operation endpoints often process actions sequentially instead of using parallel processing causing performance bottlenecks
+- Health status endpoints make multiple separate database queries instead of using efficient aggregation patterns
+- Router error handling uses identical try/catch HTTPException patterns violating DRY principle across all endpoints
+- Dependency injection files commonly define service classes inline within dependency functions making them untestable
+- Action dependency modules use repository instance recreation per request without proper connection pooling or singleton patterns
+- Dependency functions mixing patterns: some return commands/queries directly while others wrap in service classes
+- Response models follow comprehensive field pattern with 20+ fields organized in logical groupings (execution stats, performance, resource usage)
+- Type inconsistency patterns: mixing int/float for related metrics within same response models affecting mathematical operations
+- Response models commonly implement from_domain() class methods for clean domain-to-API layer mapping following neo-commons patterns
+- Pydantic Config sections often include datetime encoders but consistently miss UUID encoders for complete JSON serialization support
+- Request model validators use basic module path checking (presence of '.') without proper security validation against malicious imports
+- Event pattern input validation lacks regex complexity protection creating potential ReDoS vulnerabilities in downstream pattern compilation
+- Request models commonly use Dict[str, Any] for input_data without validation creating security risks in downstream processing
+

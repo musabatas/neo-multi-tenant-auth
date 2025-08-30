@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/actions/infrastructure/repositories/asyncpg_action_repository.py</file>
+    <language>Py</language>
+    <loc>376</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="4" open_issues="1"/>
+    <metric name="performance" score="3" open_issues="2"/>
+    <metric name="maintainability" score="4" open_issues="1"/>
+    <metric name="consistency" score="5" open_issues="0"/>
+    <metric name="best_practices" score="4" open_issues="1"/>
+    <metric name="code_smell" score="3" open_issues="2"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="MEDIUM">
+      <title>SQL Injection Risk in Dynamic Schema Usage</title>
+      <location>Lines 28, 100, 108, etc.</location>
+      <description>Direct string interpolation of schema names in f-strings could allow SQL injection if schema names are user-controlled. While schema names are typically controlled, this pattern is risky.</description>
+      <recommendation>Use a whitelist/validation approach for schema names or implement a schema name sanitization utility to ensure only valid identifiers are used.</recommendation>
+    </issue>
+    <issue category="performance" severity="MEDIUM">
+      <title>Connection Pool Overuse</title>
+      <location>Lines 65, 102, 110, 162, etc.</location>
+      <description>Each method acquires a new connection from the pool, which could lead to connection exhaustion under high concurrent load. Multiple database operations in sequence could benefit from connection reuse.</description>
+      <recommendation>Consider implementing transaction context managers or connection reuse patterns for methods that perform multiple queries.</recommendation>
+    </issue>
+    <issue category="performance" severity="MEDIUM">
+      <title>N+1 Query Pattern in List Operations</title>
+      <location>Line 164</location>
+      <description>The _row_to_action method is called for each row individually, which could be inefficient for large result sets with complex JSON parsing.</description>
+      <recommendation>Consider batch processing of row conversions or optimizing JSON parsing for better performance with large result sets.</recommendation>
+    </issue>
+    <issue category="maintainability" severity="LOW">
+      <title>Large Method with Complex Query</title>
+      <location>Lines 25-96</location>
+      <description>The save method is quite large (71 lines) and contains a complex UPSERT query with many parameters, making it harder to maintain.</description>
+      <recommendation>Consider extracting query building logic into separate methods or using a query builder pattern to improve readability and maintainability.</recommendation>
+    </issue>
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Missing Error Handling for JSON Operations</title>
+      <location>Lines 353, 355, 359, 372</location>
+      <description>JSON parsing operations in _row_to_action could fail if database contains invalid JSON data, but there's no error handling for these cases.</description>
+      <recommendation>Add try-catch blocks around json.loads() calls with fallback to empty objects/arrays and proper logging of JSON parsing errors.</recommendation>
+    </issue>
+    <issue category="code_smell" severity="MEDIUM">
+      <title>String Parsing for Row Count Validation</title>
+      <location>Lines 178, 256, 289</location>
+      <description>Using result.split()[-1] == "1" to check affected row count is fragile and depends on PostgreSQL-specific result format.</description>
+      <recommendation>Use asyncpg's result.rowcount or more robust methods to check affected rows instead of string parsing.</recommendation>
+    </issue>
+    <issue category="code_smell" severity="LOW">
+      <title>Duplicate Filter Logic</title>
+      <location>Lines 126-145, 329-338</location>
+      <description>Filter building logic is duplicated between list_actions and count_actions methods with slight variations.</description>
+      <recommendation>Extract filter building logic into a private helper method to eliminate duplication and ensure consistency.</recommendation>
+    </issue>
+  </issues>
+
+  <summary>AsyncPG implementation of ActionRepositoryProtocol providing comprehensive CRUD operations for actions in a multi-tenant PostgreSQL environment. The implementation follows neo-commons schema-intensive patterns with proper async operations and connection pooling. While functionally complete, it has some security and performance concerns that should be addressed.</summary>
+
+  <positive_observations>
+    <observation>Excellent adherence to neo-commons schema-intensive patterns with dynamic schema support throughout all operations</observation>
+    <observation>Comprehensive implementation of ActionRepositoryProtocol with all required methods including advanced filtering and statistics</observation>
+    <observation>Proper use of asyncpg connection pooling with context managers for resource management</observation>
+    <observation>Consistent soft delete pattern implementation using deleted_at IS NULL checks across all queries</observation>
+    <observation>Well-structured _row_to_action method with proper type conversion and JSON parsing</observation>
+    <observation>Good separation of concerns with clear method responsibilities and proper async/await usage throughout</observation>
+    <observation>Sophisticated event pattern matching using PostgreSQL array operations and LIKE patterns for wildcard support</observation>
+    <observation>Comprehensive statistics tracking with proper mathematical calculations for averages and success rates</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this repository implementation</tests>
+    <documentation>Class and method docstrings present but could be more comprehensive with parameter descriptions</documentation>
+    <configuration>Uses asyncpg.Pool connection configuration, no direct configuration management in this file</configuration>
+  </context>
+
+  <checklist>
+    <item completed="true">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="false">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>

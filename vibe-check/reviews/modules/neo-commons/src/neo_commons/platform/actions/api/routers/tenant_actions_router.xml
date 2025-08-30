@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/actions/api/routers/tenant_actions_router.py</file>
+    <language>Py</language>
+    <loc>200</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="2" open_issues="4"/>
+    <metric name="performance" score="3" open_issues="2"/>
+    <metric name="maintainability" score="3" open_issues="3"/>
+    <metric name="consistency" score="4" open_issues="1"/>
+    <metric name="best_practices" score="4" open_issues="2"/>
+    <metric name="code_smell" score="3" open_issues="2"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="HIGH">
+      <title>Schema Parameter Injection Vulnerability</title>
+      <location>Lines 31, 53, 78, 98, 113, 129, 152, 168, 188</location>
+      <description>Schema parameter from get_tenant_schema_resolver dependency is passed directly to command/query methods without validation. This could enable SQL injection through malicious schema names.</description>
+      <recommendation>Add schema name validation in the resolver or in each method to ensure only allowed characters and format.</recommendation>
+    </issue>
+
+    <issue category="security" severity="HIGH">
+      <title>Raw Exception Details Exposed</title>
+      <location>Lines 39, 41, 70, 89, 142, 179, 199</location>
+      <description>Exception details are exposed directly to clients via str(e), potentially revealing sensitive internal system information including database connection details, file paths, or implementation details.</description>
+      <recommendation>Use structured error handling that logs full errors internally but returns sanitized error messages to clients.</recommendation>
+    </issue>
+
+    <issue category="security" severity="HIGH">
+      <title>Missing Authentication/Authorization</title>
+      <location>Entire file</location>
+      <description>No authentication or authorization middleware is visible on any endpoints. Tenant actions are sensitive operations that should require proper access control.</description>
+      <recommendation>Add tenant-aware authentication middleware and role-based authorization checks for all endpoints.</recommendation>
+    </issue>
+
+    <issue category="security" severity="MEDIUM">
+      <title>Tenant ID Not Validated</title>
+      <location>Lines 29, 46, 76, 95, 111, 126, 148, 165, 185</location>
+      <description>tenant_id parameter is accepted as string without validation against actual tenant existence or user access permissions.</description>
+      <recommendation>Add tenant validation middleware to ensure the tenant exists and the user has access to it.</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>Manual Pagination Implementation</title>
+      <location>Lines 174-176, 194-196</location>
+      <description>Active and healthy actions endpoints fetch all records then apply pagination in memory using Python slicing, which is inefficient for large datasets.</description>
+      <recommendation>Implement database-level pagination for find_active_actions and find_healthy_actions methods.</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>Inefficient Total Count Query</title>
+      <location>Line 67</location>
+      <description>count_actions method is called separately from the main query, potentially resulting in inconsistent counts and extra database roundtrips.</description>
+      <recommendation>Consider combining count and query operations or implementing a more efficient pagination pattern.</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Incomplete Implementation</title>
+      <location>Lines 93-106, 109-121, 146-160</location>
+      <description>Three endpoints (update, delete, execution history) are marked as TODO with HTTP 501 responses, indicating incomplete implementation.</description>
+      <recommendation>Complete the implementation or remove the endpoints until they can be properly implemented.</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Inconsistent Error Handling Pattern</title>
+      <location>Lines 35-41, 57-71, 82-90</location>
+      <description>Different endpoints use different error handling patterns - some catch ValueError separately, others don't, creating inconsistent behavior.</description>
+      <recommendation>Standardize error handling across all endpoints with a consistent pattern for common exception types.</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="LOW">
+      <title>Hard-coded Magic Numbers</title>
+      <location>Lines 47, 150, 166, 186</location>
+      <description>Default limits (50, 100) and maximum limits (1000) are hard-coded without named constants.</description>
+      <recommendation>Define pagination constants at module level for consistency and easy maintenance.</recommendation>
+    </issue>
+
+    <issue category="consistency" severity="LOW">
+      <title>Inconsistent Query Parameter Descriptions</title>
+      <location>Lines 47-52</location>
+      <description>Some query parameters have detailed descriptions while others are basic, creating inconsistent API documentation.</description>
+      <recommendation>Standardize query parameter descriptions for better API documentation consistency.</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Missing Request Validation</title>
+      <location>Lines 134-136</location>
+      <description>Action ID validation in execute endpoint is done manually in the handler rather than using Pydantic validators or FastAPI path validation.</description>
+      <recommendation>Move validation to request model or use FastAPI dependency injection for cleaner validation.</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="LOW">
+      <title>Missing Response Model for Delete</title>
+      <location>Line 109</location>
+      <description>Delete endpoint doesn't specify a response model, though it returns 204 No Content which is correct.</description>
+      <recommendation>Consider adding explicit response documentation or maintaining current pattern consistently across similar endpoints.</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Repeated Error Handling Pattern</title>
+      <location>Lines 35-41, 82-90, 140-143</location>
+      <description>Identical try/catch HTTPException patterns are repeated across multiple endpoints, violating DRY principle.</description>
+      <recommendation>Extract common error handling logic into a decorator or middleware for reuse across endpoints.</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="LOW">
+      <title>Unused tenant_id Parameter</title>
+      <location>All endpoint functions</location>
+      <description>tenant_id parameter is extracted from path but never used in the actual business logic, only for URL structure.</description>
+      <recommendation>Either use tenant_id for validation/filtering or document why it's part of the URL structure but not used in logic.</recommendation>
+    </issue>
+  </issues>
+
+  <summary>FastAPI router providing tenant-scoped action management endpoints with CRUD operations and action execution. Implements proper async patterns and follows FastAPI conventions, but has significant security vulnerabilities including missing authentication, schema injection risks, and information disclosure through raw exception exposure. Performance issues include inefficient manual pagination and separate count queries.</summary>
+
+  <positive_observations>
+    <observation>Uses proper FastAPI async patterns with appropriate status codes and response models</observation>
+    <observation>Implements comprehensive query parameter validation with proper ranges and descriptions</observation>
+    <observation>Follows neo-commons dependency injection pattern with proper service dependencies</observation>
+    <observation>Clear endpoint organization with logical grouping of related operations</observation>
+    <observation>Consistent use of ActionId value object for type safety</observation>
+    <observation>Proper HTTP method selection for RESTful operations</observation>
+    <observation>Good use of FastAPI Path and Query parameters with validation constraints</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this router. Unit tests needed for all endpoints including error cases.</tests>
+    <documentation>Basic docstrings present for all endpoints but could be enhanced with parameter details and example responses.</documentation>
+    <configuration>Router uses dependency injection for services and schema resolution, following neo-commons patterns.</configuration>
+  </context>
+
+  <checklist>
+    <item completed="false">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="false">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>

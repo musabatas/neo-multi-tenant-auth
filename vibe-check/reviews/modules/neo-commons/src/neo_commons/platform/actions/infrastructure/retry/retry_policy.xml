@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/actions/infrastructure/retry/retry_policy.py</file>
+    <language>Py</language>
+    <loc>323</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="4" open_issues="1"/>
+    <metric name="performance" score="4" open_issues="1"/>
+    <metric name="maintainability" score="3" open_issues="2"/>
+    <metric name="consistency" score="5" open_issues="0"/>
+    <metric name="best_practices" score="4" open_issues="1"/>
+    <metric name="code_smell" score="4" open_issues="1"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="MEDIUM">
+      <title>Potential Resource Exhaustion via Task Accumulation</title>
+      <location>Lines 133-181</location>
+      <description>RetryScheduler maintains a dictionary of active tasks but may accumulate cancelled or failed tasks without proper cleanup, potentially leading to memory leaks in long-running applications</description>
+      <recommendation>Implement periodic cleanup of completed/failed tasks and add resource limits for maximum concurrent retry tasks</recommendation>
+    </issue>
+    
+    <issue category="performance" severity="MEDIUM">
+      <title>Inefficient Task Management for High-Volume Scenarios</title>
+      <location>Lines 171-181</location>
+      <description>Each retry creates a new asyncio.Task without considering resource constraints, potentially overwhelming the event loop under high retry volumes</description>
+      <recommendation>Implement task pooling or semaphore-based concurrency control for retry scheduling</recommendation>
+    </issue>
+    
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Missing Structured Logging Implementation</title>
+      <location>Lines 212-215</location>
+      <description>Critical error handling in _execute_delayed_retry silently swallows exceptions with only a TODO comment for logging, making debugging and monitoring difficult</description>
+      <recommendation>Implement proper structured logging with context (execution_id, attempt_number, error_type) using the project's logging standards</recommendation>
+    </issue>
+    
+    <issue category="maintainability" severity="LOW">
+      <title>Magic Numbers in Jitter Calculation</title>
+      <location>Line 66</location>
+      <description>Jitter calculation uses hardcoded 10% (0.1) without explanation or configurability</description>
+      <recommendation>Extract jitter percentage as a configurable parameter in RetryPolicy with documentation</recommendation>
+    </issue>
+    
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Incomplete Error Classification</title>
+      <location>Lines 260-287</location>
+      <description>ErrorClassifier defaults all unknown exceptions to "handler_error", potentially misclassifying system errors that should have different retry policies</description>
+      <recommendation>Add explicit handling for unknown errors or provide configuration to customize error classification rules</recommendation>
+    </issue>
+    
+    <issue category="code_smell" severity="LOW">
+      <title>Inconsistent Type Annotations</title>
+      <location>Line 221</location>
+      <description>Uses list[str] type annotation which may not be compatible with older Python versions, while rest of file uses typing module imports</description>
+      <recommendation>Use List[str] from typing import for consistency with project patterns</recommendation>
+    </issue>
+  </issues>
+
+  <summary>Comprehensive retry policy implementation for the actions system providing exponential backoff, jitter, and error classification. Well-structured with proper validation and good separation of concerns, though needs improvements in resource management and error handling.</summary>
+
+  <positive_observations>
+    <observation>Excellent implementation of exponential backoff with configurable jitter to prevent thundering herd problems</observation>
+    <observation>Comprehensive error classification system that properly categorizes timeout, system, and handler errors for different retry strategies</observation>
+    <observation>Strong validation in RetryPolicy.__post_init__ with clear error messages for invalid configurations</observation>
+    <observation>Clean separation of concerns with distinct classes for policy, scheduling, and error classification</observation>
+    <observation>Good async/await patterns throughout with proper cancellation handling in retry scheduler</observation>
+    <observation>Flexible configuration system with from_dict/to_dict methods and predefined policy templates</observation>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this retry policy implementation</tests>
+    <documentation>Well-documented with comprehensive docstrings following Google style, clear parameter descriptions and return types</documentation>
+    <configuration>Provides good configuration flexibility with predefined policies (default, aggressive, conservative, no_retry) and custom policy creation</configuration>
+  </context>
+
+  <checklist>
+    <item completed="true">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="true">Documentation updated</item>
+    <item completed="true">Security review complete</item>
+    <item completed="true">Performance acceptable</item>
+  </checklist>
+</review>

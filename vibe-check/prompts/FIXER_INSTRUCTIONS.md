@@ -17,13 +17,30 @@ You are the Code Fixer AI. Your task is to analyze specific issues from code rev
 
 ## Precise Algorithm to Follow
 
-### Step 1: Read and Understand the Source File
+### Step 1: Read and Understand the Source File and Dependencies
 
+**Primary File Analysis:**
 - Open the source file at FILE_PATH
 - Read the complete code to understand structure and context
 - Identify the programming language and framework patterns
 - Note existing imports, dependencies, and coding style
-- Read any related files in the codebase to understand the context
+
+**Critical Dependency Analysis:**
+- **Read all imported modules** referenced in the target file
+- **Check __init__.py files** in the same directory and parent directories
+- **Examine related protocol files** if the file implements or uses protocols
+- **Review base classes** and parent classes that the target file extends
+- **Analyze calling code** that uses this file's exports
+- **Check test files** for the target file to understand expected behavior
+- **Review CLAUDE.md** thoroughly for project-specific patterns and requirements
+- **Study global scratchsheet** for discovered patterns from previous reviews
+
+**Architecture Context Verification:**
+- Verify feature module structure (domain/, application/, infrastructure/, api/)
+- Confirm protocol-based dependency injection patterns
+- Validate command/query separation if applicable
+- Check schema-intensive database operation patterns
+- Ensure clean core principle adherence
 
 ### Step 2: Analyze Issues to Fix
 
@@ -75,63 +92,108 @@ For each issue in ISSUES_TO_FIX:
 
 Always follow these project-specific patterns from CLAUDE.md:
 
-#### NeoMultiTenant Platform Patterns
-- **Feature-Based Organization**: Keep related code within feature modules
-- **Multi-Tenant Architecture**: Enforce tenant isolation at all levels
-- **Async Database Operations**: Use asyncpg for database operations, never ORMs for permission checks
-- **Repository Pattern**: All database operations through repository classes
-- **Cache Aggressively**: Redis for permissions with proper invalidation
-- **UUIDv7 Generation**: Use UUIDv7 for time-ordering and database consistency
-- **Structured Logging**: Include tenant_id, user_id, request_id context
-- **Graceful Error Handling**: Never expose internal details in error messages
-- **Performance First**: Sub-millisecond permission checks are critical
+#### Neo-Commons Platform Patterns
+- **Feature-First Organization**: Maintain strict feature boundaries with complete self-containment
+- **Protocol-Based DI**: Use @runtime_checkable Protocol for all contracts and interfaces
+- **Maximum Separation**: One file = one responsibility (creation, validation, notification, etc.)
+- **Command/Query Separation**: Split write (commands/) and read (queries/) operations completely
+- **Schema-Intensive**: Always use {schema_name} placeholders in SQL, never hardcode schemas
+- **Clean Core Principle**: Core only contains value objects, exceptions, and shared contracts
+- **Async-First**: All I/O operations must be async with proper error handling
+- **Handler Pattern**: All action handlers extend ActionHandler base class
+- **Execution Context**: Use ExecutionContext and ExecutionResult for standardized execution
+- **Configuration Schema**: All handlers provide get_config_schema() for validation
+- **Health Monitoring**: Implement health_check() method for all handlers
+- **Timeout Management**: Proper timeout handling via get_execution_timeout()
+- **Circuit Breaker**: Use circuit breaker patterns for external service calls
+- **Retry Strategies**: Implement exponential backoff for transient failures
 
-#### Import Patterns
+#### Neo-Commons Import Patterns
 ```python
-# NeoMultiTenant import style
-from src.common.exceptions import ValidationError, ResourceNotFoundError
-from src.common.database.connection import get_database_connection
-from src.features.auth.repositories.permission_repository import PermissionRepository
-from src.features.users.services.user_service import UserService
-from src.integrations.keycloak.auth import validate_token
-from src.integrations.redis.cache import get_cache_manager
+# Feature-based imports for neo-commons platform
+from .domain import Action, ActionExecution, ActionStatus
+from .domain.value_objects import ActionId, ActionType, ExecutionId
+from .application.protocols import ActionRepositoryProtocol, ActionExecutorProtocol
+from .application.commands import CreateActionCommand, ExecuteActionCommand
+from .application.queries import GetActionQuery, ListActionsQuery
+from .infrastructure.repositories import AsyncPGActionRepository
+from .infrastructure.handlers import HTTPWebhookHandler, SendGridEmailHandler
+from .api.models.requests import CreateActionRequest, ExecuteActionRequest
+from .api.models.responses import ActionResponse, ExecutionResponse
 ```
 
-#### Service Layer Pattern
+#### Neo-Commons Action Handler Pattern
 ```python
-# NeoMultiTenant service pattern with async repository
-class UserService:
-    def __init__(self, user_repo: Optional[UserRepository] = None):
-        self.user_repo = user_repo or UserRepository()
-        self.cache_manager = get_cache_manager()
+# Neo-commons action handler pattern
+from typing import Dict, Any
+from .....application.handlers.action_handler import ActionHandler
+from .....application.protocols.action_executor import ExecutionContext, ExecutionResult
+
+class EmailActionHandler(ActionHandler):
+    @property
+    def handler_name(self) -> str:
+        return "email_handler"
     
-    async def get_user_permissions(self, user_id: str, tenant_id: str) -> List[str]:
-        """Get user permissions with Redis caching."""
-        cache_key = f"permissions:{tenant_id}:{user_id}"
-        cached = await self.cache_manager.get(cache_key)
-        if cached:
-            return cached
-        
-        permissions = await self.user_repo.get_permissions(user_id, tenant_id)
-        await self.cache_manager.set(cache_key, permissions, ttl=300)
-        return permissions
+    @property
+    def supported_action_types(self) -> list[str]:
+        return ["email", "notification"]
+    
+    async def validate_config(self, config: Dict[str, Any]) -> bool:
+        """Validate handler configuration."""
+        if "smtp_host" not in config:
+            raise ValueError("Missing required config: smtp_host")
+        return True
+    
+    async def execute(self, config: Dict[str, Any], input_data: Dict[str, Any], 
+                     context: ExecutionContext) -> ExecutionResult:
+        """Execute email sending with proper error handling."""
+        try:
+            # Implementation with ExecutionResult pattern
+            return ExecutionResult(success=True, output_data={"sent": True})
+        except Exception as e:
+            return ExecutionResult(success=False, error_message=str(e))
+    
+    async def get_execution_timeout(self, config: Dict[str, Any]) -> int:
+        """Return timeout in seconds."""
+        return config.get("timeout_seconds", 30)
+    
+    async def health_check(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform health check."""
+        return {"healthy": True, "status": "OK"}
 ```
 
-#### Cache Usage
+#### Neo-Commons Protocol Pattern
 ```python
-# NeoMultiTenant Redis caching with tenant isolation
-from src.integrations.redis.cache import get_cache_manager
-from src.common.utils.tenant import get_current_tenant_id
+# Protocol-based dependency injection pattern
+from typing import Protocol, runtime_checkable
+from abc import abstractmethod
 
-cache_manager = get_cache_manager()
-tenant_id = get_current_tenant_id()
+@runtime_checkable
+class ActionRepositoryProtocol(Protocol):
+    """Protocol for action repository implementations."""
+    
+    @abstractmethod
+    async def create_action(self, action: Action) -> ActionId:
+        """Create new action."""
+        pass
+    
+    @abstractmethod
+    async def get_action(self, action_id: ActionId) -> Optional[Action]:
+        """Get action by ID."""
+        pass
 
-# Tenant-isolated cache keys
-cache_key = f"tenant:{tenant_id}:permissions:{user_id}"
-await cache_manager.set(cache_key, data, ttl=300)
-
-# Cache invalidation on permission changes
-await cache_manager.delete_pattern(f"tenant:{tenant_id}:permissions:*")
+# Implementation uses protocol
+class AsyncPGActionRepository:
+    """PostgreSQL implementation of action repository."""
+    
+    async def create_action(self, action: Action) -> ActionId:
+        # Implementation with schema placeholder
+        async with self.connection_pool.acquire() as conn:
+            result = await conn.fetchrow(
+                f'INSERT INTO "{self.schema_name}".actions (id, name, type) VALUES ($1, $2, $3) RETURNING id',
+                action.id.value, action.name, action.action_type.value
+            )
+            return ActionId(result['id'])
 ```
 
 ### Step 5: Apply Fixes Incrementally
@@ -162,20 +224,27 @@ For each fix applied:
 ## Important Rules
 
 1. **Preserve Functionality**: Never change the core behavior of the code
-2. **Follow Project Patterns**: Use existing conventions and architectural patterns
-3. **Security First**: Always prioritize security fixes
-4. **Multi-Tenant Isolation**: Ensure tenant data isolation at all levels
-5. **Performance First**: Sub-millisecond permission checks are critical
-6. **Async Patterns**: All I/O operations must be async
-7. **UUIDv7 Usage**: Use UUIDv7 for all UUID generation (time-ordered)
-8. **Repository Pattern**: Database operations through repository classes only
-9. **Redis Caching**: Implement tenant-isolated caching with proper invalidation
-10. **Structured Logging**: Include tenant_id, user_id, request_id context
-11. **Type Safety**: Add comprehensive type hints with Pydantic models
-12. **Error Handling**: Use custom exceptions, never expose internal details
-13. **Documentation**: Add docstrings following Google style
-14. **Testing Compatibility**: Ensure fixes don't break existing tests
-15. **Import Management**: Keep imports organized and remove unused ones
+2. **Follow Neo-Commons Patterns**: Use feature-first organization and protocol-based DI
+3. **Security First**: Always prioritize security fixes with proper validation
+4. **Feature Isolation**: Maintain strict feature boundaries with complete self-containment
+5. **Maximum Separation**: One file = one responsibility (creation, validation, notification, etc.)
+6. **Protocol-Based DI**: Use @runtime_checkable Protocol for all contracts
+7. **Command/Query Separation**: Split write (commands/) and read (queries/) operations
+8. **Schema-Intensive**: Always use {schema_name} placeholders, never hardcode schemas
+9. **Clean Core Principle**: Core only contains value objects, exceptions, and shared contracts
+10. **Async-First**: All I/O operations must be async with proper error handling
+11. **Handler Pattern**: All action handlers extend ActionHandler base class
+12. **Execution Context**: Use ExecutionContext and ExecutionResult patterns consistently
+13. **Configuration Schema**: All handlers must provide get_config_schema() method
+14. **Health Monitoring**: Implement health_check() method for all handlers
+15. **Timeout Management**: Proper timeout handling via get_execution_timeout()
+16. **Circuit Breaker**: Use circuit breaker patterns for external service calls
+17. **Retry Strategies**: Implement exponential backoff for transient failures
+18. **Type Safety**: Add comprehensive type hints with proper protocols
+19. **Error Handling**: Use ExecutionResult pattern, never expose internal details
+20. **Documentation**: Add docstrings following Google style with type information
+21. **Testing Compatibility**: Ensure fixes maintain testability and don't break tests
+22. **Import Management**: Use feature-based imports, remove unused ones
 
 ## Common Fix Patterns
 

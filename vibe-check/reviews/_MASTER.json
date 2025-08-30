@@ -1,515 +1,580 @@
 {
   "metadata": {
     "version": "1.0",
-    "generated": "2025-08-15T03:17:36.443118Z",
-    "total_files": 101,
-    "total_loc": 20143
+    "generated": "2025-08-30T00:06:19.455932Z",
+    "total_files": 114,
+    "total_loc": 16535
   },
   "files": {
-    "neo-commons/src/neo_commons/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/__init__.py": {
       "language": "Py",
-      "loc": 124,
+      "loc": 62,
       "status": "completed"
     },
-    "neo-commons/src/neo_commons/__version__.py": {
+    "neo-commons/src/neo_commons/platform/events/api/__init__.py": {
       "language": "Py",
-      "loc": 4,
+      "loc": 15,
       "status": "completed"
     },
-    "neo-commons/src/neo_commons/middleware/config.py": {
-      "language": "Py",
-      "loc": 369,
-      "status": "completed"
-    },
-    "neo-commons/src/neo_commons/middleware/security.py": {
-      "language": "Py",
-      "loc": 396,
-      "status": "completed"
-    },
-    "neo-commons/src/neo_commons/middleware/__init__.py": {
-      "language": "Py",
-      "loc": 69,
-      "status": "completed"
-    },
-    "neo-commons/src/neo_commons/middleware/unified_context.py": {
-      "language": "Py",
-      "loc": 586,
-      "status": "in_progress"
-    },
-    "neo-commons/src/neo_commons/database/__init__.py": {
-      "language": "Py",
-      "loc": 37,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/database/connection.py": {
-      "language": "Py",
-      "loc": 331,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/database/utils.py": {
-      "language": "Py",
-      "loc": 320,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/cache/client.py": {
-      "language": "Py",
-      "loc": 389,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/cache/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/application/__init__.py": {
       "language": "Py",
       "loc": 21,
-      "status": "not_reviewed"
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/cache/redis_operations.py": {
-      "language": "Py",
-      "loc": 197,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/config/protocols.py": {
-      "language": "Py",
-      "loc": 500,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/config/__init__.py": {
-      "language": "Py",
-      "loc": 78,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/config/base.py": {
-      "language": "Py",
-      "loc": 442,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/__init__.py": {
-      "language": "Py",
-      "loc": 168,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/utils/encryption.py": {
-      "language": "Py",
-      "loc": 386,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/utils/__init__.py": {
-      "language": "Py",
-      "loc": 100,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/utils/datetime.py": {
-      "language": "Py",
-      "loc": 366,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/utils/uuid.py": {
-      "language": "Py",
-      "loc": 345,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/repositories/__init__.py": {
-      "language": "Py",
-      "loc": 15,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/repositories/base.py": {
-      "language": "Py",
-      "loc": 367,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/models/__init__.py": {
-      "language": "Py",
-      "loc": 83,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/models/pagination.py": {
-      "language": "Py",
-      "loc": 99,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/models/base.py": {
-      "language": "Py",
-      "loc": 220,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/exceptions/service.py": {
-      "language": "Py",
-      "loc": 68,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/exceptions/domain.py": {
-      "language": "Py",
-      "loc": 86,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/exceptions/__init__.py": {
-      "language": "Py",
-      "loc": 63,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/exceptions/base.py": {
-      "language": "Py",
-      "loc": 149,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/__init__.py": {
-      "language": "Py",
-      "loc": 43,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/openapi_config.py": {
-      "language": "Py",
-      "loc": 198,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/exception_handlers.py": {
-      "language": "Py",
-      "loc": 346,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/__init__.py": {
-      "language": "Py",
-      "loc": 112,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/schema_enhancers.py": {
-      "language": "Py",
-      "loc": 271,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/specialized_routers.py": {
-      "language": "Py",
-      "loc": 324,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/tag_providers.py": {
-      "language": "Py",
-      "loc": 205,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/router_factories.py": {
-      "language": "Py",
-      "loc": 385,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/endpoints.py": {
-      "language": "Py",
-      "loc": 398,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/api/routers.py": {
-      "language": "Py",
-      "loc": 203,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/services/__init__.py": {
-      "language": "Py",
-      "loc": 15,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/services/base.py": {
-      "language": "Py",
-      "loc": 322,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/__init__.py": {
-      "language": "Py",
-      "loc": 83,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/clients/base_client.py": {
-      "language": "Py",
-      "loc": 282,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/clients/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/__init__.py": {
       "language": "Py",
       "loc": 16,
-      "status": "not_reviewed"
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/clients/async_client.py": {
-      "language": "Py",
-      "loc": 393,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/config/config.py": {
-      "language": "Py",
-      "loc": 325,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/config/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/__init__.py": {
       "language": "Py",
       "loc": 25,
-      "status": "not_reviewed"
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/config/client_config.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/value_objects/correlation_id.py": {
       "language": "Py",
-      "loc": 40,
-      "status": "not_reviewed"
+      "loc": 37,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/config/realm_config.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/value_objects/event_id.py": {
       "language": "Py",
-      "loc": 68,
-      "status": "not_reviewed"
+      "loc": 6,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/managers/token_manager.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/value_objects/event_type.py": {
       "language": "Py",
-      "loc": 347,
-      "status": "not_reviewed"
+      "loc": 6,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/managers/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/value_objects/__init__.py": {
       "language": "Py",
-      "loc": 20,
-      "status": "not_reviewed"
+      "loc": 13,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/managers/realm_manager.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/value_objects/aggregate_reference.py": {
       "language": "Py",
-      "loc": 377,
-      "status": "not_reviewed"
+      "loc": 41,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/exceptions/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/entities/event.py": {
       "language": "Py",
-      "loc": 16,
-      "status": "not_reviewed"
+      "loc": 279,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/exceptions/realm_exceptions.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/entities/__init__.py": {
       "language": "Py",
-      "loc": 27,
-      "status": "not_reviewed"
+      "loc": 9,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/operations/token_operations.py": {
+    "neo-commons/src/neo_commons/platform/events/domain/entities/event_metadata.py": {
       "language": "Py",
-      "loc": 379,
-      "status": "not_reviewed"
+      "loc": 111,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/operations/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/queries/__init__.py": {
       "language": "Py",
-      "loc": 16,
-      "status": "not_reviewed"
+      "loc": 26,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/operations/realm_operations.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/queries/event_queries.py": {
       "language": "Py",
-      "loc": 323,
-      "status": "not_reviewed"
+      "loc": 200,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/operations/user_operations.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/repositories/__init__.py": {
       "language": "Py",
-      "loc": 366,
-      "status": "not_reviewed"
+      "loc": 11,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/integrations/keycloak/operations/admin_operations.py": {
-      "language": "Py",
-      "loc": 378,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/protocols/realm_protocols.py": {
-      "language": "Py",
-      "loc": 95,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/protocols/protocols.py": {
-      "language": "Py",
-      "loc": 213,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/protocols/__init__.py": {
-      "language": "Py",
-      "loc": 48,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/protocols/token_protocols.py": {
-      "language": "Py",
-      "loc": 139,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/integrations/keycloak/protocols/client_protocols.py": {
-      "language": "Py",
-      "loc": 74,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/application/__init__.py": {
-      "language": "Py",
-      "loc": 18,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/__init__.py": {
-      "language": "Py",
-      "loc": 34,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/__init__.py": {
-      "language": "Py",
-      "loc": 78,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/interfaces/__init__.py": {
-      "language": "Py",
-      "loc": 44,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/interfaces/decorators/permission_decorators.py": {
-      "language": "Py",
-      "loc": 307,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/interfaces/dependencies/auth_dependencies.py": {
-      "language": "Py",
-      "loc": 292,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/value_objects/tenant_context.py": {
-      "language": "Py",
-      "loc": 224,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/value_objects/user_context.py": {
-      "language": "Py",
-      "loc": 227,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/value_objects/__init__.py": {
-      "language": "Py",
-      "loc": 17,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/value_objects/permission_check.py": {
-      "language": "Py",
-      "loc": 215,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/protocols/cache_protocols.py": {
-      "language": "Py",
-      "loc": 221,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/protocols/repository_protocols.py": {
-      "language": "Py",
-      "loc": 210,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/protocols/__init__.py": {
-      "language": "Py",
-      "loc": 40,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/protocols/service_protocols.py": {
-      "language": "Py",
-      "loc": 261,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/entities/permission.py": {
-      "language": "Py",
-      "loc": 168,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/entities/session.py": {
-      "language": "Py",
-      "loc": 308,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/entities/__init__.py": {
-      "language": "Py",
-      "loc": 32,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/entities/role.py": {
-      "language": "Py",
-      "loc": 201,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/domain/entities/access_control.py": {
-      "language": "Py",
-      "loc": 182,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/cache/__init__.py": {
-      "language": "Py",
-      "loc": 14,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/cache/redis_permission_cache.py": {
-      "language": "Py",
-      "loc": 291,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/cache/redis_auth_cache.py": {
-      "language": "Py",
-      "loc": 266,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/repositories/session_repository.py": {
-      "language": "Py",
-      "loc": 285,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/repositories/access_control_repository_base.py": {
-      "language": "Py",
-      "loc": 222,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/repositories/__init__.py": {
-      "language": "Py",
-      "loc": 17,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/repositories/permission_repository.py": {
-      "language": "Py",
-      "loc": 397,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/infrastructure/repositories/role_repository.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/repositories/asyncpg_event_repository.py": {
       "language": "Py",
       "loc": 313,
-      "status": "not_reviewed"
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/auth/infrastructure/repositories/access_control_repository.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/processors/redis_event_processor.py": {
       "language": "Py",
-      "loc": 282,
-      "status": "not_reviewed"
+      "loc": 552,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/auth/infrastructure/repositories/session_repository_queries.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/processors/__init__.py": {
       "language": "Py",
-      "loc": 181,
-      "status": "not_reviewed"
+      "loc": 11,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/auth/infrastructure/external/__init__.py": {
+    "neo-commons/src/neo_commons/platform/events/infrastructure/publishers/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/infrastructure/publishers/redis_event_publisher.py": {
+      "language": "Py",
+      "loc": 312,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/queries/get_event_history.py": {
+      "language": "Py",
+      "loc": 48,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/queries/get_event.py": {
+      "language": "Py",
+      "loc": 40,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/queries/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/queries/list_events.py": {
+      "language": "Py",
+      "loc": 123,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/commands/process_event.py": {
+      "language": "Py",
+      "loc": 123,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/commands/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/commands/create_event.py": {
+      "language": "Py",
+      "loc": 121,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/commands/retry_event.py": {
+      "language": "Py",
+      "loc": 89,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/protocols/event_processor.py": {
+      "language": "Py",
+      "loc": 143,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/protocols/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/protocols/event_repository.py": {
+      "language": "Py",
+      "loc": 199,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/application/protocols/event_publisher.py": {
+      "language": "Py",
+      "loc": 75,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/api/models/__init__.py": {
+      "language": "Py",
+      "loc": 13,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/api/models/responses/event_response.py": {
+      "language": "Py",
+      "loc": 153,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/api/models/responses/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/api/models/requests/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/events/api/models/requests/create_event_request.py": {
+      "language": "Py",
+      "loc": 108,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/__init__.py": {
+      "language": "Py",
+      "loc": 211,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/__init__.py": {
+      "language": "Py",
+      "loc": 88,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/__init__.py": {
+      "language": "Py",
+      "loc": 55,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/__init__.py": {
+      "language": "Py",
+      "loc": 97,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/domain/__init__.py": {
+      "language": "Py",
+      "loc": 18,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/domain/value_objects/execution_id.py": {
+      "language": "Py",
+      "loc": 54,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/domain/value_objects/action_type.py": {
+      "language": "Py",
+      "loc": 218,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/domain/value_objects/__init__.py": {
+      "language": "Py",
+      "loc": 14,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/domain/value_objects/subscription_id.py": {
+      "language": "Py",
+      "loc": 54,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/domain/value_objects/action_id.py": {
+      "language": "Py",
+      "loc": 54,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/domain/entities/__init__.py": {
       "language": "Py",
       "loc": 12,
-      "status": "not_reviewed"
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/auth/infrastructure/external/keycloak_token_validator.py": {
+    "neo-commons/src/neo_commons/platform/actions/domain/entities/action.py": {
       "language": "Py",
-      "loc": 224,
-      "status": "not_reviewed"
+      "loc": 276,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/auth/application/services/permission_service.py": {
+    "neo-commons/src/neo_commons/platform/actions/domain/entities/event_action_subscription.py": {
       "language": "Py",
-      "loc": 302,
-      "status": "not_reviewed"
+      "loc": 334,
+      "status": "completed"
     },
-    "neo-commons/src/neo_commons/auth/application/services/__init__.py": {
-      "language": "Py",
-      "loc": 17,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/application/services/access_control_utils.py": {
-      "language": "Py",
-      "loc": 72,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/application/services/access_control_service.py": {
-      "language": "Py",
-      "loc": 298,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/application/services/token_validation_service.py": {
-      "language": "Py",
-      "loc": 306,
-      "status": "not_reviewed"
-    },
-    "neo-commons/src/neo_commons/auth/application/services/role_service.py": {
+    "neo-commons/src/neo_commons/platform/actions/domain/entities/action_execution.py": {
       "language": "Py",
       "loc": 315,
-      "status": "not_reviewed"
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/registries/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/registries/handler_registry.py": {
+      "language": "Py",
+      "loc": 237,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/retry/__init__.py": {
+      "language": "Py",
+      "loc": 17,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/retry/retry_policy.py": {
+      "language": "Py",
+      "loc": 323,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/repositories/asyncpg_action_repository.py": {
+      "language": "Py",
+      "loc": 376,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/repositories/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/repositories/asyncpg_event_action_subscription_repository.py": {
+      "language": "Py",
+      "loc": 445,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/repositories/asyncpg_action_execution_repository.py": {
+      "language": "Py",
+      "loc": 622,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/executors/enhanced_action_executor.py": {
+      "language": "Py",
+      "loc": 228,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/executors/default_action_executor.py": {
+      "language": "Py",
+      "loc": 336,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/executors/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/matchers/pattern_matcher.py": {
+      "language": "Py",
+      "loc": 281,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/matchers/__init__.py": {
+      "language": "Py",
+      "loc": 17,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/__init__.py": {
+      "language": "Py",
+      "loc": 39,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/webhook/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/webhook/http_webhook_handler.py": {
+      "language": "Py",
+      "loc": 292,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/webhook/enhanced_webhook_handler.py": {
+      "language": "Py",
+      "loc": 556,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/database/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/database/simple_database_handler.py": {
+      "language": "Py",
+      "loc": 184,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/database/enhanced_database_handler.py": {
+      "language": "Py",
+      "loc": 664,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/database/tenant_schema_handler.py": {
+      "language": "Py",
+      "loc": 659,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/sms/twilio_sms_handler.py": {
+      "language": "Py",
+      "loc": 408,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/sms/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/sms/aws_sns_sms_handler.py": {
+      "language": "Py",
+      "loc": 480,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/email/template_email_handler.py": {
+      "language": "Py",
+      "loc": 502,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/email/sendgrid_email_handler.py": {
+      "language": "Py",
+      "loc": 439,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/email/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/infrastructure/handlers/email/simple_email_handler.py": {
+      "language": "Py",
+      "loc": 274,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/queries/list_actions.py": {
+      "language": "Py",
+      "loc": 123,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/queries/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/queries/get_action.py": {
+      "language": "Py",
+      "loc": 40,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/commands/__init__.py": {
+      "language": "Py",
+      "loc": 9,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/commands/create_action.py": {
+      "language": "Py",
+      "loc": 101,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/commands/execute_action.py": {
+      "language": "Py",
+      "loc": 158,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/validators/event_pattern_validator.py": {
+      "language": "Py",
+      "loc": 227,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/validators/action_config_validator.py": {
+      "language": "Py",
+      "loc": 204,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/validators/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/validators/handler_class_validator.py": {
+      "language": "Py",
+      "loc": 243,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/protocols/action_repository.py": {
+      "language": "Py",
+      "loc": 236,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/protocols/event_action_subscription_repository.py": {
+      "language": "Py",
+      "loc": 363,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/protocols/__init__.py": {
+      "language": "Py",
+      "loc": 22,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/protocols/action_executor.py": {
+      "language": "Py",
+      "loc": 132,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/protocols/action_execution_repository.py": {
+      "language": "Py",
+      "loc": 370,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/protocols/action_dispatcher.py": {
+      "language": "Py",
+      "loc": 222,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/handlers/__init__.py": {
+      "language": "Py",
+      "loc": 7,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/application/handlers/action_handler.py": {
+      "language": "Py",
+      "loc": 197,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/routers/admin_actions_router.py": {
+      "language": "Py",
+      "loc": 177,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/routers/internal_actions_router.py": {
+      "language": "Py",
+      "loc": 201,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/routers/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/routers/tenant_actions_router.py": {
+      "language": "Py",
+      "loc": 200,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/dependencies/__init__.py": {
+      "language": "Py",
+      "loc": 44,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/dependencies/action_dependencies.py": {
+      "language": "Py",
+      "loc": 181,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/__init__.py": {
+      "language": "Py",
+      "loc": 26,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/responses/action_response.py": {
+      "language": "Py",
+      "loc": 78,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/responses/action_metrics_response.py": {
+      "language": "Py",
+      "loc": 63,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/responses/__init__.py": {
+      "language": "Py",
+      "loc": 13,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/responses/execution_response.py": {
+      "language": "Py",
+      "loc": 60,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/responses/action_list_response.py": {
+      "language": "Py",
+      "loc": 37,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/requests/create_action_request.py": {
+      "language": "Py",
+      "loc": 68,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/requests/__init__.py": {
+      "language": "Py",
+      "loc": 11,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/requests/execute_action_request.py": {
+      "language": "Py",
+      "loc": 19,
+      "status": "completed"
+    },
+    "neo-commons/src/neo_commons/platform/actions/api/models/requests/update_action_request.py": {
+      "language": "Py",
+      "loc": 57,
+      "status": "completed"
     }
   }
 }

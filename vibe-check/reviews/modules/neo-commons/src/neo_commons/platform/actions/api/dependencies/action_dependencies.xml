@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<review>
+  <metadata>
+    <file>neo-commons/src/neo_commons/platform/actions/api/dependencies/action_dependencies.py</file>
+    <language>Py</language>
+    <loc>181</loc>
+    <reviewer>AI-Claude</reviewer>
+    <date>2025-08-30</date>
+    <status>complete</status>
+  </metadata>
+
+  <scores>
+    <metric name="security" score="3" open_issues="2"/>
+    <metric name="performance" score="3" open_issues="2"/>
+    <metric name="maintainability" score="2" open_issues="4"/>
+    <metric name="consistency" score="4" open_issues="1"/>
+    <metric name="best_practices" score="2" open_issues="3"/>
+    <metric name="code_smell" score="2" open_issues="5"/>
+  </scores>
+
+  <issues>
+    <issue category="security" severity="MEDIUM">
+      <title>Schema injection vulnerability in EventMatcherService</title>
+      <location>Lines 126-138, 144</location>
+      <description>Schema parameter passed directly from user input to repository methods without validation, allowing potential SQL injection via schema name manipulation</description>
+      <recommendation>Add schema validation and use schema allowlist for tenant schema resolution</recommendation>
+    </issue>
+
+    <issue category="security" severity="MEDIUM">
+      <title>Weak tenant schema resolution</title>
+      <location>Lines 173-174</location>
+      <description>Simple string concatenation for schema name (f"tenant_{tenant_id}") without validation could allow schema name manipulation</description>
+      <recommendation>Implement proper tenant ID validation and schema name whitelisting</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>N+1 query pattern in EventMatcherService</title>
+      <location>Lines 142-146</location>
+      <description>Sequential database queries for each subscription in find_matching_actions method creates N+1 query performance issue</description>
+      <recommendation>Implement batch query to fetch all actions in single database call</recommendation>
+    </issue>
+
+    <issue category="performance" severity="MEDIUM">
+      <title>Repository instance creation on every request</title>
+      <location>Lines 21-42</location>
+      <description>New repository instances created for each dependency injection call without connection pooling or caching</description>
+      <recommendation>Implement proper singleton pattern or connection pooling for repository instances</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="HIGH">
+      <title>Inline class definitions in dependency functions</title>
+      <location>Lines 87-93, 102-110, 118-151, 157-164</location>
+      <description>Service classes defined inside dependency functions making them untestable and violating separation of concerns</description>
+      <recommendation>Extract service classes to separate files with proper interfaces</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>TODO comments indicate incomplete implementation</title>
+      <location>Lines 23, 29, 35, 41, 156, 172</location>
+      <description>Multiple TODO comments suggest production-ready dependency injection container not implemented</description>
+      <recommendation>Complete dependency injection container implementation or create proper configuration strategy</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>NotImplementedError in ActionMetricsService</title>
+      <location>Line 162</location>
+      <description>Service returns instance that raises NotImplementedError, breaking system if called</description>
+      <recommendation>Either implement metrics service or remove from API until ready</recommendation>
+    </issue>
+
+    <issue category="maintainability" severity="MEDIUM">
+      <title>Inconsistent type annotations</title>
+      <location>Lines 82-84, 96-100</location>
+      <description>Some dependency functions lack return type annotations while others are properly typed</description>
+      <recommendation>Add complete type annotations for all dependency functions</recommendation>
+    </issue>
+
+    <issue category="consistency" severity="LOW">
+      <title>Mixed dependency injection patterns</title>
+      <location>Lines 46-63 vs 82-110</location>
+      <description>Some functions return commands/queries directly, others wrap in service classes</description>
+      <recommendation>Standardize on single dependency injection pattern throughout file</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Hardcoded admin schema name</title>
+      <location>Line 181</location>
+      <description>Admin schema name hardcoded as "admin" violates neo-commons schema-intensive design principles</description>
+      <recommendation>Make admin schema configurable through dependency injection container</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Missing error handling in EventMatcherService</title>
+      <location>Lines 123-149</location>
+      <description>No error handling for repository failures or invalid parameters in find_matching_actions method</description>
+      <recommendation>Add comprehensive error handling with appropriate exception types</recommendation>
+    </issue>
+
+    <issue category="best_practices" severity="MEDIUM">
+      <title>Lack of protocol interfaces for service classes</title>
+      <location>Lines 87, 102, 118, 157</location>
+      <description>Service classes lack protocol interfaces, inconsistent with neo-commons Protocol-based dependency injection</description>
+      <recommendation>Define protocols for all service interfaces following neo-commons patterns</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>God function - get_event_matcher_service</title>
+      <location>Lines 113-151</location>
+      <description>Single function contains 39 lines with embedded class definition and complex business logic</description>
+      <recommendation>Extract EventMatcherService to separate module with proper interface</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Duplicate repository dependency pattern</title>
+      <location>Lines 46-78</location>
+      <description>Repetitive pattern for command/query dependency creation with same repository injection</description>
+      <recommendation>Create factory function or use dependency injection container to reduce duplication</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="MEDIUM">
+      <title>Magic number in sorting logic</title>
+      <location>Line 149</location>
+      <description>Action priority sorting uses reverse=True without explaining priority direction</description>
+      <recommendation>Add comment explaining priority direction or use named constants</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="LOW">
+      <title>Inconsistent parameter naming</title>
+      <location>Lines 103, 119</location>
+      <description>Parameter names abbreviated inconsistently (action_repo vs sub_repo)</description>
+      <recommendation>Use consistent full parameter names for clarity</recommendation>
+    </issue>
+
+    <issue category="code_smell" severity="LOW">
+      <title>Redundant schema parameter defaults</title>
+      <location>Lines 127-129</location>
+      <description>Multiple optional parameters set to None could be simplified with **kwargs pattern</description>
+      <recommendation>Consider using **kwargs for optional filtering parameters</recommendation>
+    </issue>
+  </issues>
+
+  <summary>
+    Dependency injection module for actions system providing FastAPI dependencies for repositories, commands, queries, and services. Contains critical issues with inline service class definitions, security vulnerabilities in schema handling, and performance problems with N+1 queries. Multiple TODO comments indicate incomplete production implementation.
+  </summary>
+
+  <positive_observations>
+    <item>Proper use of FastAPI Depends() for dependency injection</item>
+    <item>Clear separation between repository, command, and query dependencies</item>
+    <item>Good use of protocol interfaces for type safety</item>
+    <item>EventMatcherService implements useful business logic for action-event matching</item>
+    <item>Functions have descriptive docstrings explaining their purpose</item>
+  </positive_observations>
+
+  <context>
+    <tests>No test files found for this dependency module</tests>
+    <documentation>Basic docstrings present but lacks usage examples</documentation>
+    <configuration>Heavy use of TODO comments for proper dependency injection container configuration</configuration>
+  </context>
+
+  <checklist>
+    <item completed="false">Lints clean</item>
+    <item completed="false">Tests present</item>
+    <item completed="false">Documentation updated</item>
+    <item completed="false">Security review complete</item>
+    <item completed="false">Performance acceptable</item>
+  </checklist>
+</review>
